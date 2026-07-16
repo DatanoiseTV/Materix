@@ -67,7 +67,21 @@ export const IconX = icon(<path d="M18 6 6 18M6 6l12 12" />);
 
 export const IconBack = icon(<path d="m15 18-6-6 6-6" />);
 
-export const IconReply = icon(<path d="M9 17H5l-2-2 2-2h4m0 4h6a4 4 0 0 0 0-8H9m0 8V9" transform="rotate(180 12 13) translate(0,2)" />);
+export const IconReply = icon(
+  <>
+    <polyline points="9 17 4 12 9 7" />
+    <path d="M20 18v-2a4 4 0 0 0-4-4H4" />
+  </>,
+);
+
+export const IconPlay = icon(<path d="M7 4v16l13-8z" />);
+
+export const IconPause = icon(
+  <>
+    <rect x="6" y="4" width="4" height="16" rx="1" />
+    <rect x="14" y="4" width="4" height="16" rx="1" />
+  </>,
+);
 
 export const IconEdit = icon(
   <path d="M17 3a2.8 2.8 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z" />,
