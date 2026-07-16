@@ -8,6 +8,9 @@ import type { MessageBody, TimelineItem } from "../core/types";
 import { encryptedMediaUrl, mediaUrl } from "../core/media";
 import { useRoomVersion } from "./hooks";
 import { Avatar } from "./components/Avatar";
+import { ContextMenu, type MenuState } from "./components/ContextMenu";
+import { EmojiPicker } from "./components/EmojiPicker";
+import { buildUserMenu } from "./userMenu";
 import {
   IconAlert,
   IconCheck,
@@ -42,15 +45,27 @@ export function Timeline({
   const prevHeight = useRef(0);
   const [loadingOlder, setLoadingOlder] = useState(false);
   const [lightbox, setLightbox] = useState<string | null>(null);
+  const [menu, setMenu] = useState<MenuState | null>(null);
+  const [picker, setPicker] = useState<{ x: number; y: number; eventId: string } | null>(null);
   const { showError } = useToast();
 
   const items = handle.timeline();
 
-  // Reset stickiness when switching rooms.
+  // On room open: jump to the first unread (read marker) when present,
+  // otherwise to the bottom.
   useEffect(() => {
-    stickToBottom.current = true;
     const el = scrollRef.current;
-    if (el) el.scrollTop = el.scrollHeight;
+    if (!el) return;
+    const marker = el.querySelector(".read-marker");
+    if (marker) {
+      stickToBottom.current = false;
+      (marker as HTMLElement).scrollIntoView({ block: "center" });
+      // If the marker is near the end anyway, resume bottom-following.
+      if (el.scrollHeight - el.scrollTop - el.clientHeight < 120) stickToBottom.current = true;
+    } else {
+      stickToBottom.current = true;
+      el.scrollTop = el.scrollHeight;
+    }
   }, [handle.roomId]);
 
   // Keep the view pinned to the bottom on new messages; preserve position
@@ -98,6 +113,8 @@ export function Timeline({
               onReply={onReply}
               onEdit={onEdit}
               onZoom={setLightbox}
+              onUserMenu={setMenu}
+              onEmojiPicker={setPicker}
             />
           ))}
           {items.length === 0 && (
@@ -116,6 +133,14 @@ export function Timeline({
           <img src={lightbox} alt="" />
         </div>
       )}
+      {menu && <ContextMenu menu={menu} onClose={() => setMenu(null)} />}
+      {picker && (
+        <EmojiPicker
+          anchor={picker}
+          onClose={() => setPicker(null)}
+          onPick={(emoji) => handle.react(picker.eventId, emoji).catch(showError)}
+        />
+      )}
     </>
   );
 }
@@ -127,6 +152,8 @@ function TimelineRow({
   onReply,
   onEdit,
   onZoom,
+  onUserMenu,
+  onEmojiPicker,
 }: {
   item: TimelineItem;
   account: MatrixAccount;
@@ -134,8 +161,19 @@ function TimelineRow({
   onReply: (item: TimelineItem) => void;
   onEdit: (item: TimelineItem) => void;
   onZoom: (url: string) => void;
+  onUserMenu: (menu: MenuState) => void;
+  onEmojiPicker: (p: { x: number; y: number; eventId: string }) => void;
 }) {
-  const { showError } = useToast();
+  const { show, showError } = useToast();
+
+  const openUserMenu = (e: React.MouseEvent) => {
+    e.preventDefault();
+    onUserMenu({
+      x: e.clientX,
+      y: e.clientY,
+      items: buildUserMenu(account, item.sender.userId, { show, showError }),
+    });
+  };
 
   if (item.kind === "day-divider") {
     return <div className="day-divider">{formatDayDivider(item.ts)}</div>;
@@ -156,15 +194,29 @@ function TimelineRow({
     <div className={`msg-row${mine ? " mine" : ""}${item.groupStart ? " group-start" : ""}`}>
       <div className="msg-avatar-slot">
         {item.groupStart && (
-          <Avatar account={account} mxc={item.sender.avatarUrl} name={item.sender.name} id={item.sender.userId} size={36} />
+          <button
+            className="avatar-btn"
+            onClick={openUserMenu}
+            onContextMenu={openUserMenu}
+            aria-label={`Actions for ${item.sender.name}`}
+            aria-haspopup="menu"
+          >
+            <Avatar account={account} mxc={item.sender.avatarUrl} name={item.sender.name} id={item.sender.userId} size={36} />
+          </button>
         )}
       </div>
       <div className="msg-content">
         {item.groupStart && !mine && (
           <div className="msg-meta">
-            <span className="msg-sender" style={{ color: `hsl(${hashHue(item.sender.userId)} 55% 45%)` }}>
+            <button
+              className="msg-sender"
+              style={{ color: `hsl(${hashHue(item.sender.userId)} 55% 45%)` }}
+              onClick={openUserMenu}
+              onContextMenu={openUserMenu}
+              aria-haspopup="menu"
+            >
               {item.sender.name}
-            </span>
+            </button>
             <span className="msg-time">{formatTime(item.ts)}</span>
           </div>
         )}
@@ -227,18 +279,21 @@ function TimelineRow({
           >
             <IconTrash size={15} />
           </button>
-          <button onClick={() => reactMore(react)} title="More reactions" aria-label="More reactions">
+          <button
+            onClick={(e) => {
+              const r = e.currentTarget.getBoundingClientRect();
+              onEmojiPicker({ x: r.left - 260, y: r.bottom + 6, eventId: item.eventId! });
+            }}
+            title="More reactions"
+            aria-label="More reactions"
+            aria-haspopup="dialog"
+          >
             <IconSmile size={15} />
           </button>
         </div>
       )}
     </div>
   );
-}
-
-function reactMore(react: (key: string) => void) {
-  const key = prompt("React with emoji:");
-  if (key?.trim()) react(key.trim());
 }
 
 function MsgFooter({ item, handle }: { item: TimelineItem; handle: RoomHandle }) {

@@ -72,6 +72,20 @@ export function markdownToMatrixHtml(text: string): string | undefined {
   return sanitizeIncomingHtml(html);
 }
 
+/** One-line plain-text preview: reply fallback and markdown decoration removed. */
+export function previewText(body: string): string {
+  let s = stripReplyFallbackText(body).split("\n").find((l) => l.trim()) ?? "";
+  s = s
+    .replace(/!?\[([^\]]*)\]\([^)]*\)/g, "$1") // links/images -> label
+    .replace(/(\*\*|__)(.+?)\1/g, "$2")
+    .replace(/(\*|_)(.+?)\1/g, "$2")
+    .replace(/~~(.+?)~~/g, "$1")
+    .replace(/`{1,3}([^`]*)`{1,3}/g, "$1")
+    .replace(/^#{1,6}\s+/, "")
+    .replace(/^>\s?/, "");
+  return s.trim();
+}
+
 export function escapeHtml(s: string): string {
   return s
     .replace(/&/g, "&amp;")

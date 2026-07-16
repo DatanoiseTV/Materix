@@ -25,6 +25,7 @@ import type {
   UserSearchResult,
 } from "./types";
 import { RoomHandle } from "./roomHandle";
+import { previewText } from "./markdown";
 import { CryptoFacade, cryptoCallbacks } from "./crypto";
 import { Emitter } from "./emitter";
 import { toMaterixError } from "./errors";
@@ -57,7 +58,6 @@ export class MatrixAccount {
       indexedDB: window.indexedDB,
       dbName: `materix-sync-${this.key}`,
     });
-    await store.startup();
     this.client = createClient({
       baseUrl: this.session.homeserverUrl,
       accessToken: this.session.accessToken,
@@ -69,6 +69,8 @@ export class MatrixAccount {
       cryptoCallbacks,
     });
     this.crypto.bind(this.client);
+    // Must run after the store is assigned to the client (SDK requirement).
+    await store.startup();
 
     try {
       await this.client.initRustCrypto({ cryptoDatabasePrefix: `materix-crypto-${this.key}` });
@@ -215,7 +217,9 @@ export class MatrixAccount {
                 ? "Audio"
                 : msgtype === "m.file"
                   ? "File"
-                  : ((content.body as string) ?? "").split("\n")[0];
+                  : msgtype === "m.key.verification.request"
+                    ? "Verification request"
+                    : previewText((content.body as string) ?? "");
       }
       return { ts: ev.getTs(), senderName, preview: preview.slice(0, 120) };
     }

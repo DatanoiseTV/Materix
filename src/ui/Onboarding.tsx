@@ -9,7 +9,16 @@ import { useToast } from "./components/Toast";
 
 const SUGGESTED_SERVERS = ["matrix.org", "mozilla.org", "fedora.im"];
 
-export function Onboarding({ onDone, onCancel }: { onDone: () => void; onCancel?: () => void }) {
+export function Onboarding({
+  onDone,
+  onCancel,
+  embedded,
+}: {
+  onDone: () => void;
+  onCancel?: () => void;
+  /** Render just the card (for the add-account modal) instead of the full page. */
+  embedded?: boolean;
+}) {
   const [step, setStep] = useState<"server" | "credentials">("server");
   const [server, setServer] = useState("matrix.org");
   const [flows, setFlows] = useState<{ password: boolean; sso: boolean } | null>(null);
@@ -78,14 +87,13 @@ export function Onboarding({ onDone, onCancel }: { onDone: () => void; onCancel?
     }
   }
 
-  return (
-    <div className="onboarding">
-      <div className="onboarding-card">
+  const card = (
+    <div className="onboarding-card">
         <div className="onboarding-logo">
           <div className="onboarding-logo-mark">M</div>
           <div>
-            <h1>Materix</h1>
-            <p className="onboarding-sub">Secure messaging on Matrix</p>
+            <h1>{embedded ? "Add account" : "Materix"}</h1>
+            <p className="onboarding-sub">{embedded ? "Sign in to another Matrix account" : "Secure messaging on Matrix"}</p>
           </div>
         </div>
 
@@ -194,7 +202,9 @@ export function Onboarding({ onDone, onCancel }: { onDone: () => void; onCancel?
             </div>
           </form>
         )}
-      </div>
     </div>
   );
+
+  if (embedded) return card;
+  return <div className="onboarding">{card}</div>;
 }

@@ -5,6 +5,8 @@ import { accountManager } from "../core/manager";
 import { useRoomVersion, useRoomsVersion } from "./hooks";
 import type { Selection } from "./RoomList";
 import { Avatar } from "./components/Avatar";
+import { ContextMenu, type MenuState } from "./components/ContextMenu";
+import { buildUserMenu } from "./userMenu";
 import { IconLock, IconLogout, IconStar, IconX } from "./components/Icons";
 import { useToast } from "./components/Toast";
 
@@ -22,6 +24,7 @@ export function DetailsPane({
   useRoomVersion(account, selection.roomId);
   const [inviteInput, setInviteInput] = useState("");
   const [inviting, setInviting] = useState(false);
+  const [menu, setMenu] = useState<MenuState | null>(null);
   const { show, showError } = useToast();
 
   if (!account) return null;
@@ -138,35 +141,45 @@ export function DetailsPane({
           <h3>{members.length} members</h3>
           <div>
             {members.slice(0, 100).map((m) => (
-              <div key={m.userId} className="member-row">
+              <button
+                key={m.userId}
+                className="member-row"
+                title={m.userId}
+                aria-haspopup="menu"
+                onClick={(e) => {
+                  e.preventDefault();
+                  setMenu({
+                    x: e.clientX,
+                    y: e.clientY,
+                    items: buildUserMenu(account, m.userId, {
+                      show,
+                      showError,
+                      canKick: details.canKick,
+                      onKick: () => {
+                        if (confirm(`Remove ${m.name} from the room?`)) handle!.kick(m.userId).catch(showError);
+                      },
+                    }),
+                  });
+                }}
+                onContextMenu={(e) => {
+                  e.preventDefault();
+                  e.currentTarget.click();
+                }}
+              >
                 <Avatar account={account} mxc={m.avatarUrl} name={m.name} id={m.userId} size={32} />
-                <span className="member-name" title={m.userId}>
-                  {m.name}
-                </span>
+                <span className="member-name">{m.name}</span>
                 {m.powerLevel >= 100 ? (
                   <span className="member-pl">Admin</span>
                 ) : m.powerLevel >= 50 ? (
                   <span className="member-pl">Mod</span>
                 ) : null}
-                {details.canKick && m.userId !== account.info().userId && (
-                  <button
-                    className="icon-btn danger"
-                    style={{ width: 26, height: 26 }}
-                    title={`Remove ${m.name}`}
-                    aria-label={`Remove ${m.name}`}
-                    onClick={() => {
-                      if (confirm(`Remove ${m.name} from the room?`)) handle!.kick(m.userId).catch(showError);
-                    }}
-                  >
-                    <IconX size={13} />
-                  </button>
-                )}
-              </div>
+              </button>
             ))}
             {members.length > 100 && <div className="field-hint">Showing first 100 members.</div>}
           </div>
         </div>
       </div>
+      {menu && <ContextMenu menu={menu} onClose={() => setMenu(null)} />}
     </aside>
   );
 }

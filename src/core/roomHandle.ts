@@ -37,6 +37,10 @@ const RENDERED_STATE = new Set<string>([
 ]);
 
 export class RoomHandle {
+  /** Read-marker position frozen when the room was opened, so it doesn't
+   * vanish the moment we send the read receipt. */
+  private frozenMarker: string | null = null;
+
   constructor(
     private client: MatrixClient,
     private room: Room,
@@ -46,19 +50,26 @@ export class RoomHandle {
     return this.room.roomId;
   }
 
+  /** Capture the current read position; call when the user opens the room. */
+  snapshotReadMarker(): void {
+    const myUserId = this.client.getUserId()!;
+    const events = this.room.getLiveTimeline().getEvents();
+    let readUpTo = this.room.getEventReadUpTo(myUserId, false);
+    if (readUpTo) {
+      const idx = events.findIndex((e) => e.getId() === readUpTo);
+      // Marker is pointless when nothing follows it, or only our own sends do.
+      if (idx === -1 || idx === events.length - 1 || events.slice(idx + 1).every((e) => e.getSender() === myUserId)) {
+        readUpTo = null;
+      }
+    }
+    this.frozenMarker = readUpTo;
+  }
+
   /** Build the renderable timeline snapshot (oldest first). */
   timeline(): TimelineItem[] {
     const myUserId = this.client.getUserId()!;
     const events = this.room.getLiveTimeline().getEvents();
-    let readUpTo = this.room.getEventReadUpTo(myUserId, false);
-    // Suppress the marker when everything after it is our own sends —
-    // "New messages" above your own message reads as a bug.
-    if (readUpTo) {
-      const idx = events.findIndex((e) => e.getId() === readUpTo);
-      if (idx >= 0 && events.slice(idx + 1).every((e) => e.getSender() === myUserId)) {
-        readUpTo = null;
-      }
-    }
+    const readUpTo = this.frozenMarker;
     const items: TimelineItem[] = [];
     let lastDay = "";
     let prev: { sender: string; ts: number } | null = null;
@@ -121,6 +132,15 @@ export class RoomHandle {
       const content = ev.getContent();
       // Edit events render through their target, not standalone.
       if (content["m.relates_to"]?.rel_type === "m.replace") return null;
+      // Verification requests are handled by the verification dialog, not
+      // rendered as chat text (their fallback body is confusing).
+      if (content.msgtype === "m.key.verification.request") {
+        return {
+          ...base,
+          kind: "state",
+          stateText: `${sender.name} sent a verification request`,
+        };
+      }
       const body = this.toBody(content, type === "m.sticker");
       if (!body) return null;
       const status = ev.status;

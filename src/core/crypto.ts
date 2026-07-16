@@ -83,6 +83,25 @@ export class CryptoFacade {
     return this.track(req);
   }
 
+  /** Verify another user via an in-room request in your DM (the standard Matrix flow). */
+  async startUserVerification(userId: string, roomId: string): Promise<SasFlow> {
+    const crypto = this.client.getCrypto()!;
+    const req = await crypto.requestVerificationDM(userId, roomId);
+    return this.track(req);
+  }
+
+  /** Whether the other user is cross-signing-verified by us. */
+  async userVerified(userId: string): Promise<boolean> {
+    const crypto = this.client.getCrypto();
+    if (!crypto) return false;
+    try {
+      const status = await crypto.getUserVerificationStatus(userId);
+      return status.isCrossSigningVerified();
+    } catch {
+      return false;
+    }
+  }
+
   /** Verify this session against another of the user's own sessions. */
   async startOwnVerification(): Promise<SasFlow> {
     const crypto = this.client.getCrypto()!;
@@ -121,6 +140,29 @@ export class CryptoFacade {
     const crypto = this.client.getCrypto();
     if (!crypto) return false;
     return crypto.isCrossSigningReady();
+  }
+
+  /**
+   * Aggregate security state driving the first-run banner:
+   * - "needs-setup": account has no cross-signing identity — offer setup.
+   * - "needs-verify": identity exists but this session isn't verified — offer
+   *   verification against another device or recovery key entry.
+   * - "ok" / "unavailable" otherwise.
+   */
+  async securityState(): Promise<"needs-setup" | "needs-verify" | "ok" | "unavailable"> {
+    const crypto = this.client.getCrypto();
+    if (!crypto) return "unavailable";
+    try {
+      const hasIdentity = await crypto.userHasCrossSigningKeys();
+      if (!hasIdentity) return "needs-setup";
+      const status = await crypto.getDeviceVerificationStatus(
+        this.client.getUserId()!,
+        this.client.getDeviceId()!,
+      );
+      return status?.crossSigningVerified ? "ok" : "needs-verify";
+    } catch {
+      return "unavailable";
+    }
   }
 
   async backupStatus(): Promise<KeyBackupStatus> {

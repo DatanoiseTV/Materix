@@ -33,7 +33,10 @@ export function ChatPane({
   const handle = useMemo(() => {
     if (!account || !selection) return null;
     try {
-      return account.room(selection.roomId);
+      const h = account.room(selection.roomId);
+      // Freeze the unread marker at open, so it survives the read receipt.
+      h.snapshotReadMarker();
+      return h;
     } catch {
       return null;
     }

@@ -14,11 +14,13 @@ type Tab = "dm" | "group" | "join";
 export function NewChatDialog({
   onClose,
   onOpenRoom,
+  initialTab = "dm",
 }: {
   onClose: () => void;
   onOpenRoom: (sel: Selection) => void;
+  initialTab?: Tab;
 }) {
-  const [tab, setTab] = useState<Tab>("dm");
+  const [tab, setTab] = useState<Tab>(initialTab);
   const accounts = accountManager.list();
   const [accountKey, setAccountKey] = useState(accountManager.active ?? accounts[0]?.key ?? "");
   const account = accountManager.tryAccount(accountKey);

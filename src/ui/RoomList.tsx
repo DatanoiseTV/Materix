@@ -1,11 +1,12 @@
 // Left column: account rail + unified room list across all accounts.
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { accountManager } from "../core/manager";
 import type { RoomSummary } from "../core/types";
 import { useAccounts, useClock, useRoomsVersion } from "./hooks";
 import { Avatar } from "./components/Avatar";
-import { IconChat, IconLock, IconPlus, IconSearch, IconSettings } from "./components/Icons";
+import { ContextMenu, type MenuState } from "./components/ContextMenu";
+import { IconChat, IconLock, IconPlus, IconSearch, IconSettings, IconShield } from "./components/Icons";
 import { formatListTime, typingText } from "./format";
 import { useToast } from "./components/Toast";
 
@@ -13,6 +14,8 @@ export interface Selection {
   accountKey: string;
   roomId: string;
 }
+
+export type NewChatTab = "dm" | "group" | "join";
 
 export function AccountRail({
   onAddAccount,
@@ -65,15 +68,18 @@ export function RoomListPane({
   selection,
   onSelect,
   onNewChat,
+  onOpenSecurity,
 }: {
   selection: Selection | null;
   onSelect: (sel: Selection) => void;
-  onNewChat: () => void;
+  onNewChat: (tab: NewChatTab) => void;
+  onOpenSecurity: (accountKey: string) => void;
 }) {
   useRoomsVersion();
   useAccounts();
   const now = useClock(30_000);
   const [filter, setFilter] = useState("");
+  const [menu, setMenu] = useState<MenuState | null>(null);
   const { showError, show } = useToast();
 
   const accounts = accountManager.list();
@@ -108,10 +114,28 @@ export function RoomListPane({
     <div className="rooms-pane">
       <div className="rooms-header">
         <h1>Chats</h1>
-        <button className="icon-btn" onClick={onNewChat} title="New chat" aria-label="New chat">
+        <button
+          className="icon-btn"
+          onClick={(e) => {
+            const r = e.currentTarget.getBoundingClientRect();
+            setMenu({
+              x: r.left,
+              y: r.bottom + 4,
+              items: [
+                { label: "New direct message", onClick: () => onNewChat("dm") },
+                { label: "New group", onClick: () => onNewChat("group") },
+                { label: "Join a room", onClick: () => onNewChat("join") },
+              ],
+            });
+          }}
+          title="New chat"
+          aria-label="New chat"
+          aria-haspopup="menu"
+        >
           <IconPlus size={20} />
         </button>
       </div>
+      <SecurityBanner onOpenSecurity={onOpenSecurity} />
       <div className="search-box">
         <IconSearch size={16} />
         <input
@@ -175,6 +199,7 @@ export function RoomListPane({
           rooms={chats}
           selection={selection}
           onSelect={onSelect}
+          onMenu={setMenu}
           now={now}
           multiAccount={multiAccount}
           colorOf={colorOf}
@@ -185,6 +210,7 @@ export function RoomListPane({
             rooms={lowPriority}
             selection={selection}
             onSelect={onSelect}
+            onMenu={setMenu}
             now={now}
             multiAccount={multiAccount}
             colorOf={colorOf}
@@ -202,7 +228,7 @@ export function RoomListPane({
               <>
                 <h2 style={{ fontSize: "var(--fs-lg)" }}>No chats yet</h2>
                 <p>Start a conversation or join a room to get going.</p>
-                <button className="btn primary" onClick={onNewChat}>
+                <button className="btn primary" onClick={() => onNewChat("dm")}>
                   Start a chat
                 </button>
               </>
@@ -210,6 +236,71 @@ export function RoomListPane({
           </div>
         )}
       </div>
+      {menu && <ContextMenu menu={menu} onClose={() => setMenu(null)} />}
+    </div>
+  );
+}
+
+/** First-run E2EE nudge for the active account: set up backup / verify session. */
+function SecurityBanner({ onOpenSecurity }: { onOpenSecurity: (accountKey: string) => void }) {
+  useAccounts();
+  const activeKey = accountManager.active;
+  const account = accountManager.tryAccount(activeKey);
+  const [state, setState] = useState<"needs-setup" | "needs-verify" | "ok" | "unavailable" | "loading">("loading");
+  const [dismissed, setDismissed] = useState<string[]>(() =>
+    JSON.parse(localStorage.getItem("materix.securityDismissed") ?? "[]"),
+  );
+
+  useEffect(() => {
+    if (!account) return;
+    let alive = true;
+    const check = () => {
+      account.crypto.securityState().then((s) => {
+        if (alive) setState(s);
+      });
+    };
+    check();
+    const offStatus = account.crypto.events.on("status", check);
+    // Sync state affects crypto readiness; re-check once shortly after mount.
+    const t = setTimeout(check, 5000);
+    return () => {
+      alive = false;
+      offStatus();
+      clearTimeout(t);
+    };
+  }, [account]);
+
+  if (!account || !activeKey) return null;
+  if (state !== "needs-setup" && state !== "needs-verify") return null;
+  if (dismissed.includes(activeKey)) return null;
+
+  return (
+    <div className="security-banner">
+      <IconShield size={22} />
+      <span className="banner-text">
+        <strong>{state === "needs-setup" ? "Set up secure backup" : "Verify this session"}</strong>
+        {state === "needs-setup"
+          ? "Keep your encrypted messages safe on every device."
+          : "Access your encrypted history on this device."}
+      </span>
+      <span className="banner-actions">
+        <button className="btn primary small" onClick={() => onOpenSecurity(activeKey)}>
+          {state === "needs-setup" ? "Set up" : "Verify"}
+        </button>
+        <button
+          className="icon-btn"
+          style={{ width: 26, height: 26 }}
+          aria-label="Dismiss"
+          title="Dismiss"
+          onClick={() => {
+            const next = [...dismissed, activeKey];
+            setDismissed(next);
+            localStorage.setItem("materix.securityDismissed", JSON.stringify(next));
+          }}
+        >
+          ✕
+        </button>
+      </span>
     </div>
   );
 }
@@ -219,6 +310,7 @@ function RoomSection({
   rooms,
   selection,
   onSelect,
+  onMenu,
   now,
   multiAccount,
   colorOf,
@@ -227,11 +319,48 @@ function RoomSection({
   rooms: RoomSummary[];
   selection: Selection | null;
   onSelect: (sel: Selection) => void;
+  onMenu: (menu: MenuState) => void;
   now: number;
   multiAccount: boolean;
   colorOf: (key: string) => string;
 }) {
+  const { show, showError } = useToast();
   if (rooms.length === 0) return null;
+
+  const openMenu = (e: React.MouseEvent, r: RoomSummary) => {
+    e.preventDefault();
+    const account = accountManager.tryAccount(r.accountKey);
+    if (!account) return;
+    onMenu({
+      x: e.clientX,
+      y: e.clientY,
+      items: [
+        {
+          label: "Mark as read",
+          onClick: () => account.room(r.roomId).markRead().catch(showError),
+        },
+        {
+          label: r.isFavorite ? "Remove from favorites" : "Add to favorites",
+          onClick: () => account.setRoomTag(r.roomId, "m.favourite", !r.isFavorite).catch(showError),
+        },
+        {
+          label: r.isLowPriority ? "Restore priority" : "Mark low priority",
+          onClick: () => account.setRoomTag(r.roomId, "m.lowpriority", !r.isLowPriority).catch(showError),
+        },
+        {
+          label: "Copy room address",
+          onClick: () => navigator.clipboard.writeText(r.roomId).then(() => show("Copied.")),
+        },
+        {
+          label: "Leave",
+          danger: true,
+          onClick: () => {
+            if (confirm(`Leave "${r.name}"?`)) account.room(r.roomId).leave().catch(showError);
+          },
+        },
+      ],
+    });
+  };
   return (
     <div className="rooms-section">
       {title && <div className="rooms-section-title">{title}</div>}
@@ -243,6 +372,7 @@ function RoomSection({
             key={r.accountKey + r.roomId}
             className={`room-item${selected ? " selected" : ""}${r.unreadCount > 0 ? " unread" : ""}`}
             onClick={() => onSelect({ accountKey: r.accountKey, roomId: r.roomId })}
+            onContextMenu={(e) => openMenu(e, r)}
             aria-current={selected}
           >
             <Avatar

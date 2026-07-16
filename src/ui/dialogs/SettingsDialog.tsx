@@ -4,13 +4,15 @@
 import { useEffect, useState } from "react";
 import { accountManager } from "../../core/manager";
 import type { MatrixAccount } from "../../core/account";
-import type { DeviceSummary, KeyBackupStatus, SasFlow } from "../../core/types";
+import type { DeviceSummary, SasFlow } from "../../core/types";
 import { Modal } from "../components/Modal";
 import { Avatar } from "../components/Avatar";
-import { IconKey, IconLogout, IconMonitor, IconMoon, IconShieldCheck, IconSun } from "../components/Icons";
+import { IconLogout, IconMonitor, IconMoon, IconShield, IconSun } from "../components/Icons";
 import { useAccounts } from "../hooks";
 import { useToast } from "../components/Toast";
 import { getThemePref, setThemePref, type ThemePref } from "../theme";
+import { getPrefs, setPref, type NotificationMode } from "../prefs";
+import { SecurityDialog } from "./SecurityDialog";
 
 export function SettingsDialog({
   onClose,
@@ -24,6 +26,7 @@ export function SettingsDialog({
   useAccounts();
   const accounts = accountManager.list();
   const [theme, setTheme] = useState<ThemePref>(getThemePref());
+  const [notifMode, setNotifMode] = useState<NotificationMode>(getPrefs().notifications);
   const { show, showError } = useToast();
 
   return (
@@ -52,6 +55,35 @@ export function SettingsDialog({
                 {icon} {label}
               </button>
             ))}
+          </div>
+        </div>
+
+        <div className="settings-section">
+          <h3>Notifications</h3>
+          <div className="theme-picker" role="radiogroup" aria-label="Notification privacy">
+            {(
+              [
+                ["preview", "Name and message"],
+                ["name", "Name only"],
+                ["off", "Off"],
+              ] as [NotificationMode, string][]
+            ).map(([value, label]) => (
+              <button
+                key={value}
+                role="radio"
+                aria-checked={notifMode === value}
+                className={`chip${notifMode === value ? " selected" : ""}`}
+                onClick={() => {
+                  setNotifMode(value);
+                  setPref("notifications", value);
+                }}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <div className="field-hint">
+            "Name only" shows who wrote without any message content — useful on shared screens.
           </div>
         </div>
 
@@ -94,22 +126,15 @@ function AccountSettings({
   const info = account.info();
   const [expanded, setExpanded] = useState(false);
   const [devices, setDevices] = useState<DeviceSummary[]>([]);
-  const [backup, setBackup] = useState<KeyBackupStatus | null>(null);
-  const [verified, setVerified] = useState<boolean | null>(null);
-  const [crossSigningReady, setCrossSigningReady] = useState(false);
+  const [securityState, setSecurityState] = useState<string>("loading");
   const [displayName, setDisplayName] = useState(info.displayName);
   const [busy, setBusy] = useState(false);
-  const [securityFlow, setSecurityFlow] = useState<"none" | "setup-password" | "show-key" | "restore">("none");
-  const [setupPassword, setSetupPassword] = useState("");
-  const [recoveryKeyOut, setRecoveryKeyOut] = useState("");
-  const [recoveryKeyIn, setRecoveryKeyIn] = useState("");
+  const [securityOpen, setSecurityOpen] = useState(false);
   const { show, showError } = useToast();
 
   const refresh = () => {
     account.crypto.ownDevices().then(setDevices).catch(() => undefined);
-    account.crypto.backupStatus().then(setBackup).catch(() => undefined);
-    account.crypto.isThisDeviceVerified().then(setVerified).catch(() => undefined);
-    account.crypto.crossSigningReady().then(setCrossSigningReady).catch(() => undefined);
+    account.crypto.securityState().then(setSecurityState).catch(() => undefined);
   };
 
   useEffect(() => {
@@ -186,154 +211,27 @@ function AccountSettings({
             <div className="switch-row">
               <div>
                 <div className="switch-title" style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                  <IconShieldCheck size={16} />
-                  This session
+                  <IconShield size={16} />
+                  Encryption
                 </div>
                 <div className="switch-sub">
-                  {verified === null ? "Checking…" : verified ? "Verified" : "Not verified"}
-                </div>
-              </div>
-              {verified === false && crossSigningReady && (
-                <button
-                  className="btn primary small"
-                  onClick={async () => {
-                    try {
-                      onStartVerification(await account.crypto.startOwnVerification());
-                    } catch (e) {
-                      showError(e);
-                    }
-                  }}
-                >
-                  Verify with another device
-                </button>
-              )}
-            </div>
-
-            <div className="switch-row">
-              <div>
-                <div className="switch-title" style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                  <IconKey size={16} />
-                  Key backup
-                </div>
-                <div className="switch-sub">
-                  {backup === null
+                  {securityState === "loading"
                     ? "Checking…"
-                    : backup.enabled
-                      ? backup.trusted
-                        ? `Active (version ${backup.version})`
-                        : "Exists — enter your recovery key to connect"
-                      : "Not set up"}
+                    : securityState === "ok"
+                      ? "Session verified, backup connected"
+                      : securityState === "needs-setup"
+                        ? "Secure backup not set up"
+                        : securityState === "needs-verify"
+                          ? "This session is not verified"
+                          : "Unavailable"}
                 </div>
               </div>
-              {backup && !backup.enabled && (
-                <button className="btn primary small" onClick={() => setSecurityFlow("setup-password")}>
-                  Set up
-                </button>
-              )}
-              {backup?.enabled && !backup.trusted && (
-                <button className="btn primary small" onClick={() => setSecurityFlow("restore")}>
-                  Restore
+              {(securityState === "needs-setup" || securityState === "needs-verify" || securityState === "ok") && (
+                <button className="btn primary small" onClick={() => setSecurityOpen(true)}>
+                  Manage
                 </button>
               )}
             </div>
-
-            {securityFlow === "setup-password" && (
-              <div className="field">
-                <label>Account password (needed to publish signing keys)</label>
-                <input
-                  type="password"
-                  value={setupPassword}
-                  onChange={(e) => setSetupPassword(e.target.value)}
-                  autoComplete="current-password"
-                />
-                <div style={{ display: "flex", gap: "var(--sp-2)", marginTop: "var(--sp-1)" }}>
-                  <button className="btn secondary small" onClick={() => setSecurityFlow("none")}>
-                    Cancel
-                  </button>
-                  <button
-                    className="btn primary small"
-                    disabled={busy || !setupPassword}
-                    onClick={async () => {
-                      setBusy(true);
-                      try {
-                        const key = await account.crypto.setupSecurity(setupPassword);
-                        setRecoveryKeyOut(key);
-                        setSecurityFlow("show-key");
-                        setSetupPassword("");
-                        refresh();
-                      } catch (e) {
-                        showError(e);
-                      } finally {
-                        setBusy(false);
-                      }
-                    }}
-                  >
-                    {busy ? <span className="spinner" /> : "Continue"}
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {securityFlow === "show-key" && (
-              <div className="field">
-                <label>Your recovery key — store it somewhere safe. It is shown only once.</label>
-                <div className="recovery-key-box">{recoveryKeyOut}</div>
-                <div style={{ display: "flex", gap: "var(--sp-2)", marginTop: "var(--sp-1)" }}>
-                  <button
-                    className="btn secondary small"
-                    onClick={() => navigator.clipboard.writeText(recoveryKeyOut).then(() => show("Copied."))}
-                  >
-                    Copy
-                  </button>
-                  <button
-                    className="btn primary small"
-                    onClick={() => {
-                      setRecoveryKeyOut("");
-                      setSecurityFlow("none");
-                    }}
-                  >
-                    I saved it
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {securityFlow === "restore" && (
-              <div className="field">
-                <label>Recovery key</label>
-                <input
-                  value={recoveryKeyIn}
-                  onChange={(e) => setRecoveryKeyIn(e.target.value)}
-                  placeholder="EsT… (from when you set up backup)"
-                  spellCheck={false}
-                />
-                <div style={{ display: "flex", gap: "var(--sp-2)", marginTop: "var(--sp-1)" }}>
-                  <button className="btn secondary small" onClick={() => setSecurityFlow("none")}>
-                    Cancel
-                  </button>
-                  <button
-                    className="btn primary small"
-                    disabled={busy || !recoveryKeyIn.trim()}
-                    onClick={async () => {
-                      setBusy(true);
-                      try {
-                        const { imported } = await account.crypto.restoreWithRecoveryKey(recoveryKeyIn);
-                        show(`Restored ${imported} message keys.`);
-                        setRecoveryKeyIn("");
-                        setSecurityFlow("none");
-                        refresh();
-                      } catch (e) {
-                        showError(e);
-                      } finally {
-                        setBusy(false);
-                      }
-                    }}
-                  >
-                    {busy ? <span className="spinner" /> : "Restore"}
-                  </button>
-                </div>
-              </div>
-            )}
 
             <div>
               <h3 style={{ margin: "var(--sp-2) 0" }}>Sessions</h3>
@@ -351,7 +249,7 @@ function AccountSettings({
                   ) : (
                     <span className="tag warn">Unverified</span>
                   )}
-                  {!d.isCurrent && !d.verified && crossSigningReady && (
+                  {!d.isCurrent && !d.verified && securityState === "ok" && (
                     <button
                       className="btn secondary small"
                       onClick={async () => {
@@ -372,6 +270,16 @@ function AccountSettings({
               {devices.length === 0 && <div className="field-hint">No session list available.</div>}
             </div>
           </div>
+
+          {securityOpen && (
+            <SecurityDialog
+              account={account}
+              onClose={() => {
+                setSecurityOpen(false);
+                refresh();
+              }}
+            />
+          )}
 
           <button className="btn danger-ghost" onClick={onSignOut}>
             <IconLogout size={16} /> Sign out

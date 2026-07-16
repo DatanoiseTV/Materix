@@ -3,6 +3,7 @@
 
 import { ClientEvent, RoomEvent, type MatrixClient, type MatrixEvent, type Room } from "matrix-js-sdk";
 import { SyncState } from "matrix-js-sdk";
+import { getPrefs } from "./prefs";
 
 let requested = false;
 
@@ -26,6 +27,8 @@ export function wireNotifications(
     if (state === SyncState.Syncing || state === SyncState.Prepared) ready = true;
   };
   const onEvent = async (ev: MatrixEvent, room: Room | undefined) => {
+    const mode = getPrefs().notifications;
+    if (mode === "off") return;
     if (!ready || !room) return;
     if (ev.getSender() === client.getUserId()) return;
     if (document.hasFocus()) return;
@@ -35,9 +38,9 @@ export function wireNotifications(
     if (!actions?.notify) return;
     if (!(await ensurePermission())) return;
 
-    // Decrypt-aware body.
+    // Privacy mode "name": never include content, only who wrote.
     let body = "New message";
-    if (!ev.isBeingDecrypted() && !ev.isDecryptionFailure()) {
+    if (mode === "preview" && !ev.isBeingDecrypted() && !ev.isDecryptionFailure()) {
       const content = ev.getContent();
       body = typeof content.body === "string" ? content.body.slice(0, 140) : "New message";
     }

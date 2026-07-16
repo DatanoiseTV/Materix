@@ -7,17 +7,24 @@ import { useAccounts, useMediaQuery } from "./ui/hooks";
 import { applyTheme } from "./ui/theme";
 import { ToastProvider } from "./ui/components/Toast";
 import { Onboarding } from "./ui/Onboarding";
-import { AccountRail, RoomListPane, type Selection } from "./ui/RoomList";
+import { AccountRail, RoomListPane, type NewChatTab, type Selection } from "./ui/RoomList";
 import { ChatPane } from "./ui/ChatPane";
 import { DetailsPane } from "./ui/DetailsPane";
 import { NewChatDialog } from "./ui/dialogs/NewChatDialog";
 import { SettingsDialog } from "./ui/dialogs/SettingsDialog";
+import { SecurityDialog } from "./ui/dialogs/SecurityDialog";
 import { VerificationDialog } from "./ui/dialogs/VerificationDialog";
 import { wireNotifications } from "./ui/notifications";
+import { uiBus } from "./ui/bus";
 
 applyTheme();
 
-type Dialog = { kind: "none" } | { kind: "new-chat" } | { kind: "settings" } | { kind: "add-account" };
+type Dialog =
+  | { kind: "none" }
+  | { kind: "new-chat"; tab: NewChatTab }
+  | { kind: "settings" }
+  | { kind: "add-account" }
+  | { kind: "security"; accountKey: string };
 
 export function App() {
   const [phase, setPhase] = useState<"loading" | "onboarding" | "ready">("loading");
@@ -33,6 +40,18 @@ export function App() {
       .init()
       .then(() => setPhase(accountManager.hasAccounts() ? "ready" : "onboarding"))
       .catch(() => setPhase("onboarding"));
+  }, []);
+
+  // App-level command bus (open room / show verification flow from anywhere).
+  useEffect(() => {
+    const offs = [
+      uiBus.register("openRoom", (sel) => {
+        setSelection(sel);
+        setDialog({ kind: "none" });
+      }),
+      uiBus.register("showFlow", (flow) => setActiveFlow(flow)),
+    ];
+    return () => offs.forEach((o) => o());
   }, []);
 
   // Notifications for every account; re-wire when the account set changes.
@@ -57,12 +76,14 @@ export function App() {
     if (phase !== "ready") return;
     const unsubs = accountManager.list().map((a) => {
       const account = accountManager.account(a.key);
-      return account.crypto.events.on("flows", () => {
+      const surface = () => {
         const flow = account.crypto
           .activeFlows()
           .find((f) => !f.initiatedByMe && (f.phase === "requested" || f.phase === "ready" || f.phase === "emojis"));
         if (flow) setActiveFlow((cur) => cur ?? flow);
-      });
+      };
+      surface(); // pick up requests that arrived before this subscription
+      return account.crypto.events.on("flows", surface);
     });
     return () => unsubs.forEach((u) => u());
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -109,7 +130,8 @@ export function App() {
             setSelection(sel);
             setDetailsOpen(false);
           }}
-          onNewChat={() => setDialog({ kind: "new-chat" })}
+          onNewChat={(tab) => setDialog({ kind: "new-chat", tab })}
+          onOpenSecurity={(accountKey) => setDialog({ kind: "security", accountKey })}
         />
         <ChatPane
           selection={selection}
@@ -130,7 +152,17 @@ export function App() {
       </div>
 
       {dialog.kind === "new-chat" && (
-        <NewChatDialog onClose={() => setDialog({ kind: "none" })} onOpenRoom={setSelection} />
+        <NewChatDialog
+          onClose={() => setDialog({ kind: "none" })}
+          onOpenRoom={setSelection}
+          initialTab={dialog.tab}
+        />
+      )}
+      {dialog.kind === "security" && accountManager.tryAccount(dialog.accountKey) && (
+        <SecurityDialog
+          account={accountManager.account(dialog.accountKey)}
+          onClose={() => setDialog({ kind: "none" })}
+        />
       )}
       {dialog.kind === "settings" && (
         <SettingsDialog
@@ -140,8 +172,14 @@ export function App() {
         />
       )}
       {dialog.kind === "add-account" && (
-        <div className="modal-backdrop">
+        <div
+          className="modal-backdrop"
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget) setDialog({ kind: "none" });
+          }}
+        >
           <Onboarding
+            embedded
             onDone={() => setDialog({ kind: "none" })}
             onCancel={() => setDialog({ kind: "none" })}
           />
