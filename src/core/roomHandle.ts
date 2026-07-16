@@ -50,7 +50,15 @@ export class RoomHandle {
   timeline(): TimelineItem[] {
     const myUserId = this.client.getUserId()!;
     const events = this.room.getLiveTimeline().getEvents();
-    const readUpTo = this.room.getEventReadUpTo(myUserId, false);
+    let readUpTo = this.room.getEventReadUpTo(myUserId, false);
+    // Suppress the marker when everything after it is our own sends —
+    // "New messages" above your own message reads as a bug.
+    if (readUpTo) {
+      const idx = events.findIndex((e) => e.getId() === readUpTo);
+      if (idx >= 0 && events.slice(idx + 1).every((e) => e.getSender() === myUserId)) {
+        readUpTo = null;
+      }
+    }
     const items: TimelineItem[] = [];
     let lastDay = "";
     let prev: { sender: string; ts: number } | null = null;
