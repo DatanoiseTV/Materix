@@ -10,6 +10,7 @@ import { useRoomVersion } from "./hooks";
 import { Avatar } from "./components/Avatar";
 import { ContextMenu, type MenuState } from "./components/ContextMenu";
 import { EmojiPicker } from "./components/EmojiPicker";
+import { AudioPlayer } from "./components/AudioPlayer";
 import { buildUserMenu } from "./userMenu";
 import {
   IconAlert,
@@ -18,6 +19,7 @@ import {
   IconDownload,
   IconEdit,
   IconFile,
+  IconLocation,
   IconLock,
   IconReply,
   IconSmile,
@@ -166,6 +168,8 @@ function TimelineRow({
 }) {
   const { show, showError } = useToast();
 
+  const [showActions, setShowActions] = useState(false);
+
   const openUserMenu = (e: React.MouseEvent) => {
     e.preventDefault();
     onUserMenu({
@@ -191,7 +195,15 @@ function TimelineRow({
   };
 
   return (
-    <div className={`msg-row${mine ? " mine" : ""}${item.groupStart ? " group-start" : ""}`}>
+    <div
+      className={`msg-row${mine ? " mine" : ""}${item.groupStart ? " group-start" : ""}${showActions ? " show-actions" : ""}`}
+      onClick={(e) => {
+        // On touch (no hover), tap toggles the action bar.
+        if (window.matchMedia("(hover: none)").matches && (e.target as HTMLElement).closest(".bubble")) {
+          setShowActions((v) => !v);
+        }
+      }}
+    >
       <div className="msg-avatar-slot">
         {item.groupStart && (
           <button
@@ -225,6 +237,10 @@ function TimelineRow({
         ) : item.kind === "encrypted-pending" ? (
           <div className="bubble utd">
             <IconLock size={14} /> Waiting for this message…
+          </div>
+        ) : item.kind === "poll" && item.poll ? (
+          <div className="bubble">
+            <PollView poll={item.poll} mine={mine} handle={handle} />
           </div>
         ) : (
           <MessageBubble item={item} account={account} onZoom={onZoom} />
@@ -321,6 +337,79 @@ function MsgFooter({ item, handle }: { item: TimelineItem; handle: RoomHandle })
   return <div className="msg-footer">{parts}</div>;
 }
 
+function PollView({
+  poll,
+  mine,
+  handle,
+}: {
+  poll: import("../core/types").PollData;
+  mine: boolean;
+  handle: RoomHandle;
+}) {
+  const { showError } = useToast();
+  // Show results once you've voted, the poll is undisclosed-and-ended, or it ended.
+  const hasVoted = poll.answers.some((a) => a.chosenByMe);
+  const showResults = poll.ended || (poll.kind === "disclosed" && hasVoted);
+
+  const vote = (answerId: string) => {
+    if (poll.ended) return;
+    let next: string[];
+    if (poll.maxSelections > 1) {
+      const current = poll.answers.filter((a) => a.chosenByMe).map((a) => a.id);
+      next = current.includes(answerId) ? current.filter((a) => a !== answerId) : [...current, answerId].slice(-poll.maxSelections);
+    } else {
+      next = [answerId];
+    }
+    handle.votePoll(poll.eventId, next).catch(showError);
+  };
+
+  return (
+    <div className="poll">
+      <div className="poll-question">
+        {poll.question}
+        {poll.ended ? " · Final results" : poll.maxSelections > 1 ? " · Choose multiple" : ""}
+      </div>
+      {poll.answers.map((a) => {
+        const pctOfTotal = poll.totalVotes ? Math.round((a.votes / poll.totalVotes) * 100) : 0;
+        return (
+          <button
+            key={a.id}
+            className={`poll-option${a.chosenByMe ? " chosen" : ""}`}
+            onClick={() => vote(a.id)}
+            disabled={poll.ended}
+            aria-pressed={a.chosenByMe}
+          >
+            <span className="poll-option-top">
+              <span>
+                {a.chosenByMe ? "◉ " : poll.ended ? "○ " : ""}
+                {a.text}
+              </span>
+              {showResults && <span>{pctOfTotal}%</span>}
+            </span>
+            {showResults && <span className="poll-option-bar" style={{ width: `${pctOfTotal}%` }} />}
+          </button>
+        );
+      })}
+      <div className="poll-total">
+        {poll.totalVotes} vote{poll.totalVotes === 1 ? "" : "s"}
+        {mine && !poll.ended && (
+          <>
+            {" · "}
+            <button
+              style={{ color: "var(--accent-strong)" }}
+              onClick={() => {
+                if (confirm("End this poll? Results become final.")) handle.endPoll(poll.eventId).catch(showError);
+              }}
+            >
+              End poll
+            </button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function MessageBubble({
   item,
   account,
@@ -363,9 +452,9 @@ function MessageContent({
   }
   if (body.msgtype === "m.image") return <ImageContent body={body} account={account} onZoom={onZoom} />;
   if (body.msgtype === "m.video") return <VideoContent body={body} account={account} />;
-  if (body.msgtype === "m.file" || body.msgtype === "m.audio") {
-    return <FileContent body={body} account={account} />;
-  }
+  if (body.msgtype === "m.location") return <LocationContent body={body} />;
+  if (body.msgtype === "m.audio") return <AudioContent body={body} account={account} />;
+  if (body.msgtype === "m.file") return <FileContent body={body} account={account} />;
   return null;
 }
 
@@ -447,13 +536,10 @@ function FileContent({
   body,
   account,
 }: {
-  body: Extract<MessageBody, { msgtype: "m.file" | "m.audio" }>;
+  body: Extract<MessageBody, { msgtype: "m.file" }>;
   account: MatrixAccount;
 }) {
   const src = useMediaSrc(account, body.mxc, body.file, body.mime);
-  if (body.msgtype === "m.audio" && src) {
-    return <audio src={src} controls style={{ maxWidth: "100%" }} />;
-  }
   return (
     <a className="msg-file" href={src} download={body.text} aria-disabled={!src}>
       <span className="msg-file-icon">
@@ -466,6 +552,45 @@ function FileContent({
       <IconDownload size={16} />
     </a>
   );
+}
+
+function LocationContent({ body }: { body: Extract<MessageBody, { msgtype: "m.location" }> }) {
+  const mapUrl =
+    body.lat !== undefined && body.lon !== undefined
+      ? `https://www.openstreetmap.org/?mlat=${body.lat}&mlon=${body.lon}#map=16/${body.lat}/${body.lon}`
+      : undefined;
+  return (
+    <a
+      className="msg-file"
+      href={mapUrl ?? "#"}
+      target="_blank"
+      rel="noopener noreferrer"
+      aria-disabled={!mapUrl}
+    >
+      <span className="msg-file-icon">
+        <IconLocation size={20} />
+      </span>
+      <span style={{ minWidth: 0 }}>
+        <div className="msg-file-name">{body.text || "Shared location"}</div>
+        {body.lat !== undefined && (
+          <div className="msg-file-size">
+            {body.lat.toFixed(4)}, {body.lon!.toFixed(4)}
+          </div>
+        )}
+      </span>
+    </a>
+  );
+}
+
+function AudioContent({
+  body,
+  account,
+}: {
+  body: Extract<MessageBody, { msgtype: "m.audio" }>;
+  account: MatrixAccount;
+}) {
+  const src = useMediaSrc(account, body.mxc, body.file, body.mime);
+  return <AudioPlayer src={src} name={body.text} voice={body.voice} durationMs={body.durationMs} waveform={body.waveform} />;
 }
 
 function hashHue(id: string): number {

@@ -36,6 +36,9 @@ export interface RoomSummary {
   isEncrypted: boolean;
   isFavorite: boolean;
   isLowPriority: boolean;
+  isArchived: boolean;
+  /** Epoch ms until which the room is muted; 0 = not muted, Infinity = forever. */
+  mutedUntil: number;
   isInvite: boolean;
   inviterName?: string;
   isSpace: boolean;
@@ -61,12 +64,32 @@ export type MessageBody =
       size?: number;
     }
   | {
-      msgtype: "m.file" | "m.audio";
+      msgtype: "m.file";
       text: string;
       mxc: string;
       file?: EncryptedFileInfo;
       mime?: string;
       size?: number;
+    }
+  | {
+      msgtype: "m.audio";
+      text: string;
+      mxc: string;
+      file?: EncryptedFileInfo;
+      mime?: string;
+      size?: number;
+      /** Voice message (MSC3245): duration in ms and optional waveform. */
+      voice?: boolean;
+      durationMs?: number;
+      waveform?: number[];
+    }
+  | {
+      msgtype: "m.location";
+      text: string;
+      /** geo: URI, e.g. "geo:52.52,13.40;u=15". */
+      geoUri: string;
+      lat?: number;
+      lon?: number;
     };
 
 /** m.room.encrypted file payload (EncryptedFile in the spec). */
@@ -80,6 +103,7 @@ export interface EncryptedFileInfo {
 
 export type TimelineItemKind =
   | "message"
+  | "poll"
   | "member"
   | "state"
   | "encrypted-pending"
@@ -99,6 +123,7 @@ export interface TimelineItem {
   /** For member/state items: pre-rendered one-line summary. */
   stateText?: string;
   reactions?: { key: string; count: number; mine: boolean }[];
+  poll?: PollData;
   replyTo?: { sender: string; preview: string; eventId: string };
   edited?: boolean;
   isMine?: boolean;
@@ -106,6 +131,21 @@ export interface TimelineItem {
   groupStart?: boolean;
   /** Read receipts to show under this event (other users). */
   receipts?: { userId: string; name: string; avatarUrl?: string }[];
+}
+
+export interface PollData {
+  eventId: string;
+  question: string;
+  kind: "disclosed" | "undisclosed";
+  maxSelections: number;
+  ended: boolean;
+  answers: {
+    id: string;
+    text: string;
+    votes: number;
+    chosenByMe: boolean;
+  }[];
+  totalVotes: number;
 }
 
 export interface SasEmoji {
@@ -184,4 +224,21 @@ export interface RoomDetails {
 export interface SendFileProgress {
   loaded: number;
   total: number;
+}
+
+export interface PublicRoomResult {
+  roomId: string;
+  name: string;
+  topic?: string;
+  alias?: string;
+  avatarMxc?: string;
+  memberCount: number;
+  worldReadable: boolean;
+  joinedAlready: boolean;
+}
+
+export interface PublicRoomsPage {
+  rooms: PublicRoomResult[];
+  nextBatch?: string;
+  totalEstimate?: number;
 }

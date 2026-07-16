@@ -19,6 +19,8 @@ import type {
   AccountInfo,
   AccountKey,
   CreateRoomOpts,
+  PublicRoomResult,
+  PublicRoomsPage,
   RoomSummary,
   SessionData,
   SyncStateName,
@@ -45,6 +47,8 @@ export class MatrixAccount {
   startError?: string;
   private handles = new Map<string, RoomHandle>();
   private directRooms = new Set<string>();
+  /** Client-side per-room settings, synced via io.materix.settings account data. */
+  private roomSettings: Record<string, { archived?: boolean; mutedUntil?: number }> = {};
 
   constructor(
     readonly key: AccountKey,
@@ -120,9 +124,47 @@ export class MatrixAccount {
         this.rebuildDirectSet();
         bumpRooms();
       }
+      if (ev.getType() === "io.materix.settings") {
+        this.loadRoomSettings();
+        bumpRooms();
+      }
     });
+    this.loadRoomSettings();
     c.on(CryptoEvent.VerificationRequestReceived as never, (() => this.events.emit("self")) as never);
     this.rebuildDirectSet();
+  }
+
+  private loadRoomSettings(): void {
+    const content = this.client
+      .getAccountData("io.materix.settings" as never)
+      ?.getContent<{ rooms?: Record<string, { archived?: boolean; mutedUntil?: number }> }>();
+    this.roomSettings = content?.rooms ?? {};
+  }
+
+  private async saveRoomSettings(roomId: string, patch: { archived?: boolean; mutedUntil?: number }): Promise<void> {
+    const next = { ...this.roomSettings };
+    const entry = { ...next[roomId], ...patch };
+    // Drop no-op/default entries to keep the account-data blob small.
+    if (!entry.archived && (!entry.mutedUntil || entry.mutedUntil < Date.now())) delete next[roomId];
+    else next[roomId] = entry;
+    this.roomSettings = next;
+    await this.client.setAccountData("io.materix.settings" as never, { rooms: next } as never);
+    this.events.emit("rooms");
+  }
+
+  async setArchived(roomId: string, archived: boolean): Promise<void> {
+    await this.saveRoomSettings(roomId, { archived });
+  }
+
+  isMuted(roomId: string): boolean {
+    const until = this.roomSettings[roomId]?.mutedUntil ?? 0;
+    return until > Date.now();
+  }
+
+  /** durationMs: undefined/0 unmutes, Infinity mutes forever. */
+  async setMuted(roomId: string, durationMs: number | undefined): Promise<void> {
+    const mutedUntil = !durationMs ? 0 : durationMs === Infinity ? Number.MAX_SAFE_INTEGER : Date.now() + durationMs;
+    await this.saveRoomSettings(roomId, { mutedUntil });
   }
 
   private rebuildDirectSet(): void {
@@ -162,6 +204,8 @@ export class MatrixAccount {
     const isInvite = room.getMyMembership() === "invite";
     const tags = room.tags ?? {};
     const last = this.lastPreview(room);
+    const settings = this.roomSettings[room.roomId] ?? {};
+    const mutedUntil = settings.mutedUntil && settings.mutedUntil > Date.now() ? settings.mutedUntil : 0;
     const inviter = isInvite
       ? room.getMember(this.session.userId)?.events.member?.getSender()
       : undefined;
@@ -174,6 +218,8 @@ export class MatrixAccount {
       isEncrypted: room.hasEncryptionStateEvent(),
       isFavorite: "m.favourite" in tags,
       isLowPriority: "m.lowpriority" in tags,
+      isArchived: !!settings.archived && !isInvite,
+      mutedUntil,
       isInvite,
       inviterName: inviter ? (room.getMember(inviter)?.name ?? inviter) : undefined,
       isSpace: room.isSpaceRoom(),
@@ -196,6 +242,14 @@ export class MatrixAccount {
     for (let i = events.length - 1; i >= 0; i--) {
       const ev = events[i];
       const type = ev.getType();
+      if (type === "m.poll.start" || type === "org.matrix.msc3381.poll.start") {
+        const member = room.getMember(ev.getSender() ?? "");
+        return {
+          ts: ev.getTs(),
+          senderName: ev.getSender() === this.session.userId ? "You" : (member?.name ?? ev.getSender() ?? ""),
+          preview: "Poll",
+        };
+      }
       if (type !== EventType.RoomMessage && type !== EventType.RoomMessageEncrypted && type !== "m.sticker") continue;
       const member = room.getMember(ev.getSender() ?? "");
       const senderName =
@@ -214,12 +268,16 @@ export class MatrixAccount {
             : msgtype === "m.video"
               ? "Video"
               : msgtype === "m.audio"
-                ? "Audio"
+                ? content["org.matrix.msc3245.voice"]
+                  ? "Voice message"
+                  : "Audio"
                 : msgtype === "m.file"
                   ? "File"
-                  : msgtype === "m.key.verification.request"
-                    ? "Verification request"
-                    : previewText((content.body as string) ?? "");
+                  : msgtype === "m.location"
+                    ? "Location"
+                    : msgtype === "m.key.verification.request"
+                      ? "Verification request"
+                      : previewText((content.body as string) ?? "");
       }
       return { ts: ev.getTs(), senderName, preview: preview.slice(0, 120) };
     }
@@ -309,6 +367,36 @@ export class MatrixAccount {
   async setRoomTag(roomId: string, tag: "m.favourite" | "m.lowpriority", enabled: boolean): Promise<void> {
     if (enabled) await this.client.setRoomTag(roomId, tag, { order: 0.5 });
     else await this.client.deleteRoomTag(roomId, tag);
+  }
+
+  /**
+   * Browse a server's public room directory. `server` defaults to the user's
+   * own homeserver; pass another domain to explore it (federation permitting).
+   */
+  async publicRooms(opts: { query?: string; server?: string; since?: string }): Promise<PublicRoomsPage> {
+    try {
+      const res = await this.client.publicRooms({
+        server: opts.server?.trim() || undefined,
+        limit: 30,
+        since: opts.since,
+        ...(opts.query?.trim()
+          ? { filter: { generic_search_term: opts.query.trim() } }
+          : {}),
+      });
+      const rooms: PublicRoomResult[] = res.chunk.map((r) => ({
+        roomId: r.room_id,
+        name: r.name || r.canonical_alias || r.room_id,
+        topic: r.topic,
+        alias: r.canonical_alias,
+        avatarMxc: r.avatar_url,
+        memberCount: r.num_joined_members ?? 0,
+        worldReadable: !!r.world_readable,
+        joinedAlready: this.client.getRoom(r.room_id)?.getMyMembership() === "join",
+      }));
+      return { rooms, nextBatch: res.next_batch, totalEstimate: res.total_room_count_estimate };
+    } catch (e) {
+      throw toMaterixError(e);
+    }
   }
 
   async searchUsers(query: string): Promise<UserSearchResult[]> {

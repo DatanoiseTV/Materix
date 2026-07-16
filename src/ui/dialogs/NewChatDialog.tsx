@@ -2,14 +2,15 @@
 
 import { useEffect, useState } from "react";
 import { accountManager } from "../../core/manager";
-import type { UserSearchResult } from "../../core/types";
+import type { PublicRoomResult, UserSearchResult } from "../../core/types";
 import { Modal } from "../components/Modal";
 import { Avatar } from "../components/Avatar";
 import { useDebounced } from "../hooks";
 import { useToast } from "../components/Toast";
+import { IconUsers } from "../components/Icons";
 import type { Selection } from "../RoomList";
 
-type Tab = "dm" | "group" | "join";
+type Tab = "dm" | "group" | "join" | "explore";
 
 export function NewChatDialog({
   onClose,
@@ -40,6 +41,48 @@ export function NewChatDialog({
 
   // join state
   const [joinInput, setJoinInput] = useState("");
+
+  // explore state
+  const [exploreServer, setExploreServer] = useState("");
+  const [exploreQuery, setExploreQuery] = useState("");
+  const debouncedExplore = useDebounced(exploreQuery, 400);
+  const [publicRooms, setPublicRooms] = useState<PublicRoomResult[]>([]);
+  const [exploreLoading, setExploreLoading] = useState(false);
+  const [exploreError, setExploreError] = useState<string | null>(null);
+  const [nextBatch, setNextBatch] = useState<string | undefined>();
+
+  useEffect(() => {
+    if (tab !== "explore" || !account) return;
+    let alive = true;
+    setExploreLoading(true);
+    setExploreError(null);
+    account
+      .publicRooms({ query: debouncedExplore, server: exploreServer })
+      .then((page) => {
+        if (!alive) return;
+        setPublicRooms(page.rooms);
+        setNextBatch(page.nextBatch);
+      })
+      .catch((e) => alive && setExploreError(e?.userMessage ?? "Couldn't load the room directory."))
+      .finally(() => alive && setExploreLoading(false));
+    return () => {
+      alive = false;
+    };
+  }, [tab, account, debouncedExplore, exploreServer]);
+
+  async function loadMorePublic() {
+    if (!account || !nextBatch) return;
+    setExploreLoading(true);
+    try {
+      const page = await account.publicRooms({ query: debouncedExplore, server: exploreServer, since: nextBatch });
+      setPublicRooms((prev) => [...prev, ...page.rooms]);
+      setNextBatch(page.nextBatch);
+    } catch (e) {
+      showError(e);
+    } finally {
+      setExploreLoading(false);
+    }
+  }
 
   useEffect(() => {
     if (!account || debouncedQuery.trim().length < 2) {
@@ -131,7 +174,8 @@ export function NewChatDialog({
           [
             ["dm", "Direct message"],
             ["group", "Group"],
-            ["join", "Join a room"],
+            ["explore", "Explore"],
+            ["join", "By address"],
           ] as [Tab, string][]
         ).map(([t, label]) => (
           <button
@@ -214,6 +258,74 @@ export function NewChatDialog({
           <button className="btn primary" disabled={busy || !groupName.trim()} onClick={createGroup}>
             {busy ? <span className="spinner" /> : "Create group"}
           </button>
+        </>
+      )}
+
+      {tab === "explore" && (
+        <>
+          <div className="field" style={{ flexDirection: "row", gap: "var(--sp-2)" }}>
+            <input
+              style={{ flex: 2, minWidth: 0 }}
+              placeholder="Search public rooms"
+              value={exploreQuery}
+              onChange={(e) => setExploreQuery(e.target.value)}
+              aria-label="Search public rooms"
+            />
+            <input
+              style={{ flex: 1, minWidth: 0 }}
+              placeholder="server (optional)"
+              value={exploreServer}
+              onChange={(e) => setExploreServer(e.target.value)}
+              aria-label="Server to explore"
+              spellCheck={false}
+            />
+          </div>
+          <div style={{ maxHeight: 340, overflowY: "auto", margin: "0 calc(-1 * var(--sp-1))" }}>
+            {exploreError && <div className="form-error">{exploreError}</div>}
+            {publicRooms.map((r) => (
+              <div key={r.roomId} className="member-row" style={{ padding: "var(--sp-2)", gap: "var(--sp-3)" }}>
+                <Avatar account={account} mxc={r.avatarMxc} name={r.name} id={r.roomId} size={40} />
+                <span className="member-name" style={{ display: "flex", flexDirection: "column" }}>
+                  <span style={{ fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis" }}>{r.name}</span>
+                  <span className="field-hint" style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                    <IconUsers size={12} /> {r.memberCount}
+                    {r.topic ? ` · ${r.topic.slice(0, 60)}` : ""}
+                  </span>
+                </span>
+                <button
+                  className="btn primary small"
+                  disabled={busy}
+                  onClick={async () => {
+                    setBusy(true);
+                    try {
+                      const roomId = await account!.joinRoom(r.alias ?? r.roomId);
+                      onOpenRoom({ accountKey, roomId });
+                      onClose();
+                    } catch (e) {
+                      showError(e);
+                    } finally {
+                      setBusy(false);
+                    }
+                  }}
+                >
+                  {r.joinedAlready ? "Open" : "Join"}
+                </button>
+              </div>
+            ))}
+            {exploreLoading && (
+              <div className="state-line" style={{ display: "flex", gap: 8, justifyContent: "center" }}>
+                <span className="spinner" /> Loading…
+              </div>
+            )}
+            {!exploreLoading && publicRooms.length === 0 && !exploreError && (
+              <p className="field-hint">No public rooms found here.</p>
+            )}
+            {nextBatch && !exploreLoading && (
+              <button className="btn secondary small" style={{ width: "100%" }} onClick={loadMorePublic}>
+                Load more
+              </button>
+            )}
+          </div>
         </>
       )}
 

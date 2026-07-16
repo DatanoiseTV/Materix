@@ -20,6 +20,7 @@ async function ensurePermission(): Promise<boolean> {
 export function wireNotifications(
   client: MatrixClient,
   onActivate: (roomId: string) => void,
+  isMuted: (roomId: string) => boolean,
 ): () => void {
   let ready = false;
   const onSync = (state: SyncState) => {
@@ -34,6 +35,7 @@ export function wireNotifications(
     if (document.hasFocus()) return;
     const ts = ev.getTs();
     if (Date.now() - ts > 60_000) return; // stale/backfill
+    if (isMuted(room.roomId)) return;
     const actions = client.getPushActionsForEvent(ev);
     if (!actions?.notify) return;
     if (!(await ensurePermission())) return;

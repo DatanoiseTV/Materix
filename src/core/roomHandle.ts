@@ -16,6 +16,7 @@ import type {
   EncryptedFileInfo,
   MemberSummary,
   MessageBody,
+  PollData,
   RoomDetails,
   TimelineItem,
 } from "./types";
@@ -27,6 +28,18 @@ import {
   stripReplyFallbackText,
   escapeHtml,
 } from "./markdown";
+
+// MSC3381 poll event types (stable + unstable prefixes).
+const POLL_START = ["m.poll.start", "org.matrix.msc3381.poll.start"];
+const POLL_RESPONSE = ["m.poll.response", "org.matrix.msc3381.poll.response"];
+const POLL_END = ["m.poll.end", "org.matrix.msc3381.poll.end"];
+
+function pollContent(ev: MatrixEvent): Record<string, unknown> | undefined {
+  const c = ev.getContent();
+  return (c["m.poll.start"] ?? c["org.matrix.msc3381.poll.start"] ?? (c.question ? c : undefined)) as
+    | Record<string, unknown>
+    | undefined;
+}
 
 const RENDERED_STATE = new Set<string>([
   EventType.RoomMember,
@@ -163,12 +176,71 @@ export class RoomHandle {
       };
     }
 
+    if (POLL_START.includes(type)) {
+      const poll = this.buildPoll(ev, myUserId);
+      if (!poll) return null;
+      return { ...base, kind: "poll", poll, reactions: this.reactionsFor(ev), receipts: this.receiptsFor(ev, myUserId) };
+    }
+
     if (RENDERED_STATE.has(type)) {
       const text = this.stateText(ev);
       if (!text) return null;
       return { ...base, kind: type === EventType.RoomMember ? "member" : "state", stateText: text };
     }
     return null;
+  }
+
+  private buildPoll(ev: MatrixEvent, myUserId: string): PollData | null {
+    const start = pollContent(ev);
+    if (!start) return null;
+    const id = ev.getId();
+    if (!id) return null;
+    const question =
+      ((start["m.text"] as string) ??
+        (start.question as { "m.text"?: string; body?: string })?.["m.text"] ??
+        (start.question as { body?: string })?.body ??
+        "Poll") as string;
+    const kind = ((start.kind as string) ?? "").includes("undisclosed") ? "undisclosed" : "disclosed";
+    const maxSelections = Math.max(1, (start.max_selections as number) ?? 1);
+    const rawAnswers = (start.answers as { id: string; "m.text"?: string; answer?: { "m.text"?: string } }[]) ?? [];
+    const answers = rawAnswers.map((a) => ({
+      id: a.id,
+      text: (a["m.text"] ?? a.answer?.["m.text"] ?? a.id) as string,
+      votes: 0,
+      chosenByMe: false,
+    }));
+    const validIds = new Set(answers.map((a) => a.id));
+
+    // Aggregate: latest response per sender (relations), ignore after poll end.
+    const timelineSet = this.room.getUnfilteredTimelineSet();
+    const ended = POLL_END.some(
+      (t) => (timelineSet.relations.getChildEventsForEvent(id, "m.reference", t)?.getRelations().length ?? 0) > 0,
+    );
+    const latestBySender = new Map<string, { ts: number; ids: string[] }>();
+    for (const relType of POLL_RESPONSE) {
+      const rel = timelineSet.relations.getChildEventsForEvent(id, "m.reference", relType);
+      for (const r of rel?.getRelations() ?? []) {
+        const sender = r.getSender();
+        if (!sender || r.isRedacted()) continue;
+        const resp = (r.getContent()["m.poll.response"] ?? r.getContent()["org.matrix.msc3381.poll.response"]) as
+          | { answers?: string[] }
+          | undefined;
+        const picks = (resp?.answers ?? []).filter((a) => validIds.has(a)).slice(0, maxSelections);
+        const prev = latestBySender.get(sender);
+        if (!prev || r.getTs() > prev.ts) latestBySender.set(sender, { ts: r.getTs(), ids: picks });
+      }
+    }
+    let total = 0;
+    for (const [sender, { ids }] of latestBySender) {
+      for (const pick of ids) {
+        const ans = answers.find((a) => a.id === pick);
+        if (!ans) continue;
+        ans.votes++;
+        total++;
+        if (sender === myUserId) ans.chosenByMe = true;
+      }
+    }
+    return { eventId: id, question, kind, maxSelections, ended, answers, totalVotes: total };
   }
 
   private senderOf(ev: MatrixEvent): TimelineItem["sender"] {
@@ -191,6 +263,17 @@ export class RoomHandle {
       }
       return { msgtype, text, html };
     }
+    if (msgtype === "m.location" || content.geo_uri) {
+      const geoUri = (content.geo_uri as string) ?? "";
+      const coords = /geo:([-\d.]+),([-\d.]+)/.exec(geoUri);
+      return {
+        msgtype: "m.location",
+        text: text || "Location",
+        geoUri,
+        lat: coords ? parseFloat(coords[1]) : undefined,
+        lon: coords ? parseFloat(coords[2]) : undefined,
+      };
+    }
     const info = (content.info ?? {}) as Record<string, unknown>;
     const file = content.file as EncryptedFileInfo | undefined;
     const mxc = (file?.url ?? content.url) as string | undefined;
@@ -210,9 +293,24 @@ export class RoomHandle {
         size: info.size as number | undefined,
       };
     }
-    if (msgtype === "m.file" || msgtype === "m.audio") {
+    if (msgtype === "m.audio") {
+      const voice = "org.matrix.msc3245.voice" in content;
+      const audioMeta = (content["org.matrix.msc1767.audio"] ?? {}) as { duration?: number; waveform?: number[] };
       return {
-        msgtype,
+        msgtype: "m.audio",
+        text: text || "audio",
+        mxc,
+        file,
+        mime: info.mimetype as string | undefined,
+        size: info.size as number | undefined,
+        voice,
+        durationMs: audioMeta.duration ?? (info.duration as number | undefined),
+        waveform: audioMeta.waveform,
+      };
+    }
+    if (msgtype === "m.file") {
+      return {
+        msgtype: "m.file",
         text: text || "file",
         mxc,
         file,
@@ -378,6 +476,58 @@ export class RoomHandle {
     } as never);
   }
 
+  /** Cast (or change) a vote on a poll. Empty selection is allowed by spec. */
+  async votePoll(pollEventId: string, answerIds: string[]): Promise<void> {
+    try {
+      await this.client.sendEvent(this.roomId, "m.poll.response" as never, {
+        "m.relates_to": { rel_type: "m.reference", event_id: pollEventId },
+        "m.poll.response": { answers: answerIds },
+      } as never);
+    } catch (e) {
+      throw toMaterixError(e, "send");
+    }
+  }
+
+  async endPoll(pollEventId: string): Promise<void> {
+    await this.client.sendEvent(this.roomId, "m.poll.end" as never, {
+      "m.relates_to": { rel_type: "m.reference", event_id: pollEventId },
+      "m.poll.end": {},
+      "m.text": "The poll has ended.",
+    } as never);
+  }
+
+  async createPoll(question: string, answers: string[], multiple: boolean): Promise<void> {
+    const content = {
+      "m.poll.start": {
+        kind: "org.matrix.msc3381.poll.disclosed",
+        max_selections: multiple ? answers.length : 1,
+        question: { "m.text": question },
+        answers: answers.map((text, i) => ({ id: `opt${i}`, "m.text": text })),
+      },
+      "m.text": `${question}\n${answers.map((a, i) => `${i + 1}. ${a}`).join("\n")}`,
+    };
+    try {
+      await this.client.sendEvent(this.roomId, "m.poll.start" as never, content as never);
+    } catch (e) {
+      throw toMaterixError(e, "send");
+    }
+  }
+
+  /** Share a static location as an m.location event. */
+  async sendLocation(lat: number, lon: number, description?: string): Promise<void> {
+    const geoUri = `geo:${lat},${lon}`;
+    try {
+      await this.client.sendEvent(this.roomId, EventType.RoomMessage as never, {
+        msgtype: "m.location",
+        body: description || `Location: ${lat}, ${lon}`,
+        geo_uri: geoUri,
+        "org.matrix.msc3488.location": { uri: geoUri, description },
+      } as never);
+    } catch (e) {
+      throw toMaterixError(e, "send");
+    }
+  }
+
   async sendFile(file: File, onProgress?: (loaded: number, total: number) => void): Promise<void> {
     const mime = file.type || "application/octet-stream";
     const msgtype = mime.startsWith("image/")
@@ -412,6 +562,32 @@ export class RoomHandle {
         content.file = { ...encrypted.info, url: upload.content_uri, mimetype: mime };
       } else {
         const upload = await this.client.uploadContent(file, { type: mime, ...progress });
+        content.url = upload.content_uri;
+      }
+      await this.client.sendMessage(this.roomId, content as never);
+    } catch (e) {
+      throw toMaterixError(e, "send");
+    }
+  }
+
+  /** Send an MSC3245 voice message (m.audio + voice/waveform metadata). */
+  async sendVoiceMessage(file: File, durationMs: number, waveform: number[]): Promise<void> {
+    const mime = file.type || "audio/ogg";
+    const info = { mimetype: mime, size: file.size, duration: durationMs };
+    const content: IContent = {
+      msgtype: "m.audio",
+      body: "Voice message",
+      info,
+      "org.matrix.msc3245.voice": {},
+      "org.matrix.msc1767.audio": { duration: durationMs, waveform },
+    };
+    try {
+      if (this.room.hasEncryptionStateEvent()) {
+        const encrypted = await encryptAttachment(await file.arrayBuffer());
+        const upload = await this.client.uploadContent(new Blob([encrypted.data]), { type: "application/octet-stream" });
+        content.file = { ...encrypted.info, url: upload.content_uri, mimetype: mime };
+      } else {
+        const upload = await this.client.uploadContent(file, { type: mime });
         content.url = upload.content_uri;
       }
       await this.client.sendMessage(this.roomId, content as never);

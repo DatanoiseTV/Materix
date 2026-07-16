@@ -63,8 +63,10 @@ export function App() {
     const unsubs = accountManager.list().map((a) => {
       const account = accountManager.account(a.key);
       if (!account.client) return () => undefined;
-      return wireNotifications(account.client, (roomId) =>
-        setSelection({ accountKey: a.key, roomId }),
+      return wireNotifications(
+        account.client,
+        (roomId) => setSelection({ accountKey: a.key, roomId }),
+        (roomId) => account.isMuted(roomId),
       );
     });
     return () => unsubs.forEach((u) => u());

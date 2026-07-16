@@ -6,7 +6,7 @@ import type { RoomSummary } from "../core/types";
 import { useAccounts, useClock, useRoomsVersion } from "./hooks";
 import { Avatar } from "./components/Avatar";
 import { ContextMenu, type MenuState } from "./components/ContextMenu";
-import { IconChat, IconLock, IconPlus, IconSearch, IconSettings, IconShield } from "./components/Icons";
+import { IconChat, IconLock, IconMuted, IconPlus, IconSearch, IconSettings, IconShield } from "./components/Icons";
 import { formatListTime, typingText } from "./format";
 import { useToast } from "./components/Toast";
 
@@ -16,6 +16,15 @@ export interface Selection {
 }
 
 export type NewChatTab = "dm" | "group" | "join";
+
+const HOUR = 3_600_000;
+const MUTE_PRESETS: [string, number][] = [
+  ["For 1 hour", HOUR],
+  ["For 8 hours", 8 * HOUR],
+  ["Until tomorrow", 24 * HOUR],
+  ["For 1 week", 7 * 24 * HOUR],
+  ["Until I turn it back on", Infinity],
+];
 
 export function AccountRail({
   onAddAccount,
@@ -30,7 +39,7 @@ export function AccountRail({
   const active = accountManager.active;
 
   return (
-    <nav className="rail" aria-label="Accounts">
+    <nav className={`rail${accounts.length > 1 ? " multi" : ""}`} aria-label="Accounts">
       <div className="rail-accounts">
         {accounts.map((a) => {
           const unread = accountManager
@@ -80,6 +89,7 @@ export function RoomListPane({
   const now = useClock(30_000);
   const [filter, setFilter] = useState("");
   const [menu, setMenu] = useState<MenuState | null>(null);
+  const [showArchived, setShowArchived] = useState(false);
   const { showError, show } = useToast();
 
   const accounts = accountManager.list();
@@ -101,11 +111,14 @@ export function RoomListPane({
   const visible = allRooms.filter((r) => !r.isSpace && (!q || r.name.toLowerCase().includes(q)));
 
   const invites = visible.filter((r) => r.isInvite);
+  const archived = visible
+    .filter((r) => !r.isInvite && r.isArchived)
+    .sort((a, b) => b.lastActivityTs - a.lastActivityTs);
   const chats = visible
-    .filter((r) => !r.isInvite && !r.isLowPriority)
+    .filter((r) => !r.isInvite && !r.isLowPriority && !r.isArchived)
     .sort((a, b) => Number(b.isFavorite) - Number(a.isFavorite) || b.lastActivityTs - a.lastActivityTs);
   const lowPriority = visible
-    .filter((r) => !r.isInvite && r.isLowPriority)
+    .filter((r) => !r.isInvite && r.isLowPriority && !r.isArchived)
     .sort((a, b) => b.lastActivityTs - a.lastActivityTs);
 
   const colorOf = (key: string) => accounts.find((a) => a.key === key)?.color ?? "gray";
@@ -215,6 +228,29 @@ export function RoomListPane({
             multiAccount={multiAccount}
             colorOf={colorOf}
           />
+        )}
+        {archived.length > 0 && (
+          <div className="rooms-section">
+            <button
+              className="rooms-section-title"
+              style={{ display: "flex", width: "100%", gap: 6, alignItems: "center", cursor: "pointer" }}
+              onClick={() => setShowArchived((v) => !v)}
+              aria-expanded={showArchived}
+            >
+              {showArchived ? "▾" : "▸"} Archived ({archived.length})
+            </button>
+            {showArchived && (
+              <RoomSection
+                rooms={archived}
+                selection={selection}
+                onSelect={onSelect}
+                onMenu={setMenu}
+                now={now}
+                multiAccount={multiAccount}
+                colorOf={colorOf}
+              />
+            )}
+          </div>
         )}
 
         {visible.length === 0 && (
@@ -340,8 +376,29 @@ function RoomSection({
           onClick: () => account.room(r.roomId).markRead().catch(showError),
         },
         {
+          label: r.mutedUntil ? "Unmute" : "Mute notifications…",
+          onClick: () => {
+            if (r.mutedUntil) {
+              account.setMuted(r.roomId, undefined).catch(showError);
+            } else {
+              onMenu({
+                x: e.clientX,
+                y: e.clientY,
+                items: MUTE_PRESETS.map(([label, ms]) => ({
+                  label,
+                  onClick: () => account.setMuted(r.roomId, ms).then(() => show(`Muted ${label.toLowerCase()}.`)).catch(showError),
+                })),
+              });
+            }
+          },
+        },
+        {
           label: r.isFavorite ? "Remove from favorites" : "Add to favorites",
           onClick: () => account.setRoomTag(r.roomId, "m.favourite", !r.isFavorite).catch(showError),
+        },
+        {
+          label: r.isArchived ? "Unarchive" : "Archive",
+          onClick: () => account.setArchived(r.roomId, !r.isArchived).catch(showError),
         },
         {
           label: r.isLowPriority ? "Restore priority" : "Mark low priority",
@@ -393,6 +450,11 @@ function RoomSection({
                     <IconLock size={12} />
                   </span>
                 )}
+                {r.mutedUntil > 0 && (
+                  <span className="enc-lock" title="Muted" aria-label="Muted">
+                    <IconMuted size={12} />
+                  </span>
+                )}
                 {r.lastEvent && <span className="room-item-time">{formatListTime(r.lastEvent.ts, now)}</span>}
               </div>
               <div className="room-item-bottom">
@@ -401,7 +463,7 @@ function RoomSection({
                     (r.lastEvent ? `${r.isDirect ? "" : r.lastEvent.senderName + ": "}${r.lastEvent.preview}` : "No messages yet")}
                 </span>
                 {r.unreadCount > 0 && (
-                  <span className={`unread-pill${r.highlightCount > 0 ? " highlight" : ""}`}>
+                  <span className={`unread-pill${r.highlightCount > 0 && !r.mutedUntil ? " highlight" : ""}${r.mutedUntil ? " muted" : ""}`}>
                     {r.unreadCount > 99 ? "99+" : r.unreadCount}
                   </span>
                 )}

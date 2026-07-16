@@ -176,6 +176,27 @@ export const IconKey = icon(
   <path d="m21 2-2 2m-7.6 7.6a5.5 5.5 0 1 1-7.8 7.8 5.5 5.5 0 0 1 7.8-7.8zm0 0L19 3m-3 3 3 3" />,
 );
 
+export const IconMic = icon(
+  <>
+    <rect x="9" y="2" width="6" height="12" rx="3" />
+    <path d="M5 10a7 7 0 0 0 14 0M12 17v4M8 21h8" />
+  </>,
+);
+
+export const IconMuted = icon(
+  <>
+    <path d="M11 5 6 9H2v6h4l5 4V5z" />
+    <path d="m23 9-6 6M17 9l6 6" />
+  </>,
+);
+
+export const IconLocation = icon(
+  <>
+    <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+    <circle cx="12" cy="10" r="3" />
+  </>,
+);
+
 export const IconDots = icon(
   <>
     <circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none" />

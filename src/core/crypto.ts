@@ -69,6 +69,7 @@ export class CryptoFacade {
       }
     });
     this.flows.set(flow.flowId, flow);
+    flow.init();
     this.events.emit("flows");
     return flow;
   }
@@ -246,7 +247,12 @@ class SasFlowImpl implements SasFlow {
     private onChange: () => void,
   ) {
     this.flowId = `${accountKey}-${req.transactionId ?? Math.random().toString(36).slice(2)}`;
-    req.on(VerificationRequestEvent.Change, () => this.step());
+  }
+
+  /** Called by CryptoFacade.track AFTER the flow reference exists, so the
+   * onChange closure (which reads the flow) is safe to invoke. */
+  init(): void {
+    this.req.on(VerificationRequestEvent.Change, () => this.step());
     this.step();
   }
 
