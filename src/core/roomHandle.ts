@@ -522,10 +522,52 @@ export class RoomHandle {
         body: description || `Location: ${lat}, ${lon}`,
         geo_uri: geoUri,
         "org.matrix.msc3488.location": { uri: geoUri, description },
+        "org.matrix.msc3488.asset": { type: "m.pin" },
       } as never);
     } catch (e) {
       throw toMaterixError(e, "send");
     }
+  }
+
+  /**
+   * Start sharing live location for `durationMs`. Returns a stop() function.
+   * Creates an m.beacon_info state event (live=true), then streams m.beacon
+   * location updates from the device geolocation until stopped or expired.
+   */
+  async startLiveLocation(durationMs: number): Promise<() => Promise<void>> {
+    const { makeBeaconInfoContent, makeBeaconContent } = await import("matrix-js-sdk/lib/content-helpers");
+    const infoContent = makeBeaconInfoContent(durationMs, true, "Live location", "m.self" as never);
+    let res;
+    try {
+      res = await this.client.unstable_createLiveBeacon(this.roomId, infoContent as never);
+    } catch (e) {
+      throw toMaterixError(e, "send");
+    }
+    const beaconInfoId = res.event_id;
+
+    let stopped = false;
+    const push = (pos: GeolocationPosition) => {
+      if (stopped) return;
+      const geoUri = `geo:${pos.coords.latitude},${pos.coords.longitude};u=${Math.round(pos.coords.accuracy)}`;
+      const content = makeBeaconContent(geoUri, Math.floor(pos.timestamp || Date.now()), beaconInfoId);
+      this.client.sendEvent(this.roomId, "org.matrix.msc3672.beacon" as never, content as never).catch(() => undefined);
+    };
+    navigator.geolocation.getCurrentPosition(push, () => undefined, { enableHighAccuracy: true });
+    const watchId = navigator.geolocation.watchPosition(push, () => undefined, {
+      enableHighAccuracy: true,
+      maximumAge: 5000,
+    });
+
+    const stop = async () => {
+      if (stopped) return;
+      stopped = true;
+      navigator.geolocation.clearWatch(watchId);
+      clearTimeout(expiry);
+      const offContent = makeBeaconInfoContent(durationMs, false, "Live location", "m.self" as never);
+      await this.client.unstable_setLiveBeacon(this.roomId, offContent as never).catch(() => undefined);
+    };
+    const expiry = setTimeout(() => void stop(), durationMs);
+    return stop;
   }
 
   async sendFile(file: File, onProgress?: (loaded: number, total: number) => void): Promise<void> {

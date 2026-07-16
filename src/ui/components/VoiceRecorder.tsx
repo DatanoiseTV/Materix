@@ -20,6 +20,13 @@ export function VoiceRecorder({
   const streamRef = useRef<MediaStream | null>(null);
   const startRef = useRef(0);
   const stateRef = useRef<"recording" | "cancelled" | "sending">("recording");
+  // Callbacks change identity on every parent (Composer) re-render; keep them
+  // in refs so the setup effect runs ONCE and the recorder isn't torn down and
+  // restarted on each sync event (which corrupts audio and resets the timer).
+  const onSendRef = useRef(onSend);
+  onSendRef.current = onSend;
+  const onCancelRef = useRef(onCancel);
+  onCancelRef.current = onCancel;
 
   useEffect(() => {
     let raf = 0;
@@ -51,7 +58,7 @@ export function VoiceRecorder({
           const down = Array.from({ length: Math.min(target, wf.length) }, (_, i) =>
             Math.round(Math.min(1, wf[i * step] ?? 0) * 1024),
           );
-          onSend(file, Date.now() - startRef.current, down.length ? down : [512]);
+          onSendRef.current(file, Date.now() - startRef.current, down.length ? down : [512]);
         };
 
         // Waveform sampling from live analyser.
@@ -89,11 +96,13 @@ export function VoiceRecorder({
       cancelAnimationFrame(raf);
       streamRef.current?.getTracks().forEach((t) => t.stop());
     };
-  }, [onSend]);
+    // Run once; callbacks are read via refs.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const stop = (mode: "sending" | "cancelled") => {
     stateRef.current = mode;
-    if (mode === "cancelled") onCancel();
+    if (mode === "cancelled") onCancelRef.current();
     recorderRef.current?.stop();
   };
 

@@ -11,7 +11,27 @@ import { Avatar } from "./components/Avatar";
 import { IconBack, IconChat, IconInfo, IconLock } from "./components/Icons";
 import { typingText } from "./format";
 import { useToast } from "./components/Toast";
-import { useEffect } from "react";
+
+function LiveShareBanner({ accountKey, roomId }: { accountKey: string; roomId: string }) {
+  useSyncExternalStore(
+    (cb) => liveShare.onChange(cb),
+    () => liveShare.get(accountKey, roomId),
+  );
+  const share = liveShare.get(accountKey, roomId);
+  if (!share) return null;
+  return (
+    <div className="banner" style={{ borderTop: "1px solid var(--border)" }}>
+      <IconLocation size={18} />
+      <span className="banner-text">Sharing your live location…</span>
+      <button className="btn danger small" onClick={() => liveShare.stop(accountKey, roomId)}>
+        Stop sharing
+      </button>
+    </div>
+  );
+}
+import { useEffect, useSyncExternalStore } from "react";
+import { liveShare } from "./liveShare";
+import { IconLocation } from "./components/Icons";
 
 export function ChatPane({
   selection,
@@ -133,7 +153,15 @@ export function ChatPane({
           </div>
         </div>
       ) : (
-        <Composer handle={handle} mode={mode} onClearMode={() => setMode(null)} />
+        <>
+          <LiveShareBanner accountKey={selection.accountKey} roomId={selection.roomId} />
+          <Composer
+            handle={handle}
+            accountKey={selection.accountKey}
+            mode={mode}
+            onClearMode={() => setMode(null)}
+          />
+        </>
       )}
     </main>
   );

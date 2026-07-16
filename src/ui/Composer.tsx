@@ -20,6 +20,7 @@ import {
 import { EmojiPicker } from "./components/EmojiPicker";
 import { ContextMenu, type MenuState } from "./components/ContextMenu";
 import { PollDialog } from "./dialogs/PollDialog";
+import { LocationDialog } from "./dialogs/LocationDialog";
 import { VoiceRecorder } from "./components/VoiceRecorder";
 import { useToast } from "./components/Toast";
 
@@ -30,10 +31,12 @@ export interface ComposeMode {
 
 export function Composer({
   handle,
+  accountKey,
   mode,
   onClearMode,
 }: {
   handle: RoomHandle;
+  accountKey: string;
   mode: ComposeMode | null;
   onClearMode: () => void;
 }) {
@@ -42,6 +45,7 @@ export function Composer({
   const [emoji, setEmoji] = useState<{ x: number; y: number } | null>(null);
   const [attachMenu, setAttachMenu] = useState<MenuState | null>(null);
   const [pollOpen, setPollOpen] = useState(false);
+  const [locationOpen, setLocationOpen] = useState(false);
   const [recording, setRecording] = useState(false);
   const taRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -137,18 +141,6 @@ export function Composer({
     if (e.dataTransfer.files.length) void sendFiles(e.dataTransfer.files);
   };
 
-  function shareLocation() {
-    if (!navigator.geolocation) {
-      showError(new Error("Location isn't available on this device."));
-      return;
-    }
-    navigator.geolocation.getCurrentPosition(
-      (pos) => handle.sendLocation(pos.coords.latitude, pos.coords.longitude).catch(showError),
-      () => showError(new Error("Couldn't get your location.")),
-      { enableHighAccuracy: true, timeout: 10_000 },
-    );
-  }
-
   const openAttachMenu = (e: React.MouseEvent) => {
     const r = e.currentTarget.getBoundingClientRect();
     setAttachMenu({
@@ -157,7 +149,7 @@ export function Composer({
       items: [
         { label: "Photo or file", icon: <IconFile size={16} />, onClick: () => fileRef.current?.click() },
         { label: "Poll", icon: <IconChat size={16} />, onClick: () => setPollOpen(true) },
-        { label: "Location", icon: <IconLocation size={16} />, onClick: shareLocation },
+        { label: "Location", icon: <IconLocation size={16} />, onClick: () => setLocationOpen(true) },
       ],
     });
   };
@@ -285,6 +277,9 @@ export function Composer({
       )}
       {attachMenu && <ContextMenu menu={attachMenu} onClose={() => setAttachMenu(null)} />}
       {pollOpen && <PollDialog handle={handle} onClose={() => setPollOpen(false)} />}
+      {locationOpen && (
+        <LocationDialog handle={handle} accountKey={accountKey} onClose={() => setLocationOpen(false)} />
+      )}
     </div>
   );
 }
