@@ -97,6 +97,24 @@ export function Timeline({
     }
   };
 
+  // Auto-fill: if the loaded history is too short to scroll (e.g. right after a
+  // reload restores only the recent sync window), pull older pages so history
+  // is reachable. Without this, a non-scrollable timeline can never fire the
+  // scroll-triggered backfill above. Bounded by the backward pagination token,
+  // which is null once the room start is reached.
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el || loadingOlder || !handle.canPaginateBack()) return;
+    if (el.scrollHeight <= el.clientHeight + 40) {
+      setLoadingOlder(true);
+      prevHeight.current = el.scrollHeight;
+      handle
+        .paginateBack()
+        .catch(showError)
+        .finally(() => setLoadingOlder(false));
+    }
+  });
+
   return (
     <>
       <div className="timeline" ref={scrollRef} onScroll={onScroll} tabIndex={0} aria-label="Messages">
