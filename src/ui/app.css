@@ -1325,6 +1325,76 @@ button.msg-sender:hover {
   background: var(--danger-soft);
 }
 
+/* ---------- live location beacons ---------- */
+
+.beacons-panel {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  background: var(--border);
+  border-bottom: 1px solid var(--border);
+}
+
+.beacon-card {
+  background: var(--bg-pane);
+  padding: var(--sp-2) var(--sp-4);
+}
+
+.beacon-head {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+
+.beacon-pin {
+  color: var(--accent-strong);
+  flex: 0 0 auto;
+}
+
+.beacon-meta {
+  flex: 1;
+  min-width: 0;
+}
+
+.beacon-name {
+  font-weight: 600;
+  font-size: var(--fs-sm);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.beacon-sub {
+  font-size: var(--fs-xs);
+  color: var(--text-2);
+}
+
+.beacon-map {
+  margin-top: var(--sp-2);
+  border-radius: var(--r-md);
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+
+.beacon-map iframe {
+  display: block;
+  width: 100%;
+  height: 220px;
+  border: 0;
+}
+
+.beacon-map-foot {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
+  font-size: var(--fs-xs);
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+}
+
 /* ---------- audio / voice player ---------- */
 
 .audio-player {

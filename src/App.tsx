@@ -1,6 +1,6 @@
 // App shell: init, onboarding gate, three-pane layout, dialogs, notifications.
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { accountManager } from "./core/manager";
 import type { SasFlow } from "./core/types";
 import { useAccounts, useMediaQuery } from "./ui/hooks";
@@ -73,7 +73,9 @@ export function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [accountKeys, phase]);
 
-  // Surface incoming verification requests from any account.
+  // Surface incoming verification requests from any account. A request the
+  // user has already dismissed must not re-open from a lingering flow.
+  const dismissedFlows = useRef(new Set<string>());
   useEffect(() => {
     if (phase !== "ready") return;
     const unsubs = accountManager.list().map((a) => {
@@ -81,7 +83,12 @@ export function App() {
       const surface = () => {
         const flow = account.crypto
           .activeFlows()
-          .find((f) => !f.initiatedByMe && (f.phase === "requested" || f.phase === "ready" || f.phase === "emojis"));
+          .find(
+            (f) =>
+              !f.initiatedByMe &&
+              !dismissedFlows.current.has(f.flowId) &&
+              (f.phase === "requested" || f.phase === "ready" || f.phase === "emojis"),
+          );
         if (flow) setActiveFlow((cur) => cur ?? flow);
       };
       surface(); // pick up requests that arrived before this subscription
@@ -187,7 +194,15 @@ export function App() {
           />
         </div>
       )}
-      {activeFlow && <VerificationDialog flow={activeFlow} onClose={() => setActiveFlow(null)} />}
+      {activeFlow && (
+        <VerificationDialog
+          flow={activeFlow}
+          onClose={() => {
+            dismissedFlows.current.add(activeFlow.flowId);
+            setActiveFlow(null);
+          }}
+        />
+      )}
     </ToastProvider>
   );
 }

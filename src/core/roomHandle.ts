@@ -12,8 +12,10 @@ import {
   type Room,
 } from "matrix-js-sdk";
 import { encryptAttachment } from "matrix-encrypt-attachment";
+import { parseBeaconContent } from "matrix-js-sdk/lib/content-helpers";
 import type {
   EncryptedFileInfo,
+  LiveBeacon,
   MemberSummary,
   MessageBody,
   PollData,
@@ -570,6 +572,18 @@ export class RoomHandle {
     return stop;
   }
 
+  /** Turn off all of my live beacons in this room (any device). */
+  async stopMyLiveLocation(): Promise<void> {
+    const me = this.client.getUserId();
+    const { makeBeaconInfoContent } = await import("matrix-js-sdk/lib/content-helpers");
+    for (const beacon of this.room.currentState.beacons.values()) {
+      if (beacon.beaconInfoOwner !== me || !beacon.isLive) continue;
+      const info = beacon.beaconInfo;
+      const off = makeBeaconInfoContent(info.timeout ?? 0, false, info.description, "m.self" as never);
+      await this.client.unstable_setLiveBeacon(this.roomId, off as never).catch(() => undefined);
+    }
+  }
+
   async sendFile(file: File, onProgress?: (loaded: number, total: number) => void): Promise<void> {
     const mime = file.type || "application/octet-stream";
     const msgtype = mime.startsWith("image/")
@@ -696,6 +710,45 @@ export class RoomHandle {
       canKick: myPl >= kickLevel,
       canRedactOthers: myPl >= redactLevel,
     };
+  }
+
+  /** Currently-live location beacons in this room (yours and others'). */
+  liveBeacons(): LiveBeacon[] {
+    const me = this.client.getUserId();
+    const out: LiveBeacon[] = [];
+    for (const beacon of this.room.currentState.beacons.values()) {
+      if (!beacon.isLive) continue;
+      const info = beacon.beaconInfo;
+      const owner = beacon.beaconInfoOwner;
+      const member = this.room.getMember(owner);
+      let lat: number | undefined;
+      let lon: number | undefined;
+      let accuracy: number | undefined;
+      const loc = beacon.latestLocationState;
+      if (loc?.uri) {
+        const parsed = parseBeaconContent({ "org.matrix.msc3672.beacon": { "m.location": { uri: loc.uri } } } as never);
+        const uri = parsed.uri ?? loc.uri;
+        const m = /geo:([-\d.]+),([-\d.]+)(?:;u=([\d.]+))?/.exec(uri);
+        if (m) {
+          lat = parseFloat(m[1]);
+          lon = parseFloat(m[2]);
+          accuracy = m[3] ? parseFloat(m[3]) : undefined;
+        }
+      }
+      const startTs = info.timestamp ?? beacon.beaconInfo.timestamp ?? Date.now();
+      out.push({
+        id: beacon.identifier,
+        owner: { userId: owner, name: member?.name ?? owner, avatarUrl: member?.getMxcAvatarUrl() ?? undefined },
+        mine: owner === me,
+        description: info.description,
+        lat,
+        lon,
+        accuracy,
+        updatedTs: loc?.timestamp,
+        expiresTs: startTs + (info.timeout ?? 0),
+      });
+    }
+    return out.sort((a, b) => Number(b.mine) - Number(a.mine) || (b.updatedTs ?? 0) - (a.updatedTs ?? 0));
   }
 
   members(): MemberSummary[] {

@@ -2,6 +2,7 @@
 // actions. Contract: docs/api-contract.md "Core boundary".
 
 import {
+  BeaconEvent,
   ClientEvent,
   EventType,
   IndexedDBStore,
@@ -119,6 +120,14 @@ export class MatrixAccount {
     c.on(RoomMemberEvent.Typing, (_ev, member) => bumpRoom(c.getRoom(member.roomId)));
     c.on(RoomStateEvent.Events, (ev) => bumpRoom(c.getRoom(ev.getRoomId() ?? undefined)));
     c.on(MatrixEventEvent.Decrypted, (ev) => bumpRoom(c.getRoom(ev.getRoomId() ?? undefined)));
+    // Live-location beacons: re-render on new position / liveness change.
+    c.on(BeaconEvent.New as never, ((_ev: unknown, beacon: { roomId: string }) =>
+      bumpRoom(c.getRoom(beacon.roomId))) as never);
+    c.on(BeaconEvent.Update as never, ((_ev: unknown, beacon: { roomId: string }) =>
+      bumpRoom(c.getRoom(beacon.roomId))) as never);
+    c.on(BeaconEvent.LivenessChange as never, ((_live: boolean, beacon: { roomId: string }) =>
+      bumpRoom(c.getRoom(beacon.roomId))) as never);
+    c.on(BeaconEvent.LocationUpdate as never, (() => this.events.emit("rooms")) as never);
     c.on(ClientEvent.AccountData, (ev) => {
       if (ev.getType() === EventType.Direct) {
         this.rebuildDirectSet();

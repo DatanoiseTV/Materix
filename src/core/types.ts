@@ -226,6 +226,22 @@ export interface SendFileProgress {
   total: number;
 }
 
+/** An active live-location share, from you or another member. */
+export interface LiveBeacon {
+  id: string;
+  owner: { userId: string; name: string; avatarUrl?: string };
+  mine: boolean;
+  description?: string;
+  /** Latest reported position, if any location has arrived yet. */
+  lat?: number;
+  lon?: number;
+  accuracy?: number;
+  /** Epoch ms of the latest location update. */
+  updatedTs?: number;
+  /** Epoch ms when the share expires. */
+  expiresTs: number;
+}
+
 export interface PublicRoomResult {
   roomId: string;
   name: string;
