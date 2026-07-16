@@ -2,7 +2,7 @@
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "Materix",
   "version": "0.1.0",
-  "identifier": "com.tauri.dev",
+  "identifier": "org.materix.app",
   "build": {
     "frontendDist": "../dist",
     "devUrl": "http://localhost:1420",
@@ -13,8 +13,10 @@
     "windows": [
       {
         "title": "Materix",
-        "width": 800,
-        "height": 600,
+        "width": 1180,
+        "height": 800,
+        "minWidth": 420,
+        "minHeight": 560,
         "resizable": true,
         "fullscreen": false
       }
