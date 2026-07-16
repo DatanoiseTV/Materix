@@ -32,26 +32,6 @@ import { previewText } from "./markdown";
 import { CryptoFacade, cryptoCallbacks } from "./crypto";
 import { Emitter } from "./emitter";
 import { toMaterixError } from "./errors";
-import { getCryptoStoreKey, getRegisteredPasscodePrompt } from "./cryptoStoreKey";
-
-// Encrypted crypto store lives under a distinct prefix so it never collides
-// with an older unencrypted store (which would fail to open with a key).
-const CRYPTO_DB_PREFIX = "materix-cryptenc-";
-const LEGACY_CRYPTO_DB_PREFIX = "materix-crypto-";
-
-/** Best-effort removal of the pre-encryption plaintext crypto store on disk. */
-async function deleteLegacyCryptoDbs(accountKey: string): Promise<void> {
-  try {
-    const idb = window.indexedDB as IDBFactory & { databases?: () => Promise<{ name?: string }[]> };
-    if (!idb.databases) return;
-    const marker = LEGACY_CRYPTO_DB_PREFIX + accountKey;
-    for (const { name } of await idb.databases()) {
-      if (name && name.includes(marker)) window.indexedDB.deleteDatabase(name);
-    }
-  } catch {
-    // Enumeration/deletion is best-effort; ignore failures.
-  }
-}
 
 /** Deterministic per-account accent color. */
 function accountColor(key: AccountKey): string {
@@ -66,8 +46,6 @@ export class MatrixAccount {
   client!: MatrixClient;
   syncState: SyncStateName = "initial";
   startError?: string;
-  /** 32-byte key encrypting the Rust crypto store; kept for passcode re-wrapping. */
-  storageKey?: Uint8Array<ArrayBuffer>;
   private handles = new Map<string, RoomHandle>();
   private directRooms = new Set<string>();
   /** Client-side per-room settings, synced via io.materix.settings account data. */
@@ -100,18 +78,10 @@ export class MatrixAccount {
     await store.startup();
 
     try {
-      // Encrypt the crypto store at rest with a per-account key (keychain-backed
-      // on desktop, generated on web, or passcode-derived when the user opts in).
-      this.storageKey = await getCryptoStoreKey(this.key, getRegisteredPasscodePrompt());
-      await this.client.initRustCrypto({
-        cryptoDatabasePrefix: CRYPTO_DB_PREFIX + this.key,
-        storageKey: this.storageKey,
-      });
+      await this.client.initRustCrypto({ cryptoDatabasePrefix: `materix-crypto-${this.key}` });
       this.crypto.attach();
-      // Remove any pre-encryption plaintext crypto store left from earlier builds.
-      void deleteLegacyCryptoDbs(this.key);
     } catch (e) {
-      // Crypto store corruption / cancelled unlock must not brick the account.
+      // Crypto store corruption must not brick the account; run unencrypted-capable.
       console.error(`rust crypto init failed for ${this.session.userId}`, e);
     }
 
