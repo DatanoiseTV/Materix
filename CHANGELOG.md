@@ -23,8 +23,13 @@ Initial release.
   `m.image`/`m.video`/`m.audio` with thumbnails, `m.file`, and `m.location`.
 - Voice messages (MSC3245) with recorded waveform + a seekable audio player.
 - Polls (MSC3381): create, vote, live results, end.
-- Location: send current location, and share live location (MSC3672 beacons)
-  for a chosen duration with a "Stop sharing" control.
+- Location: send current location (rendered as an embedded map), and share
+  live location (MSC3672 beacons) for a chosen duration with a "Stop sharing"
+  control. Others' live beacons render in a panel with a map that recenters as
+  they move.
+- Media gallery per room (Info → Media): grid of photos/videos from history
+  with a lightbox and pagination, plus a Files list.
+- Synthesized notification sounds (six presets), customizable with preview.
 - End-to-end encryption via Rust crypto, on by default for DMs and private
   rooms; per-account crypto stores.
 - SAS emoji verification for own sessions and contacts (in-room); cross-signing
