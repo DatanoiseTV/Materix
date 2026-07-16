@@ -30,6 +30,8 @@ stores access tokens in the OS keychain.
 - **Voice messages** (MSC3245) with a live-recorded waveform, and a seekable
   audio player widget with download.
 - **Polls** (MSC3381): create, vote, live results, end.
+- **Location** sharing: current location, or live location (MSC3672 beacons)
+  for a chosen duration with a Stop-sharing control.
 - **Explore.** Browse any server's public room directory and search the user
   directory (where the server supports it).
 - **Organize.** Favorites, low-priority, archive (collapsible section), and

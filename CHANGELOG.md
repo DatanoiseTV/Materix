@@ -23,6 +23,8 @@ Initial release.
   `m.image`/`m.video`/`m.audio` with thumbnails, `m.file`, and `m.location`.
 - Voice messages (MSC3245) with recorded waveform + a seekable audio player.
 - Polls (MSC3381): create, vote, live results, end.
+- Location: send current location, and share live location (MSC3672 beacons)
+  for a chosen duration with a "Stop sharing" control.
 - End-to-end encryption via Rust crypto, on by default for DMs and private
   rooms; per-account crypto stores.
 - SAS emoji verification for own sessions and contacts (in-room); cross-signing
