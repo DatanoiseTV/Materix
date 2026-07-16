@@ -429,7 +429,7 @@ function MessageBubble({
           <div className="reply-quote-text">{item.replyTo.preview}</div>
         </div>
       )}
-      <MessageContent body={body} account={account} onZoom={onZoom} />
+      <MessageContent body={body} account={account} onZoom={onZoom} trackId={item.id} />
     </div>
   );
 }
@@ -438,10 +438,12 @@ function MessageContent({
   body,
   account,
   onZoom,
+  trackId,
 }: {
   body: MessageBody;
   account: MatrixAccount;
   onZoom: (url: string) => void;
+  trackId: string;
 }) {
   if (body.msgtype === "m.text" || body.msgtype === "m.notice" || body.msgtype === "m.emote") {
     if (body.html) {
@@ -453,7 +455,7 @@ function MessageContent({
   if (body.msgtype === "m.image") return <ImageContent body={body} account={account} onZoom={onZoom} />;
   if (body.msgtype === "m.video") return <VideoContent body={body} account={account} />;
   if (body.msgtype === "m.location") return <LocationContent body={body} />;
-  if (body.msgtype === "m.audio") return <AudioContent body={body} account={account} />;
+  if (body.msgtype === "m.audio") return <AudioContent body={body} account={account} trackId={trackId} />;
   if (body.msgtype === "m.file") return <FileContent body={body} account={account} />;
   return null;
 }
@@ -584,12 +586,23 @@ function LocationContent({ body }: { body: Extract<MessageBody, { msgtype: "m.lo
 function AudioContent({
   body,
   account,
+  trackId,
 }: {
   body: Extract<MessageBody, { msgtype: "m.audio" }>;
   account: MatrixAccount;
+  trackId: string;
 }) {
   const src = useMediaSrc(account, body.mxc, body.file, body.mime);
-  return <AudioPlayer src={src} name={body.text} voice={body.voice} durationMs={body.durationMs} waveform={body.waveform} />;
+  return (
+    <AudioPlayer
+      trackId={trackId}
+      src={src}
+      name={body.text}
+      voice={body.voice}
+      durationMs={body.durationMs}
+      waveform={body.waveform}
+    />
+  );
 }
 
 function hashHue(id: string): number {

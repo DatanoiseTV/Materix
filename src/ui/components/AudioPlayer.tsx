@@ -1,9 +1,15 @@
 // Compact audio / voice-message player: play-pause, seekable waveform (or
 // progress bar), time readout, download. Works for both m.audio files and
 // MSC3245 voice messages.
+//
+// Playback itself is owned by the app-level audioBus (a single detached
+// <audio> element), so this component is only a *view*: it reflects and
+// controls the shared engine, keyed by a stable trackId. That lets audio keep
+// playing when the timeline unmounts (switching rooms).
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import { IconDownload } from "./Icons";
+import { useMemo } from "react";
+import { IconDownload, IconPause, IconPlay } from "./Icons";
+import { audioBus, useAudioBus, type AudioTrack } from "../audioBus";
 
 function fmt(sec: number): string {
   if (!isFinite(sec) || sec < 0) sec = 0;
@@ -13,27 +19,25 @@ function fmt(sec: number): string {
 }
 
 export function AudioPlayer({
+  trackId,
   src,
   name,
   voice,
   durationMs,
   waveform,
 }: {
+  trackId: string;
   src?: string;
   name: string;
   voice?: boolean;
   durationMs?: number;
   waveform?: number[];
 }) {
-  const audioRef = useRef<HTMLAudioElement>(null);
-  const [playing, setPlaying] = useState(false);
-  const [current, setCurrent] = useState(0);
-  const [duration, setDuration] = useState(durationMs ? durationMs / 1000 : 0);
-
-  useEffect(() => {
-    setPlaying(false);
-    setCurrent(0);
-  }, [src]);
+  const snap = useAudioBus();
+  const active = snap.trackId === trackId;
+  const playing = active && snap.playing;
+  const current = active ? snap.currentTime : 0;
+  const duration = active && snap.duration ? snap.duration : durationMs ? durationMs / 1000 : 0;
 
   // Normalize the MSC3245 waveform (values 0..1024) to bar heights.
   const bars = useMemo(() => {
@@ -48,38 +52,25 @@ export function AudioPlayer({
 
   const pct = duration ? current / duration : 0;
 
+  const track = (): AudioTrack => ({ id: trackId, src: src!, name, voice, durationMs, waveform });
+
   const toggle = () => {
-    const a = audioRef.current;
-    if (!a) return;
-    if (a.paused) {
-      a.play();
-      setPlaying(true);
-    } else {
-      a.pause();
-      setPlaying(false);
-    }
+    if (!src) return;
+    audioBus.toggle(track());
   };
 
   const seek = (e: React.MouseEvent<HTMLDivElement>) => {
-    const a = audioRef.current;
-    if (!a || !duration) return;
+    if (!src) return;
     const rect = e.currentTarget.getBoundingClientRect();
-    a.currentTime = ((e.clientX - rect.left) / rect.width) * duration;
+    const frac = (e.clientX - rect.left) / rect.width;
+    if (active) audioBus.seekFrac(frac);
+    else audioBus.play(track()); // start this track (from the beginning)
   };
 
   return (
     <div className={`audio-player${voice ? " voice" : ""}`}>
       <button className="audio-play" onClick={toggle} aria-label={playing ? "Pause" : "Play"} disabled={!src}>
-        {playing ? (
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-            <rect x="6" y="5" width="4" height="14" rx="1" />
-            <rect x="14" y="5" width="4" height="14" rx="1" />
-          </svg>
-        ) : (
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M8 5v14l11-7z" />
-          </svg>
-        )}
+        {playing ? <IconPause size={16} /> : <IconPlay size={16} />}
       </button>
 
       <div className="audio-body">
@@ -113,21 +104,6 @@ export function AudioPlayer({
           <IconDownload size={15} />
         </a>
       )}
-
-      <audio
-        ref={audioRef}
-        src={src}
-        preload="metadata"
-        onLoadedMetadata={(e) => {
-          const d = (e.target as HTMLAudioElement).duration;
-          if (isFinite(d) && d > 0) setDuration(d);
-        }}
-        onTimeUpdate={(e) => setCurrent((e.target as HTMLAudioElement).currentTime)}
-        onEnded={() => {
-          setPlaying(false);
-          setCurrent(0);
-        }}
-      />
     </div>
   );
 }

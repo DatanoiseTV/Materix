@@ -1563,6 +1563,107 @@ button.msg-sender:hover {
   font-variant-numeric: tabular-nums;
 }
 
+/* ---------- now-playing bar (persists across room switches) ---------- */
+.now-playing {
+  position: fixed;
+  top: var(--sp-3);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 120;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  width: min(420px, calc(100vw - var(--sp-4) * 2));
+  padding: var(--sp-2) var(--sp-3);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--r-full);
+  box-shadow: var(--shadow-2);
+  animation: np-in 0.18s ease-out;
+}
+
+@keyframes np-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -8px);
+  }
+}
+
+.np-play {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 auto;
+  border-radius: var(--r-full);
+  background: var(--accent);
+  color: var(--on-accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.np-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.np-name {
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.np-track {
+  cursor: pointer;
+  padding: 3px 0;
+}
+
+.np-bar {
+  height: 4px;
+  background: var(--border-strong);
+  border-radius: var(--r-full);
+  overflow: hidden;
+}
+
+.np-bar-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: var(--r-full);
+}
+
+.np-time {
+  flex: 0 0 auto;
+  font-size: var(--fs-xs);
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.np-close {
+  width: 30px;
+  height: 30px;
+  flex: 0 0 auto;
+  border-radius: var(--r-full);
+  color: var(--text-2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.np-close:hover {
+  background: var(--bg-hover);
+  color: var(--text-1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .now-playing {
+    animation: none;
+  }
+}
+
 /* ---------- voice recorder ---------- */
 
 .voice-recorder {

@@ -15,6 +15,7 @@ import { SettingsDialog } from "./ui/dialogs/SettingsDialog";
 import { SecurityDialog } from "./ui/dialogs/SecurityDialog";
 import { VerificationDialog } from "./ui/dialogs/VerificationDialog";
 import { wireNotifications } from "./ui/notifications";
+import { NowPlaying } from "./ui/components/NowPlaying";
 import { uiBus } from "./ui/bus";
 
 applyTheme();
@@ -159,6 +160,8 @@ export function App() {
           />
         )}
       </div>
+
+      <NowPlaying />
 
       {dialog.kind === "new-chat" && (
         <NewChatDialog
