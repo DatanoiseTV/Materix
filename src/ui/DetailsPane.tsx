@@ -169,6 +169,7 @@ export function DetailsPane({
                     items: buildUserMenu(account, m.userId, {
                       show,
                       showError,
+                      roomId: selection.roomId,
                       canKick: details.canKick,
                       onKick: () => {
                         if (confirm(`Remove ${m.name} from the room?`)) handle!.kick(m.userId).catch(showError);

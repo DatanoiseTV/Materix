@@ -333,13 +333,34 @@ export class MatrixAccount {
   }
 
   async startDm(userId: string): Promise<string> {
-    // Reuse an existing DM with this user when one is still joined.
+    const existing = this.findExistingDm(userId);
+    if (existing) return existing;
+    return this.createRoom({ direct: true, invite: [userId], encrypted: true });
+  }
+
+  /**
+   * Find a joined DM room with `userId`, or undefined. Prefers rooms recorded
+   * in `m.direct`, then falls back to any joined two-person room shared with
+   * just this user — `m.direct` is frequently stale (e.g. the DM was created
+   * by the other side), and without this fallback we'd spawn a duplicate room.
+   */
+  private findExistingDm(userId: string): string | undefined {
     const direct = this.client.getAccountData(EventType.Direct)?.getContent<Record<string, string[]>>() ?? {};
     for (const roomId of direct[userId] ?? []) {
       const room = this.client.getRoom(roomId);
       if (room && room.getMyMembership() === "join") return roomId;
     }
-    return this.createRoom({ direct: true, invite: [userId], encrypted: true });
+    for (const room of this.client.getRooms()) {
+      if (room.getMyMembership() !== "join") continue;
+      const joined = room.getJoinedMembers();
+      if (joined.length === 2 && joined.some((m) => m.userId === userId)) return room.roomId;
+    }
+    return undefined;
+  }
+
+  /** Whether `userId` is a joined member of `roomId` (for picking a verification room). */
+  isJoinedMember(roomId: string, userId: string): boolean {
+    return this.client.getRoom(roomId)?.getMember(userId)?.membership === "join";
   }
 
   private async addToDirects(userId: string, roomId: string): Promise<void> {

@@ -193,7 +193,7 @@ function TimelineRow({
     onUserMenu({
       x: e.clientX,
       y: e.clientY,
-      items: buildUserMenu(account, item.sender.userId, { show, showError }),
+      items: buildUserMenu(account, item.sender.userId, { show, showError, roomId: handle.roomId }),
     });
   };
 

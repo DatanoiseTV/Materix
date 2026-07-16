@@ -10,6 +10,8 @@ export function buildUserMenu(
   opts: {
     showError: (e: unknown) => void;
     show: (text: string) => void;
+    /** The room the menu was opened from; verification reuses it when shared. */
+    roomId?: string;
     canKick?: boolean;
     onKick?: () => void;
   },
@@ -33,7 +35,13 @@ export function buildUserMenu(
       label: "Verify user",
       onClick: async () => {
         try {
-          const roomId = await account.startDm(userId);
+          // Verify in the room the menu was opened from when the target shares
+          // it; only fall back to a DM (reused or new) otherwise. This avoids
+          // spawning a fresh chat when verifying someone you're already with.
+          const roomId =
+            opts.roomId && account.isJoinedMember(opts.roomId, userId)
+              ? opts.roomId
+              : await account.startDm(userId);
           uiBus.openRoom({ accountKey: account.key, roomId });
           const flow = await account.crypto.startUserVerification(userId, roomId);
           uiBus.showFlow(flow);
