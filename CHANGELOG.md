@@ -31,9 +31,7 @@ Initial release.
   with a lightbox and pagination, plus a Files list.
 - Synthesized notification sounds (twelve presets), customizable with preview.
 - End-to-end encryption via Rust crypto, on by default for DMs and private
-  rooms; per-account crypto stores, encrypted at rest with a per-account key
-  (OS keychain on desktop, generated on web) and an optional app passcode for
-  stronger web protection.
+  rooms; per-account crypto stores.
 - SAS emoji verification for own sessions and contacts (in-room); cross-signing
   bootstrap, secret storage, and server-side key backup with recovery-key
   setup/restore; first-run security banner.
