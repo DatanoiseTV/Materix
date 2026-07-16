@@ -1,13 +1,16 @@
 // Local UI preferences (per device, not synced).
 
+import type { SoundId } from "./sounds";
+
 export type NotificationMode = "preview" | "name" | "off";
 
 interface Prefs {
   notifications: NotificationMode;
+  sound: SoundId;
 }
 
 const KEY = "materix.prefs";
-const DEFAULTS: Prefs = { notifications: "preview" };
+const DEFAULTS: Prefs = { notifications: "preview", sound: "ping" };
 
 let cached: Prefs | null = null;
 const listeners = new Set<() => void>();

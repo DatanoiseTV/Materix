@@ -7,6 +7,7 @@ import type { Selection } from "./RoomList";
 import { Avatar } from "./components/Avatar";
 import { ContextMenu, type MenuState } from "./components/ContextMenu";
 import { buildUserMenu } from "./userMenu";
+import { MediaGallery } from "./MediaGallery";
 import { IconLock, IconLogout, IconStar, IconX } from "./components/Icons";
 import { useToast } from "./components/Toast";
 
@@ -25,6 +26,7 @@ export function DetailsPane({
   const [inviteInput, setInviteInput] = useState("");
   const [inviting, setInviting] = useState(false);
   const [menu, setMenu] = useState<MenuState | null>(null);
+  const [tab, setTab] = useState<"info" | "media">("info");
   const { show, showError } = useToast();
 
   if (!account) return null;
@@ -79,6 +81,19 @@ export function DetailsPane({
           </div>
         </div>
 
+        <div className="server-suggestions" role="tablist" aria-label="Details view">
+          <button role="tab" aria-selected={tab === "info"} className={`chip${tab === "info" ? " selected" : ""}`} onClick={() => setTab("info")}>
+            Info
+          </button>
+          <button role="tab" aria-selected={tab === "media"} className={`chip${tab === "media" ? " selected" : ""}`} onClick={() => setTab("media")}>
+            Media
+          </button>
+        </div>
+
+        {tab === "media" ? (
+          <MediaGallery account={account} roomId={selection.roomId} />
+        ) : (
+          <>
         <div className="settings-section">
           <h3>Actions</h3>
           <button
@@ -178,6 +193,8 @@ export function DetailsPane({
             {members.length > 100 && <div className="field-hint">Showing first 100 members.</div>}
           </div>
         </div>
+          </>
+        )}
       </div>
       {menu && <ContextMenu menu={menu} onClose={() => setMenu(null)} />}
     </aside>

@@ -189,6 +189,23 @@ export interface UserSearchResult {
   avatarUrl?: string;
 }
 
+export interface MediaItem {
+  eventId: string;
+  kind: "image" | "video" | "file";
+  ts: number;
+  senderName: string;
+  /** Filename / caption. */
+  text: string;
+  mxc: string;
+  file?: EncryptedFileInfo;
+  thumbMxc?: string;
+  thumbFile?: EncryptedFileInfo;
+  mime?: string;
+  size?: number;
+  w?: number;
+  h?: number;
+}
+
 export interface MemberSummary {
   userId: string;
   name: string;

@@ -16,6 +16,7 @@ import { parseBeaconContent } from "matrix-js-sdk/lib/content-helpers";
 import type {
   EncryptedFileInfo,
   LiveBeacon,
+  MediaItem,
   MemberSummary,
   MessageBody,
   PollData,
@@ -710,6 +711,41 @@ export class RoomHandle {
       canKick: myPl >= kickLevel,
       canRedactOthers: myPl >= redactLevel,
     };
+  }
+
+  /** Collect image/video (and optionally file) events from loaded history. */
+  media(kinds: ("image" | "video" | "file")[] = ["image", "video"]): MediaItem[] {
+    const want = new Set(kinds);
+    const out: MediaItem[] = [];
+    for (const ev of this.room.getLiveTimeline().getEvents()) {
+      if (ev.getType() !== EventType.RoomMessage || ev.isRedacted()) continue;
+      const content = ev.getContent();
+      const msgtype = content.msgtype as string;
+      const kind = msgtype === "m.image" ? "image" : msgtype === "m.video" ? "video" : msgtype === "m.file" ? "file" : null;
+      if (!kind || !want.has(kind)) continue;
+      const info = (content.info ?? {}) as Record<string, unknown>;
+      const file = content.file as EncryptedFileInfo | undefined;
+      const mxc = (file?.url ?? content.url) as string | undefined;
+      if (!mxc) continue;
+      const thumbFile = info.thumbnail_file as EncryptedFileInfo | undefined;
+      const member = this.room.getMember(ev.getSender() ?? "");
+      out.push({
+        eventId: ev.getId() ?? `${ev.getTs()}`,
+        kind,
+        ts: ev.getTs(),
+        senderName: ev.getSender() === this.client.getUserId() ? "You" : (member?.name ?? ev.getSender() ?? ""),
+        text: (content.body as string) ?? "",
+        mxc,
+        file,
+        thumbMxc: (thumbFile?.url ?? info.thumbnail_url) as string | undefined,
+        thumbFile,
+        mime: info.mimetype as string | undefined,
+        size: info.size as number | undefined,
+        w: info.w as number | undefined,
+        h: info.h as number | undefined,
+      });
+    }
+    return out.reverse(); // newest first
   }
 
   /** Currently-live location beacons in this room (yours and others'). */

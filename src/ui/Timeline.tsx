@@ -555,30 +555,29 @@ function FileContent({
 }
 
 function LocationContent({ body }: { body: Extract<MessageBody, { msgtype: "m.location" }> }) {
-  const mapUrl =
-    body.lat !== undefined && body.lon !== undefined
-      ? `https://www.openstreetmap.org/?mlat=${body.lat}&mlon=${body.lon}#map=16/${body.lat}/${body.lon}`
-      : undefined;
+  const hasPos = body.lat !== undefined && body.lon !== undefined;
+  if (!hasPos) {
+    return (
+      <div className="msg-file">
+        <span className="msg-file-icon">
+          <IconLocation size={20} />
+        </span>
+        <span className="msg-file-name">{body.text || "Shared location"}</span>
+      </div>
+    );
+  }
+  const d = 0.004;
+  const bbox = `${body.lon! - d},${body.lat! - d},${body.lon! + d},${body.lat! + d}`;
+  const embedSrc = `https://www.openstreetmap.org/export/embed.html?bbox=${bbox}&layer=mapnik&marker=${body.lat},${body.lon}`;
+  const openUrl = `https://www.openstreetmap.org/?mlat=${body.lat}&mlon=${body.lon}#map=16/${body.lat}/${body.lon}`;
   return (
-    <a
-      className="msg-file"
-      href={mapUrl ?? "#"}
-      target="_blank"
-      rel="noopener noreferrer"
-      aria-disabled={!mapUrl}
-    >
-      <span className="msg-file-icon">
-        <IconLocation size={20} />
-      </span>
-      <span style={{ minWidth: 0 }}>
-        <div className="msg-file-name">{body.text || "Shared location"}</div>
-        {body.lat !== undefined && (
-          <div className="msg-file-size">
-            {body.lat.toFixed(4)}, {body.lon!.toFixed(4)}
-          </div>
-        )}
-      </span>
-    </a>
+    <div className="msg-location">
+      <iframe title={body.text || "Shared location"} src={embedSrc} loading="lazy" />
+      <a className="msg-location-foot" href={openUrl} target="_blank" rel="noopener noreferrer">
+        <IconLocation size={14} />
+        <span>{body.text || "Shared location"}</span>
+      </a>
+    </div>
   );
 }
 

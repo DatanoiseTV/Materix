@@ -12,6 +12,7 @@ import { useAccounts } from "../hooks";
 import { useToast } from "../components/Toast";
 import { getThemePref, setThemePref, type ThemePref } from "../theme";
 import { getPrefs, setPref, type NotificationMode } from "../prefs";
+import { SOUND_OPTIONS, playSound, type SoundId } from "../sounds";
 import { SecurityDialog } from "./SecurityDialog";
 
 export function SettingsDialog({
@@ -27,6 +28,7 @@ export function SettingsDialog({
   const accounts = accountManager.list();
   const [theme, setTheme] = useState<ThemePref>(getThemePref());
   const [notifMode, setNotifMode] = useState<NotificationMode>(getPrefs().notifications);
+  const [sound, setSound] = useState<SoundId>(getPrefs().sound);
   const { show, showError } = useToast();
 
   return (
@@ -84,6 +86,28 @@ export function SettingsDialog({
           </div>
           <div className="field-hint">
             "Name only" shows who wrote without any message content — useful on shared screens.
+          </div>
+
+          <div style={{ marginTop: "var(--sp-2)" }}>
+            <div className="switch-title" style={{ marginBottom: "var(--sp-1)" }}>Notification sound</div>
+            <div className="theme-picker" role="radiogroup" aria-label="Notification sound" style={{ flexWrap: "wrap" }}>
+              {SOUND_OPTIONS.map((opt) => (
+                <button
+                  key={opt.id}
+                  role="radio"
+                  aria-checked={sound === opt.id}
+                  className={`chip${sound === opt.id ? " selected" : ""}`}
+                  onClick={() => {
+                    setSound(opt.id);
+                    setPref("sound", opt.id);
+                    playSound(opt.id); // preview on pick
+                  }}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+            <div className="field-hint">Click a sound to preview it. Plays when a new message notifies.</div>
           </div>
         </div>
 

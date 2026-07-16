@@ -4,6 +4,7 @@
 import { ClientEvent, RoomEvent, type MatrixClient, type MatrixEvent, type Room } from "matrix-js-sdk";
 import { SyncState } from "matrix-js-sdk";
 import { getPrefs } from "./prefs";
+import { playSound } from "./sounds";
 
 let requested = false;
 
@@ -38,6 +39,10 @@ export function wireNotifications(
     if (isMuted(room.roomId)) return;
     const actions = client.getPushActionsForEvent(ev);
     if (!actions?.notify) return;
+
+    // Sound plays even if OS notification permission is denied.
+    playSound(getPrefs().sound);
+
     if (!(await ensurePermission())) return;
 
     // Privacy mode "name": never include content, only who wrote.
