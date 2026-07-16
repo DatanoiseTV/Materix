@@ -1162,20 +1162,6 @@ button.msg-sender:hover {
   font-size: var(--fs-sm);
 }
 
-.passcode-form {
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-2);
-  margin-top: var(--sp-2);
-}
-
-.modal-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: var(--sp-2);
-  margin-top: var(--sp-1);
-}
-
 .switch-row {
   display: flex;
   align-items: center;

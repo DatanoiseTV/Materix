@@ -16,7 +16,6 @@ import { SecurityDialog } from "./ui/dialogs/SecurityDialog";
 import { VerificationDialog } from "./ui/dialogs/VerificationDialog";
 import { wireNotifications } from "./ui/notifications";
 import { NowPlaying } from "./ui/components/NowPlaying";
-import { PasscodeGate } from "./ui/passcodeGate";
 import { uiBus } from "./ui/bus";
 
 applyTheme();
@@ -116,7 +115,6 @@ export function App() {
       <div className="app-loading">
         <span className="spinner" />
         <span>Opening Materix…</span>
-        <PasscodeGate />
       </div>
     );
   }
@@ -164,7 +162,6 @@ export function App() {
       </div>
 
       <NowPlaying />
-      <PasscodeGate />
 
       {dialog.kind === "new-chat" && (
         <NewChatDialog

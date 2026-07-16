@@ -13,7 +13,6 @@ import { useToast } from "../components/Toast";
 import { getThemePref, setThemePref, type ThemePref } from "../theme";
 import { getPrefs, setPref, type NotificationMode } from "../prefs";
 import { SOUND_OPTIONS, playSound, type SoundId } from "../sounds";
-import { hasPasscode, setPasscode, clearPasscode } from "../../core/cryptoStoreKey";
 import { SecurityDialog } from "./SecurityDialog";
 
 export function SettingsDialog({
@@ -258,8 +257,6 @@ function AccountSettings({
               )}
             </div>
 
-            <PasscodeSetting account={account} />
-
             <div>
               <h3 style={{ margin: "var(--sp-2) 0" }}>Sessions</h3>
               {devices.map((d) => (
@@ -312,115 +309,6 @@ function AccountSettings({
             <IconLogout size={16} /> Sign out
           </button>
         </div>
-      )}
-    </div>
-  );
-}
-
-// Optional app passcode: wraps this account's crypto-store key with a
-// passcode-derived key for strong at-rest protection (mainly meaningful on
-// web, where there's no OS keychain). Enabling/disabling re-wraps the same key,
-// so it never invalidates the crypto store or requires re-verification.
-function PasscodeSetting({ account }: { account: MatrixAccount }) {
-  const [enabled, setEnabled] = useState<boolean | null>(null);
-  const [editing, setEditing] = useState(false);
-  const [p1, setP1] = useState("");
-  const [p2, setP2] = useState("");
-  const [busy, setBusy] = useState(false);
-  const { show, showError } = useToast();
-
-  useEffect(() => {
-    hasPasscode(account.key).then(setEnabled).catch(() => setEnabled(false));
-  }, [account]);
-
-  // The crypto store must be unlocked (key in memory) to (un)wrap it.
-  const ready = !!account.storageKey;
-
-  const enable = async () => {
-    if (p1.length < 4) return show("Use at least 4 characters.", "error");
-    if (p1 !== p2) return show("Passcodes don't match.", "error");
-    setBusy(true);
-    try {
-      await setPasscode(account.key, account.storageKey!, p1);
-      setEnabled(true);
-      setEditing(false);
-      setP1("");
-      setP2("");
-      show("App passcode enabled.");
-    } catch (e) {
-      showError(e);
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const disable = async () => {
-    if (!confirm("Remove the app passcode? Local data keeps device-level protection only.")) return;
-    setBusy(true);
-    try {
-      await clearPasscode(account.key, account.storageKey!);
-      setEnabled(false);
-      show("App passcode removed.");
-    } catch (e) {
-      showError(e);
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  if (enabled === null) return null;
-
-  return (
-    <div style={{ marginTop: "var(--sp-2)" }}>
-      <div className="switch-row">
-        <div>
-          <div className="switch-title">App passcode</div>
-          <div className="switch-sub">
-            {!ready
-              ? "Available once encryption is ready"
-              : enabled
-                ? "Required on launch to unlock local data"
-                : "Add a passcode for stronger at-rest encryption"}
-          </div>
-        </div>
-        {enabled ? (
-          <button className="btn secondary small" disabled={busy || !ready} onClick={disable}>
-            Remove
-          </button>
-        ) : (
-          <button className="btn primary small" disabled={busy || !ready} onClick={() => setEditing((v) => !v)}>
-            {editing ? "Cancel" : "Set passcode"}
-          </button>
-        )}
-      </div>
-
-      {editing && !enabled && (
-        <form
-          className="passcode-form"
-          onSubmit={(e) => {
-            e.preventDefault();
-            enable();
-          }}
-        >
-          <input
-            type="password"
-            autoFocus
-            value={p1}
-            onChange={(e) => setP1(e.target.value)}
-            placeholder="New passcode"
-            aria-label="New passcode"
-          />
-          <input
-            type="password"
-            value={p2}
-            onChange={(e) => setP2(e.target.value)}
-            placeholder="Confirm passcode"
-            aria-label="Confirm passcode"
-          />
-          <button type="submit" className="btn primary small" disabled={busy || !p1 || !p2}>
-            Enable passcode
-          </button>
-        </form>
       )}
     </div>
   );
