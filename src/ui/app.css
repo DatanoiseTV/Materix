@@ -1723,6 +1723,36 @@ button.msg-sender:hover {
   font-weight: 700;
 }
 
+.poll-options {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.poll-option-label {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+
+.poll-mark {
+  flex: 0 0 auto;
+  font-size: 1.05em;
+  line-height: 1;
+  color: var(--text-2);
+}
+
+.poll-option.chosen .poll-mark {
+  color: var(--accent);
+}
+
+.poll-pct {
+  flex: 0 0 auto;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-2);
+}
+
 .poll-option {
   display: flex;
   flex-direction: column;

@@ -363,33 +363,41 @@ function PollView({
     handle.votePoll(poll.eventId, next).catch(showError);
   };
 
+  const multi = poll.maxSelections > 1;
   return (
     <div className="poll">
       <div className="poll-question">
         {poll.question}
-        {poll.ended ? " · Final results" : poll.maxSelections > 1 ? " · Choose multiple" : ""}
+        {poll.ended ? " · Final results" : multi ? " · Choose multiple" : ""}
       </div>
-      {poll.answers.map((a) => {
-        const pctOfTotal = poll.totalVotes ? Math.round((a.votes / poll.totalVotes) * 100) : 0;
-        return (
-          <button
-            key={a.id}
-            className={`poll-option${a.chosenByMe ? " chosen" : ""}`}
-            onClick={() => vote(a.id)}
-            disabled={poll.ended}
-            aria-pressed={a.chosenByMe}
-          >
-            <span className="poll-option-top">
-              <span>
-                {a.chosenByMe ? "◉ " : poll.ended ? "○ " : ""}
-                {a.text}
+      <div className="poll-options" role={multi ? "group" : "radiogroup"} aria-label={poll.question}>
+        {poll.answers.map((a) => {
+          const pctOfTotal = poll.totalVotes ? Math.round((a.votes / poll.totalVotes) * 100) : 0;
+          // Checkbox glyphs for multi-select, radio glyphs for single-select.
+          const mark = multi ? (a.chosenByMe ? "☑" : "☐") : a.chosenByMe ? "◉" : "○";
+          return (
+            <button
+              key={a.id}
+              className={`poll-option${a.chosenByMe ? " chosen" : ""}`}
+              onClick={() => vote(a.id)}
+              disabled={poll.ended}
+              role={multi ? "checkbox" : "radio"}
+              aria-checked={a.chosenByMe}
+            >
+              <span className="poll-option-top">
+                <span className="poll-option-label">
+                  <span className="poll-mark" aria-hidden="true">
+                    {mark}
+                  </span>
+                  {a.text}
+                </span>
+                {showResults && <span className="poll-pct">{pctOfTotal}%</span>}
               </span>
-              {showResults && <span>{pctOfTotal}%</span>}
-            </span>
-            {showResults && <span className="poll-option-bar" style={{ width: `${pctOfTotal}%` }} />}
-          </button>
-        );
-      })}
+              {showResults && <span className="poll-option-bar" style={{ width: `${pctOfTotal}%` }} />}
+            </button>
+          );
+        })}
+      </div>
       <div className="poll-total">
         {poll.totalVotes} vote{poll.totalVotes === 1 ? "" : "s"}
         {mine && !poll.ended && (
