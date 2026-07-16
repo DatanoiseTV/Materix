@@ -361,8 +361,33 @@ export class MatrixAccount {
     try {
       await this.client.joinRoom(roomId);
     } catch (e) {
+      // joinRoom issues the `/join` request first and only then runs post-join
+      // crypto steps (MSC4268 key-bundle import). Those can throw on an
+      // encrypted-room invite even though the server-side join already
+      // succeeded — which would otherwise surface as "accept doesn't work".
+      // Treat it as success if we did in fact become joined (now or once the
+      // next sync reflects it); rethrow only when the join genuinely failed.
+      if (this.client.getRoom(roomId)?.getMyMembership() === "join") return;
+      if (await this.waitForJoin(roomId, 5000)) return;
       throw toMaterixError(e, "join");
     }
+  }
+
+  /** Resolve true if our membership in `roomId` becomes "join" within `timeoutMs`. */
+  private waitForJoin(roomId: string, timeoutMs: number): Promise<boolean> {
+    if (this.client.getRoom(roomId)?.getMyMembership() === "join") return Promise.resolve(true);
+    return new Promise((resolve) => {
+      const done = (joined: boolean) => {
+        this.client.off(RoomEvent.MyMembership, onChange);
+        clearTimeout(timer);
+        resolve(joined);
+      };
+      const onChange = (room: Room, membership: string) => {
+        if (room.roomId === roomId && membership === "join") done(true);
+      };
+      const timer = setTimeout(() => done(false), timeoutMs);
+      this.client.on(RoomEvent.MyMembership, onChange as never);
+    });
   }
 
   async rejectInvite(roomId: string): Promise<void> {
