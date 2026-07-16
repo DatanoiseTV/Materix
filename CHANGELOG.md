@@ -29,7 +29,7 @@ Initial release.
   they move.
 - Media gallery per room (Info → Media): grid of photos/videos from history
   with a lightbox and pagination, plus a Files list.
-- Synthesized notification sounds (six presets), customizable with preview.
+- Synthesized notification sounds (twelve presets), customizable with preview.
 - End-to-end encryption via Rust crypto, on by default for DMs and private
   rooms; per-account crypto stores.
 - SAS emoji verification for own sessions and contacts (in-room); cross-signing

@@ -1,15 +1,34 @@
 // Synthesized notification sounds — no audio files, all generated with the
 // Web Audio API so they ship zero assets and stay crisp at any volume.
 
-export type SoundId = "none" | "ping" | "chime" | "pop" | "knock" | "marimba" | "glass";
+export type SoundId =
+  | "none"
+  | "ping"
+  | "chime"
+  | "pop"
+  | "knock"
+  | "marimba"
+  | "glass"
+  | "tritone"
+  | "bell"
+  | "droplet"
+  | "pluck"
+  | "harp"
+  | "blip";
 
 export const SOUND_OPTIONS: { id: SoundId; label: string }[] = [
   { id: "ping", label: "Ping" },
   { id: "chime", label: "Chime" },
+  { id: "tritone", label: "Tri-tone" },
+  { id: "bell", label: "Bell" },
   { id: "pop", label: "Pop" },
+  { id: "droplet", label: "Droplet" },
   { id: "knock", label: "Knock" },
+  { id: "pluck", label: "Pluck" },
   { id: "marimba", label: "Marimba" },
+  { id: "harp", label: "Harp" },
   { id: "glass", label: "Glass" },
+  { id: "blip", label: "Blip" },
   { id: "none", label: "Silent" },
 ];
 
@@ -80,6 +99,37 @@ const RECIPES: Record<Exclude<SoundId, "none">, (ac: AudioContext, t: number) =>
   glass: (ac, t) => {
     tone(ac, t, { freq: 1175, dur: 0.7, type: "sine", gain: 0.14 });
     tone(ac, t, { freq: 2349, dur: 0.5, type: "sine", gain: 0.05 });
+  },
+  // Classic two-note message tone: a bright note answered a fourth below.
+  tritone: (ac, t) => {
+    tone(ac, t, { freq: 1319, dur: 0.28, type: "sine", gain: 0.2 });
+    tone(ac, t + 0.16, { freq: 988, dur: 0.34, type: "sine", gain: 0.2 });
+  },
+  // Struck bell: fundamental plus inharmonic partials with long decay.
+  bell: (ac, t) => {
+    tone(ac, t, { freq: 660, dur: 0.9, type: "sine", gain: 0.18 });
+    tone(ac, t, { freq: 660 * 2.76, dur: 0.6, type: "sine", gain: 0.06 });
+    tone(ac, t, { freq: 660 * 5.4, dur: 0.35, type: "sine", gain: 0.03 });
+  },
+  // Water drop: quick downward pitch glide with a short tail.
+  droplet: (ac, t) => {
+    tone(ac, t, { freq: 1400, dur: 0.18, type: "sine", gain: 0.24, glideTo: 620 });
+    tone(ac, t + 0.02, { freq: 700, dur: 0.22, type: "sine", gain: 0.08 });
+  },
+  // Plucked string: bright triangle body with a filtered-noise attack.
+  pluck: (ac, t) => {
+    noise(ac, t, 0.03, 2600, 0.12);
+    tone(ac, t, { freq: 587, dur: 0.3, type: "triangle", gain: 0.22 });
+  },
+  // Gentle four-note ascending arpeggio (C E G C).
+  harp: (ac, t) => {
+    const notes = [523, 659, 784, 1047];
+    notes.forEach((f, i) => tone(ac, t + i * 0.07, { freq: f, dur: 0.4, type: "triangle", gain: 0.15 }));
+  },
+  // Terse digital double blip.
+  blip: (ac, t) => {
+    tone(ac, t, { freq: 1046, dur: 0.07, type: "square", gain: 0.12 });
+    tone(ac, t + 0.1, { freq: 1568, dur: 0.09, type: "square", gain: 0.12 });
   },
 };
 
