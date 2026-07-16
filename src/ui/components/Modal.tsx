@@ -17,6 +17,11 @@ export function Modal({
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const restoreRef = useRef<HTMLElement | null>(null);
+  // onClose identity changes on every parent re-render (sync events fire often
+  // while a room is open). Keep it in a ref so the setup effect can run ONCE —
+  // otherwise each re-run refocuses the first field and steals focus mid-type.
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
 
   useEffect(() => {
     restoreRef.current = document.activeElement as HTMLElement;
@@ -30,7 +35,7 @@ export function Modal({
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         e.stopPropagation();
-        onClose();
+        onCloseRef.current();
       }
       if (e.key === "Tab") {
         const items = focusables();
@@ -51,7 +56,10 @@ export function Modal({
       el.removeEventListener("keydown", onKey);
       restoreRef.current?.focus();
     };
-  }, [onClose]);
+    // Run once on mount; onClose is read via ref so identity churn doesn't
+    // re-trigger the focus grab.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div

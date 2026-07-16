@@ -49,9 +49,11 @@ Materix requires these server capabilities; features degrade gracefully
 | Receipts/typing | `m.read`, `m.read.private`, typing | yes |
 | Presence | `/presence` | optional |
 | Profiles | displayname/avatar get+set | yes |
-| Account data | `m.direct`, `m.push_rules`, `io.materix.settings` (client settings sync) | yes |
+| Account data | `m.direct`, tags, `io.materix.settings` (archive/mute sync) | yes |
+| Directory | `/publicRooms` (any server), `/user_directory/search` | yes |
+| Extensible events | polls (MSC3381), voice messages (MSC3245), location (`m.location`) | yes |
 | Notifications | push rules evaluated client-side (SDK), no push gateway in v0 | yes |
-| Search | client-side room/member filter in v0; server `/search` later | v0: no |
+| Search | client-side room/member filter; server `/search` later | v0: no |
 | VoIP | none in v0 | no |
 
 ## Types
