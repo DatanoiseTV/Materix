@@ -1,5 +1,9 @@
 /* Design tokens. Single spacing scale, both themes defined up front.
-   Theme selection: [data-theme] wins, otherwise prefers-color-scheme. */
+   Theme selection: [data-theme] wins, otherwise prefers-color-scheme.
+
+   Surfaces use a near-neutral cool-slate hue (--surface-h) that is kept
+   separate from the brand hue (--accent-h): color belongs on interactive
+   elements, not smeared across every panel. */
 
 :root {
   color-scheme: light dark;
@@ -16,7 +20,7 @@
   --r-sm: 6px;
   --r-md: 10px;
   --r-lg: 16px;
-  --r-bubble: 16px;
+  --r-bubble: 18px;
   --r-full: 999px;
 
   /* type */
@@ -31,90 +35,95 @@
   --fs-xl: 20px;
   --fs-xxl: 26px;
 
-  /* brand */
-  --accent-h: 252;
-  --accent: hsl(var(--accent-h) 70% 58%);
-  --accent-strong: hsl(var(--accent-h) 70% 50%);
-  --accent-soft: hsl(var(--accent-h) 70% 58% / 0.12);
+  /* brand + neutral hues */
+  --accent-h: 250;
+  --surface-h: 224;
+
+  --accent: hsl(var(--accent-h) 72% 60%);
+  --accent-strong: hsl(var(--accent-h) 70% 52%);
+  --accent-soft: hsl(var(--accent-h) 72% 60% / 0.12);
   --on-accent: #fff;
 
-  --danger: hsl(0 72% 51%);
-  --danger-soft: hsl(0 72% 51% / 0.1);
-  --success: hsl(145 60% 40%);
-  --warning: hsl(38 92% 50%);
+  --danger: hsl(2 72% 54%);
+  --danger-soft: hsl(2 72% 54% / 0.12);
+  --success: hsl(146 58% 42%);
+  --warning: hsl(38 92% 52%);
 
-  --shadow-1: 0 1px 3px rgb(0 0 0 / 0.09), 0 1px 2px rgb(0 0 0 / 0.06);
-  --shadow-2: 0 8px 30px rgb(0 0 0 / 0.16), 0 2px 8px rgb(0 0 0 / 0.08);
+  --shadow-1: 0 1px 2px rgb(0 0 0 / 0.08), 0 1px 3px rgb(0 0 0 / 0.06);
+  --shadow-2: 0 10px 34px rgb(0 0 0 / 0.16), 0 3px 10px rgb(0 0 0 / 0.09);
 
   --ease: cubic-bezier(0.25, 0.7, 0.3, 1);
 }
 
 :root,
 :root[data-theme="light"] {
-  --bg-app: hsl(var(--accent-h) 18% 96%);
-  --bg-rail: hsl(var(--accent-h) 22% 92%);
+  --bg-app: hsl(var(--surface-h) 24% 95.5%);
+  --bg-rail: hsl(var(--surface-h) 22% 93%);
   --bg-pane: hsl(0 0% 100%);
-  --bg-chat: hsl(var(--accent-h) 24% 97.5%);
+  --bg-chat: hsl(var(--surface-h) 30% 97.5%);
   --bg-elevated: hsl(0 0% 100%);
-  --bg-hover: hsl(var(--accent-h) 20% 94%);
-  --bg-active: hsl(var(--accent-h) 45% 91%);
-  --bg-input: hsl(var(--accent-h) 15% 95%);
+  --bg-hover: hsl(var(--surface-h) 22% 93.5%);
+  --bg-active: hsl(var(--accent-h) 60% 95%);
+  --bg-input: hsl(var(--surface-h) 22% 94.5%);
   --bubble-theirs: hsl(0 0% 100%);
-  --bubble-mine: hsl(var(--accent-h) 65% 93%);
-  --border: hsl(var(--accent-h) 12% 88%);
-  --border-strong: hsl(var(--accent-h) 10% 78%);
-  --text-1: hsl(var(--accent-h) 22% 14%);
-  --text-2: hsl(var(--accent-h) 10% 40%);
-  --text-3: hsl(var(--accent-h) 8% 56%);
-  --scrollbar: hsl(var(--accent-h) 10% 80%);
+  --bubble-mine: hsl(var(--accent-h) 82% 92%);
+  --bubble-mine-text: hsl(var(--accent-h) 45% 24%);
+  --border: hsl(var(--surface-h) 16% 89%);
+  --border-strong: hsl(var(--surface-h) 12% 80%);
+  --text-1: hsl(var(--surface-h) 22% 15%);
+  --text-2: hsl(var(--surface-h) 12% 42%);
+  --text-3: hsl(var(--surface-h) 10% 56%);
+  --scrollbar: hsl(var(--surface-h) 14% 80%);
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg-app: hsl(var(--accent-h) 14% 9%);
-    --bg-rail: hsl(var(--accent-h) 15% 7%);
-    --bg-pane: hsl(var(--accent-h) 12% 12%);
-    --bg-chat: hsl(var(--accent-h) 13% 10.5%);
-    --bg-elevated: hsl(var(--accent-h) 12% 16%);
-    --bg-hover: hsl(var(--accent-h) 10% 17%);
-    --bg-active: hsl(var(--accent-h) 30% 22%);
-    --bg-input: hsl(var(--accent-h) 10% 17%);
-    --bubble-theirs: hsl(var(--accent-h) 10% 17%);
-    --bubble-mine: hsl(var(--accent-h) 45% 28%);
-    --border: hsl(var(--accent-h) 8% 20%);
-    --border-strong: hsl(var(--accent-h) 8% 30%);
-    --text-1: hsl(var(--accent-h) 15% 92%);
-    --text-2: hsl(var(--accent-h) 8% 65%);
-    --text-3: hsl(var(--accent-h) 6% 48%);
-    --scrollbar: hsl(var(--accent-h) 8% 28%);
-    --accent: hsl(var(--accent-h) 75% 68%);
-    --accent-strong: hsl(var(--accent-h) 75% 62%);
-    --accent-soft: hsl(var(--accent-h) 75% 68% / 0.16);
-    --shadow-1: 0 1px 3px rgb(0 0 0 / 0.4);
-    --shadow-2: 0 8px 30px rgb(0 0 0 / 0.5), 0 2px 8px rgb(0 0 0 / 0.3);
+    --bg-app: hsl(var(--surface-h) 18% 8%);
+    --bg-rail: hsl(var(--surface-h) 22% 6.5%);
+    --bg-pane: hsl(var(--surface-h) 16% 11%);
+    --bg-chat: hsl(var(--surface-h) 19% 8.5%);
+    --bg-elevated: hsl(var(--surface-h) 15% 15%);
+    --bg-hover: hsl(var(--surface-h) 14% 16%);
+    --bg-active: hsl(var(--accent-h) 34% 22%);
+    --bg-input: hsl(var(--surface-h) 15% 14.5%);
+    --bubble-theirs: hsl(var(--surface-h) 14% 16%);
+    --bubble-mine: hsl(var(--accent-h) 56% 46%);
+    --bubble-mine-text: #fff;
+    --border: hsl(var(--surface-h) 13% 19%);
+    --border-strong: hsl(var(--surface-h) 11% 30%);
+    --text-1: hsl(var(--surface-h) 18% 95%);
+    --text-2: hsl(var(--surface-h) 11% 66%);
+    --text-3: hsl(var(--surface-h) 9% 50%);
+    --scrollbar: hsl(var(--surface-h) 10% 26%);
+    --accent: hsl(var(--accent-h) 88% 74%);
+    --accent-strong: hsl(var(--accent-h) 85% 68%);
+    --accent-soft: hsl(var(--accent-h) 85% 70% / 0.18);
+    --shadow-1: 0 1px 3px rgb(0 0 0 / 0.45);
+    --shadow-2: 0 12px 36px rgb(0 0 0 / 0.55), 0 3px 10px rgb(0 0 0 / 0.35);
   }
 }
 
 :root[data-theme="dark"] {
-  --bg-app: hsl(var(--accent-h) 14% 9%);
-  --bg-rail: hsl(var(--accent-h) 15% 7%);
-  --bg-pane: hsl(var(--accent-h) 12% 12%);
-  --bg-chat: hsl(var(--accent-h) 13% 10.5%);
-  --bg-elevated: hsl(var(--accent-h) 12% 16%);
-  --bg-hover: hsl(var(--accent-h) 10% 17%);
-  --bg-active: hsl(var(--accent-h) 30% 22%);
-  --bg-input: hsl(var(--accent-h) 10% 17%);
-  --bubble-theirs: hsl(var(--accent-h) 10% 17%);
-  --bubble-mine: hsl(var(--accent-h) 45% 28%);
-  --border: hsl(var(--accent-h) 8% 20%);
-  --border-strong: hsl(var(--accent-h) 8% 30%);
-  --text-1: hsl(var(--accent-h) 15% 92%);
-  --text-2: hsl(var(--accent-h) 8% 65%);
-  --text-3: hsl(var(--accent-h) 6% 48%);
-  --scrollbar: hsl(var(--accent-h) 8% 28%);
-  --accent: hsl(var(--accent-h) 75% 68%);
-  --accent-strong: hsl(var(--accent-h) 75% 62%);
-  --accent-soft: hsl(var(--accent-h) 75% 68% / 0.16);
-  --shadow-1: 0 1px 3px rgb(0 0 0 / 0.4);
-  --shadow-2: 0 8px 30px rgb(0 0 0 / 0.5), 0 2px 8px rgb(0 0 0 / 0.3);
+  --bg-app: hsl(var(--surface-h) 18% 8%);
+  --bg-rail: hsl(var(--surface-h) 22% 6.5%);
+  --bg-pane: hsl(var(--surface-h) 16% 11%);
+  --bg-chat: hsl(var(--surface-h) 19% 8.5%);
+  --bg-elevated: hsl(var(--surface-h) 15% 15%);
+  --bg-hover: hsl(var(--surface-h) 14% 16%);
+  --bg-active: hsl(var(--accent-h) 34% 22%);
+  --bg-input: hsl(var(--surface-h) 15% 14.5%);
+  --bubble-theirs: hsl(var(--surface-h) 14% 16%);
+  --bubble-mine: hsl(var(--accent-h) 56% 46%);
+  --bubble-mine-text: #fff;
+  --border: hsl(var(--surface-h) 13% 19%);
+  --border-strong: hsl(var(--surface-h) 11% 30%);
+  --text-1: hsl(var(--surface-h) 18% 95%);
+  --text-2: hsl(var(--surface-h) 11% 66%);
+  --text-3: hsl(var(--surface-h) 9% 50%);
+  --scrollbar: hsl(var(--surface-h) 10% 26%);
+  --accent: hsl(var(--accent-h) 88% 74%);
+  --accent-strong: hsl(var(--accent-h) 85% 68%);
+  --accent-soft: hsl(var(--accent-h) 85% 70% / 0.18);
+  --shadow-1: 0 1px 3px rgb(0 0 0 / 0.45);
+  --shadow-2: 0 12px 36px rgb(0 0 0 / 0.55), 0 3px 10px rgb(0 0 0 / 0.35);
 }

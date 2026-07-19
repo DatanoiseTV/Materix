@@ -622,6 +622,13 @@ button.msg-sender:hover {
 
 .msg-row.mine .bubble {
   background: var(--bubble-mine);
+  color: var(--bubble-mine-text);
+  box-shadow: none;
+}
+
+.msg-row.mine .bubble a {
+  color: inherit;
+  text-decoration: underline;
 }
 
 .bubble.media {
@@ -762,7 +769,7 @@ button.msg-sender:hover {
   display: flex;
   flex-wrap: wrap;
   gap: var(--sp-1);
-  padding-top: 3px;
+  margin-top: var(--sp-2);
 }
 
 .reaction-chip {
@@ -772,7 +779,7 @@ button.msg-sender:hover {
   border: 1px solid var(--border);
   background: var(--bg-pane);
   border-radius: var(--r-full);
-  padding: 1px 8px;
+  padding: 2px 9px;
   font-size: var(--fs-sm);
   transition: border-color 0.1s var(--ease);
 }
