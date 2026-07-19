@@ -27,6 +27,8 @@ import {
 } from "./components/Icons";
 import { formatDayDivider, formatSize, formatTime } from "./format";
 import { useToast } from "./components/Toast";
+import { assessLink, isTrusted, openExternal, type LinkAssessment } from "./linkSafety";
+import { LinkWarning } from "./components/LinkWarning";
 
 const QUICK_REACTIONS = ["👍", "❤️", "😂", "😮", "😢", "🎉"];
 
@@ -49,7 +51,21 @@ export function Timeline({
   const [lightbox, setLightbox] = useState<string | null>(null);
   const [menu, setMenu] = useState<MenuState | null>(null);
   const [picker, setPicker] = useState<{ x: number; y: number; eventId: string } | null>(null);
+  const [linkPrompt, setLinkPrompt] = useState<LinkAssessment | null>(null);
   const { showError } = useToast();
+
+  // Intercept clicks on any message link — open directly if it looks safe or is
+  // trusted, otherwise show the warning first.
+  const onLinkClick = (e: React.MouseEvent) => {
+    const a = (e.target as HTMLElement).closest("a[href]") as HTMLAnchorElement | null;
+    if (!a) return;
+    const href = a.getAttribute("href") ?? "";
+    if (!/^https?:/i.test(href)) return; // let mailto:, #anchors behave normally
+    e.preventDefault();
+    const assessment = assessLink(href, a.textContent ?? undefined);
+    if (!assessment.suspicious || isTrusted(assessment.host)) openExternal(href);
+    else setLinkPrompt(assessment);
+  };
 
   const items = handle.timeline();
 
@@ -118,7 +134,7 @@ export function Timeline({
   return (
     <>
       <div className="timeline" ref={scrollRef} onScroll={onScroll} tabIndex={0} aria-label="Messages">
-        <div className="timeline-inner">
+        <div className="timeline-inner" onClick={onLinkClick}>
           {loadingOlder && (
             <div className="state-line" style={{ display: "flex", gap: 8, alignItems: "center" }}>
               <span className="spinner" /> Loading history…
@@ -161,6 +177,7 @@ export function Timeline({
           onPick={(emoji) => handle.react(picker.eventId, emoji).catch(showError)}
         />
       )}
+      {linkPrompt && <LinkWarning assessment={linkPrompt} onClose={() => setLinkPrompt(null)} />}
     </>
   );
 }
@@ -460,6 +477,35 @@ function MessageBubble({
   );
 }
 
+// Auto-link bare URLs in plain-text messages. Clicks are intercepted by the
+// timeline-level handler for safety checks.
+const URL_RE = /(https?:\/\/[^\s<]+)/g;
+function LinkedText({ text }: { text: string }) {
+  const out: ReactNode[] = [];
+  let last = 0;
+  let m: RegExpExecArray | null;
+  URL_RE.lastIndex = 0;
+  while ((m = URL_RE.exec(text))) {
+    if (m.index > last) out.push(text.slice(last, m.index));
+    let url = m[0];
+    let tail = "";
+    const trail = url.match(/[.,!?;:)\]}]+$/); // don't swallow trailing punctuation
+    if (trail) {
+      tail = trail[0];
+      url = url.slice(0, url.length - tail.length);
+    }
+    out.push(
+      <a key={m.index} href={url} target="_blank" rel="noopener noreferrer">
+        {url}
+      </a>,
+    );
+    if (tail) out.push(tail);
+    last = m.index + m[0].length;
+  }
+  if (last < text.length) out.push(text.slice(last));
+  return <>{out}</>;
+}
+
 function MessageContent({
   body,
   account,
@@ -476,7 +522,12 @@ function MessageContent({
       // Sanitized in core (sanitizeIncomingHtml) before reaching the UI.
       return <div dangerouslySetInnerHTML={{ __html: body.html }} />;
     }
-    return <div style={{ whiteSpace: "pre-wrap" }}>{body.msgtype === "m.emote" ? `* ${body.text}` : body.text}</div>;
+    return (
+      <div style={{ whiteSpace: "pre-wrap" }}>
+        {body.msgtype === "m.emote" && "* "}
+        <LinkedText text={body.text} />
+      </div>
+    );
   }
   if (body.msgtype === "m.image") return <ImageContent body={body} account={account} onZoom={onZoom} />;
   if (body.msgtype === "m.video") return <VideoContent body={body} account={account} />;

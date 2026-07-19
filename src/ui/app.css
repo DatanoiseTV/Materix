@@ -715,6 +715,51 @@ button.msg-sender:hover {
 .bubble img {
   max-width: 100%;
 }
+.bubble a {
+  color: var(--accent-strong);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  overflow-wrap: anywhere;
+}
+
+/* ---------- link safety warning ---------- */
+.link-warning {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+.link-warning-icon {
+  color: var(--warning);
+}
+
+.link-warning-url {
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: var(--sp-2) var(--sp-3);
+  overflow-wrap: anywhere;
+}
+
+.link-warning-reasons {
+  margin: 0;
+  padding-left: var(--sp-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+}
+
+.link-warning-trust {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--fs-sm);
+  cursor: pointer;
+}
 
 .msg-img {
   display: block;
