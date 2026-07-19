@@ -1,6 +1,6 @@
 // Middle column: header + timeline + typing + composer for the selected room.
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { accountManager } from "../core/manager";
 import type { TimelineItem } from "../core/types";
 import { useRoomVersion, useRoomsVersion } from "./hooks";
@@ -8,7 +8,7 @@ import type { Selection } from "./RoomList";
 import { Timeline } from "./Timeline";
 import { Composer, type ComposeMode } from "./Composer";
 import { Avatar } from "./components/Avatar";
-import { IconBack, IconChat, IconInfo, IconLock } from "./components/Icons";
+import { IconBack, IconChat, IconInfo, IconLock, IconPaperclip } from "./components/Icons";
 import { typingText } from "./format";
 import { useToast } from "./components/Toast";
 import { useEffect } from "react";
@@ -29,7 +29,40 @@ export function ChatPane({
   const account = accountManager.tryAccount(selection?.accountKey ?? null);
   useRoomVersion(account, selection?.roomId ?? null);
   const [mode, setMode] = useState<ComposeMode | null>(null);
+  const [dragOver, setDragOver] = useState(false);
+  const dragDepth = useRef(0);
+  const dropFilesRef = useRef<((files: FileList | File[]) => void) | null>(null);
   const { showError } = useToast();
+
+  const hasFiles = (e: React.DragEvent) => e.dataTransfer.types.includes("Files");
+  const dragHandlers = {
+    onDragEnter: (e: React.DragEvent) => {
+      if (!hasFiles(e)) return;
+      e.preventDefault();
+      dragDepth.current += 1;
+      setDragOver(true);
+    },
+    onDragOver: (e: React.DragEvent) => {
+      if (!hasFiles(e)) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "copy";
+    },
+    onDragLeave: (e: React.DragEvent) => {
+      if (!hasFiles(e)) return;
+      dragDepth.current -= 1;
+      if (dragDepth.current <= 0) {
+        dragDepth.current = 0;
+        setDragOver(false);
+      }
+    },
+    onDrop: (e: React.DragEvent) => {
+      if (!hasFiles(e)) return;
+      e.preventDefault();
+      dragDepth.current = 0;
+      setDragOver(false);
+      if (e.dataTransfer.files.length) dropFilesRef.current?.(e.dataTransfer.files);
+    },
+  };
 
   const handle = useMemo(() => {
     if (!account || !selection) return null;
@@ -70,8 +103,19 @@ export function ChatPane({
   const details = handle.details();
   const typing = typingText(handle.typingNames());
 
+  const dropEnabled = !summary?.isInvite;
+
   return (
-    <main className="chat-pane">
+    <main className="chat-pane" {...(dropEnabled ? dragHandlers : {})}>
+      {dragOver && dropEnabled && (
+        <div className="drop-overlay" aria-hidden="true">
+          <div className="drop-overlay-inner">
+            <IconPaperclip size={32} />
+            <div className="drop-overlay-title">Drop to send</div>
+            <div className="drop-overlay-sub">Images open the editor; other files upload directly</div>
+          </div>
+        </div>
+      )}
       <header className="chat-header">
         {showBackButton && (
           <button className="icon-btn" onClick={onBack} aria-label="Back to chat list">
@@ -140,6 +184,7 @@ export function ChatPane({
           accountKey={selection.accountKey}
           mode={mode}
           onClearMode={() => setMode(null)}
+          dropFilesRef={dropFilesRef}
         />
       )}
     </main>

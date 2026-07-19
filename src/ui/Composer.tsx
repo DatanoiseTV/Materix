@@ -2,7 +2,7 @@
 // markdown support, attachments (button, paste, drop), reply/edit modes,
 // typing notifications.
 
-import { useEffect, useRef, useState, type ClipboardEvent, type DragEvent } from "react";
+import { useEffect, useRef, useState, type ClipboardEvent } from "react";
 import type { RoomHandle } from "../core/roomHandle";
 import type { TimelineItem } from "../core/types";
 import {
@@ -35,11 +35,14 @@ export function Composer({
   accountKey,
   mode,
   onClearMode,
+  dropFilesRef,
 }: {
   handle: RoomHandle;
   accountKey: string;
   mode: ComposeMode | null;
   onClearMode: () => void;
+  /** ChatPane fills this so a drop anywhere in the chat routes through the composer. */
+  dropFilesRef?: React.MutableRefObject<((files: FileList | File[]) => void) | null>;
 }) {
   const [text, setText] = useState("");
   const [upload, setUpload] = useState<{ name: string; pct: number } | null>(null);
@@ -137,6 +140,9 @@ export function Composer({
     if (images.length) setImageQueue((q) => [...q, ...images]);
   }
 
+  // Expose the send handler so ChatPane's whole-area drop zone can reach it.
+  if (dropFilesRef) dropFilesRef.current = sendFiles;
+
   const onPaste = (e: ClipboardEvent) => {
     const files = [...e.clipboardData.items]
       .filter((i) => i.kind === "file")
@@ -146,11 +152,6 @@ export function Composer({
       e.preventDefault();
       void sendFiles(files);
     }
-  };
-
-  const onDrop = (e: DragEvent) => {
-    e.preventDefault();
-    if (e.dataTransfer.files.length) void sendFiles(e.dataTransfer.files);
   };
 
   const openAttachMenu = (e: React.MouseEvent) => {
@@ -168,7 +169,7 @@ export function Composer({
   };
 
   return (
-    <div className="composer-wrap" onDrop={onDrop} onDragOver={(e) => e.preventDefault()}>
+    <div className="composer-wrap">
       <div className="composer">
         {mode && (
           <div className="composer-reply">
