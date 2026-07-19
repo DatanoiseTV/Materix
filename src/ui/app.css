@@ -576,6 +576,7 @@ a {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
+  position: relative;
 }
 
 .msg-row.mine .msg-content {
@@ -803,11 +804,11 @@ button.msg-sender:hover {
   border: 1.5px solid var(--bg-chat);
 }
 
-/* hover actions */
+/* hover actions — anchored just above the top corner of the message bubble */
 .msg-actions {
   position: absolute;
-  top: -14px;
-  right: var(--sp-3);
+  top: -26px;
+  right: 4px;
   display: none;
   background: var(--bg-elevated);
   border: 1px solid var(--border);
@@ -821,6 +822,12 @@ button.msg-sender:hover {
 .msg-row.show-actions .msg-actions,
 .msg-actions:focus-within {
   display: flex;
+}
+
+/* Own messages sit on the right, so hang the toolbar off the bubble's left. */
+.msg-row.mine .msg-actions {
+  right: auto;
+  left: 4px;
 }
 
 .msg-actions button {

@@ -286,8 +286,7 @@ function TimelineRow({
             ))}
           </div>
         )}
-      </div>
-      {item.kind === "message" && item.eventId && (
+        {item.kind === "message" && item.eventId && (
         <div className="msg-actions" role="toolbar" aria-label="Message actions">
           {QUICK_REACTIONS.slice(0, 3).map((emoji) => (
             <button key={emoji} onClick={() => react(emoji)} title={`React ${emoji}`}>
@@ -325,7 +324,8 @@ function TimelineRow({
             <IconSmile size={15} />
           </button>
         </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }

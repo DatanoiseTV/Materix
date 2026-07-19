@@ -14,6 +14,8 @@ export interface MenuState {
   x: number;
   y: number;
   items: MenuItem[];
+  /** Open upward: `y` is treated as the anchor's bottom edge and the menu grows up. */
+  up?: boolean;
 }
 
 export function ContextMenu({ menu, onClose }: { menu: MenuState; onClose: () => void }) {
@@ -24,9 +26,11 @@ export function ContextMenu({ menu, onClose }: { menu: MenuState; onClose: () =>
     const el = ref.current;
     if (!el) return;
     const r = el.getBoundingClientRect();
+    // When `up`, treat menu.y as the anchor's bottom edge and grow upward.
+    const desiredTop = menu.up ? menu.y - r.height : menu.y;
     setPos({
-      x: Math.min(menu.x, window.innerWidth - r.width - 8),
-      y: Math.min(menu.y, window.innerHeight - r.height - 8),
+      x: Math.max(8, Math.min(menu.x, window.innerWidth - r.width - 8)),
+      y: Math.max(8, Math.min(desiredTop, window.innerHeight - r.height - 8)),
     });
   }, [menu]);
 

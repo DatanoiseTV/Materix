@@ -145,7 +145,8 @@ export function Composer({
     const r = e.currentTarget.getBoundingClientRect();
     setAttachMenu({
       x: r.left,
-      y: r.top - 8,
+      y: r.top - 8, // anchor above the button; menu grows upward
+      up: true,
       items: [
         { label: "Photo or file", icon: <IconFile size={16} />, onClick: () => fileRef.current?.click() },
         { label: "Poll", icon: <IconChat size={16} />, onClick: () => setPollOpen(true) },
