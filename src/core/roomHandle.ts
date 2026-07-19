@@ -585,7 +585,11 @@ export class RoomHandle {
     }
   }
 
-  async sendFile(file: File, onProgress?: (loaded: number, total: number) => void): Promise<void> {
+  async sendFile(
+    file: File,
+    onProgress?: (loaded: number, total: number) => void,
+    opts?: { caption?: string },
+  ): Promise<void> {
     const mime = file.type || "application/octet-stream";
     const msgtype = mime.startsWith("image/")
       ? "m.image"
@@ -605,7 +609,12 @@ export class RoomHandle {
         // dimensions are optional
       }
     }
-    const content: IContent = { msgtype, body: file.name, info };
+    // A caption becomes the body; the original filename is preserved separately
+    // (MSC2530-style) so it still downloads with a sensible name.
+    const caption = opts?.caption?.trim();
+    const content: IContent = caption
+      ? { msgtype, body: caption, filename: file.name, info }
+      : { msgtype, body: file.name, info };
     const progress = onProgress
       ? { progressHandler: (p: { loaded: number; total: number }) => onProgress(p.loaded, p.total) }
       : {};

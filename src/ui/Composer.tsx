@@ -22,6 +22,7 @@ import { ContextMenu, type MenuState } from "./components/ContextMenu";
 import { PollDialog } from "./dialogs/PollDialog";
 import { LocationDialog } from "./dialogs/LocationDialog";
 import { VoiceRecorder } from "./components/VoiceRecorder";
+import { ImageEditor } from "./components/ImageEditor";
 import { useToast } from "./components/Toast";
 
 export interface ComposeMode {
@@ -47,6 +48,7 @@ export function Composer({
   const [pollOpen, setPollOpen] = useState(false);
   const [locationOpen, setLocationOpen] = useState(false);
   const [recording, setRecording] = useState(false);
+  const [imageQueue, setImageQueue] = useState<File[]>([]);
   const taRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const typingRef = useRef<{ active: boolean; timer?: ReturnType<typeof setTimeout> }>({ active: false });
@@ -110,19 +112,29 @@ export function Composer({
     }
   }
 
-  async function sendFiles(files: FileList | File[]) {
-    for (const file of Array.from(files)) {
-      setUpload({ name: file.name, pct: 0 });
-      try {
-        await handle.sendFile(file, (loaded, total) =>
-          setUpload({ name: file.name, pct: total ? Math.round((loaded / total) * 100) : 0 }),
-        );
-      } catch (e) {
-        showError(e);
-      } finally {
-        setUpload(null);
-      }
+  async function uploadOne(file: File, caption?: string) {
+    setUpload({ name: file.name, pct: 0 });
+    try {
+      await handle.sendFile(
+        file,
+        (loaded, total) => setUpload({ name: file.name, pct: total ? Math.round((loaded / total) * 100) : 0 }),
+        caption ? { caption } : undefined,
+      );
+    } catch (e) {
+      showError(e);
+    } finally {
+      setUpload(null);
     }
+  }
+
+  async function sendFiles(files: FileList | File[]) {
+    const list = Array.from(files);
+    // Images go through the editor (censor / crop / metadata strip); other
+    // files upload directly.
+    const images = list.filter((f) => f.type.startsWith("image/"));
+    const others = list.filter((f) => !f.type.startsWith("image/"));
+    for (const file of others) await uploadOne(file);
+    if (images.length) setImageQueue((q) => [...q, ...images]);
   }
 
   const onPaste = (e: ClipboardEvent) => {
@@ -273,6 +285,17 @@ export function Composer({
           onPick={(e) => {
             setText((t) => t + e);
             taRef.current?.focus();
+          }}
+        />
+      )}
+      {imageQueue[0] && (
+        <ImageEditor
+          key={imageQueue.length}
+          file={imageQueue[0]}
+          onCancel={() => setImageQueue((q) => q.slice(1))}
+          onSend={async (processed, caption) => {
+            setImageQueue((q) => q.slice(1));
+            await uploadOne(processed, caption || undefined);
           }}
         />
       )}
