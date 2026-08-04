@@ -218,6 +218,39 @@ export const IconLocation = icon(
   </>,
 );
 
+export const IconPhone = icon(
+  <path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6 19.8 19.8 0 0 1-3.1-8.7A2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8.1 9.8a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.5c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2z" />,
+);
+
+export const IconPhoneOff = icon(
+  <>
+    <path d="M10.7 13.3a16 16 0 0 1-2.6-3.5L9.8 8.1a2 2 0 0 0 .5-2.1c-.3-.9-.6-1.8-.7-2.7A2 2 0 0 0 7.1 2h-3a2 2 0 0 0-2 2.1c.2 2.1.9 4.2 2 6.1M8.3 8.3a19.8 19.8 0 0 0 7.4 7.4l1.3-1.3a2 2 0 0 1 2.1-.5c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1" />
+    <path d="m2 2 20 20" />
+  </>,
+);
+
+export const IconVideo = icon(
+  <>
+    <rect x="2" y="6" width="14" height="12" rx="2" />
+    <path d="m16 10 6-3v10l-6-3z" />
+  </>,
+);
+
+export const IconVideoOff = icon(
+  <>
+    <path d="M16 10v-2a2 2 0 0 0-2-2H6.5M2 8v8a2 2 0 0 0 2 2h10a2 2 0 0 0 1.9-1.4M16 13.5V14l6 3V7l-6 3" />
+    <path d="m2 2 20 20" />
+  </>,
+);
+
+export const IconMicOff = icon(
+  <>
+    <path d="M9 5a3 3 0 0 1 6 0v5m-1.6 3.4A3 3 0 0 1 9 11v-1" />
+    <path d="M5 10a7 7 0 0 0 10.7 5.9M19 10a7 7 0 0 1-.4 2.3M12 17v4M8 21h8" />
+    <path d="m2 2 20 20" />
+  </>,
+);
+
 export const IconDots = icon(
   <>
     <circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none" />

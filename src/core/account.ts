@@ -32,6 +32,7 @@ import type {
 import { RoomHandle } from "./roomHandle";
 import { previewText } from "./markdown";
 import { CryptoFacade, cryptoCallbacks } from "./crypto";
+import { CallManager } from "./calls";
 import { Emitter } from "./emitter";
 import { toMaterixError } from "./errors";
 
@@ -45,6 +46,7 @@ function accountColor(key: AccountKey): string {
 export class MatrixAccount {
   readonly events = new Emitter<string>(); // "rooms" | "self" | `room:${roomId}`
   readonly crypto: CryptoFacade;
+  readonly calls = new CallManager();
   client!: MatrixClient;
   syncState: SyncStateName = "initial";
   startError?: string;
@@ -76,6 +78,7 @@ export class MatrixAccount {
       cryptoCallbacks,
     });
     this.crypto.bind(this.client);
+    this.calls.bind(this.client);
     // Must run after the store is assigned to the client (SDK requirement).
     await store.startup();
 
