@@ -20,6 +20,9 @@ stores access tokens in the OS keychain.
 ### Accounts and encryption
 - **Multi-account, multi-homeserver.** Log into several accounts at once; one
   unified chat list across all of them, each with its own accent color.
+- **Sign up or sign in.** Register a new account on a homeserver (password +
+  dummy-stage UIA; servers requiring captcha/email/token registration are
+  detected and pointed to their web sign-up), plus password and SSO sign-in.
 - **End-to-end encryption.** Rust crypto, on by default for DMs and private
   rooms, per-account crypto stores.
 - **Device & user verification.** Interactive SAS (emoji) verification for your
@@ -39,6 +42,10 @@ stores access tokens in the OS keychain.
   credentials, or anchor text naming a different site than the destination)
   prompts a warning that lists the reasons, with a per-domain "don't ask again"
   trust list.
+- **Threads.** A dedicated thread panel with an "N replies" affordance on
+  thread roots, reply-in-thread, and an inline thread composer.
+- **Forwarding.** Forward any message to another room/chat via a searchable
+  picker across all your accounts.
 - **Voice messages** (MSC3245) with a live-recorded waveform, and a seekable
   audio player that keeps playing when you switch chats, with a persistent
   now-playing bar.
@@ -58,6 +65,8 @@ stores access tokens in the OS keychain.
   the drop, and images route through the editor.
 
 ### Organizing and browsing
+- **Spaces.** Filter the unified room list by Matrix Space (with a Home view for
+  rooms in no space), resolving nested space hierarchies.
 - **Explore.** Browse any server's public room directory and search the user
   directory (where the server supports it).
 - **Media gallery.** Per-room grid of photos/videos and a files list, loaded
@@ -132,10 +141,6 @@ Beyond `tsc`/build, features are checked against reality rather than assumed:
 
 ## Not yet implemented / known limitations
 
-- **Spaces** are recognized but there is no space navigation UI yet (spaces are
-  kept out of the flat room list).
-- **Threads**: thread replies render inline; there is no dedicated thread view.
-- **Message forwarding** is not implemented yet.
 - **VoIP / calls** are not implemented.
 - **Server-side message search** is not wired up (local, loaded-history only).
 - **Notifications are client-side only** (no push gateway), so they require the
@@ -150,19 +155,15 @@ Beyond `tsc`/build, features are checked against reality rather than assumed:
 
 Rough order, subject to change:
 
-1. **Spaces** — sidebar/hierarchy navigation and filtering the room list by
-   space.
-2. **Message forwarding** — forward to another room via a picker.
-3. **Native right-click menus everywhere** — consistent custom context menus so
+1. **Native right-click menus everywhere** — consistent custom context menus so
    the app never falls back to the browser menu.
-4. **Mobile pass** — audit and tighten every screen for touch and small
+2. **Mobile pass** — audit and tighten every screen for touch and small
    viewports.
-5. **Threads view** — a proper threaded reply surface.
-6. **At-rest encryption, done safely** — encrypt local stores with an
+3. **At-rest encryption, done safely** — encrypt local stores with an
    OS-keychain-backed key (desktop) and an optional passcode, without
    invalidating existing crypto stores.
-7. **Background notifications** — a push path that works when the app is closed.
-8. **Calls** — 1:1 and group VoIP.
+4. **Background notifications** — a push path that works when the app is closed.
+5. **Calls** — 1:1 and group VoIP.
 
 ## Contributing
 
