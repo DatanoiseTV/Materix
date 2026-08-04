@@ -462,6 +462,40 @@ export class RoomHandle {
     await this.client.redactEvent(this.roomId, eventId);
   }
 
+  /**
+   * Build a cleaned copy of an event's content suitable for re-sending into
+   * another room. Keeps only the message-shaping fields and STRIPS
+   * `m.relates_to`, so a forward never carries a reply/edit/thread relation.
+   * For encrypted media the `file` block (with its per-file key) is reused
+   * verbatim — the target room re-encrypts the whole event, so that key stays
+   * protected. Returns null when the event is missing or not a forwardable
+   * message (redacted, undecryptable, a poll/state event, or a verification
+   * request).
+   */
+  contentForForward(eventId: string): IContent | null {
+    const ev = this.room.findEventById(eventId);
+    if (!ev) return null;
+    const type = ev.getType();
+    if (type !== EventType.RoomMessage && type !== "m.sticker") return null;
+    if (ev.isRedacted() || ev.isDecryptionFailure() || ev.isBeingDecrypted()) return null;
+    const content = ev.getContent();
+    if (content.msgtype === "m.key.verification.request") return null;
+
+    const out: IContent = {};
+    for (const key of ["msgtype", "body", "formatted_body", "format", "url", "file", "info", "filename"] as const) {
+      if (content[key] !== undefined) out[key] = content[key];
+    }
+    // Stickers carry no msgtype; forward them as images so the target room
+    // (which receives an m.room.message) renders them.
+    if (out.msgtype === undefined) {
+      if (type === "m.sticker") out.msgtype = "m.image";
+      else return null;
+    }
+    // A message with neither text body nor media is nothing to forward.
+    if (out.body === undefined && out.url === undefined && out.file === undefined) return null;
+    return out;
+  }
+
   /** Toggle own reaction with the given key on an event. */
   async react(eventId: string, key: string): Promise<void> {
     const rel = this.room

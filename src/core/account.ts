@@ -12,6 +12,7 @@ import {
   RoomStateEvent,
   SyncState,
   createClient,
+  type IContent,
   type MatrixClient,
   type Room,
 } from "matrix-js-sdk";
@@ -329,6 +330,15 @@ export class MatrixAccount {
       return res.room_id;
     } catch (e) {
       throw toMaterixError(e);
+    }
+  }
+
+  /** Send an already-cleaned content (see RoomHandle.contentForForward) into a room. */
+  async forward(toRoomId: string, content: IContent): Promise<void> {
+    try {
+      await this.client.sendMessage(toRoomId, content as never);
+    } catch (e) {
+      throw toMaterixError(e, "send");
     }
   }
 
