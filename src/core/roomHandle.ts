@@ -21,6 +21,7 @@ import type {
   MessageBody,
   PollData,
   RoomDetails,
+  ThreadSummary,
   TimelineItem,
 } from "./types";
 import { toMaterixError } from "./errors";
@@ -160,10 +161,15 @@ export class RoomHandle {
       const body = this.toBody(content, type === "m.sticker");
       if (!body) return null;
       const status = ev.status;
+      // A message that is itself a thread root carries a reply count so the
+      // main timeline can show a "N replies" affordance.
+      const thread = base.eventId ? this.room.getThread(base.eventId) : null;
+      const threadReplyCount = thread && thread.length > 0 ? thread.length : undefined;
       return {
         ...base,
         kind: "message",
         body,
+        threadReplyCount,
         edited: !!ev.replacingEvent(),
         sendState:
           status === EventStatus.SENT || status === null
@@ -325,6 +331,13 @@ export class RoomHandle {
     return text ? { msgtype: "m.text", text } : null;
   }
 
+  /** One-line preview of an event's body, redaction/decryption-aware. */
+  private previewOf(ev: MatrixEvent): string {
+    if (ev.isRedacted() || ev.isDecryptionFailure()) return "…";
+    const body = stripReplyFallbackText((ev.getContent().body as string) ?? "attachment");
+    return (body.split("\n")[0] || "attachment").slice(0, 140);
+  }
+
   private replyContext(content: IContent): TimelineItem["replyTo"] {
     const replyId = content["m.relates_to"]?.["m.in_reply_to"]?.event_id;
     if (!replyId) return undefined;
@@ -435,6 +448,77 @@ export class RoomHandle {
         `<mx-reply><blockquote>${escapeHtml(fallbackName)}: ${escapeHtml(fallbackBody.slice(0, 200))}</blockquote></mx-reply>` +
         (html ?? `<p>${escapeHtml(text).replace(/\n/g, "<br>")}</p>`);
     }
+    try {
+      await this.client.sendMessage(this.roomId, content as never);
+    } catch (e) {
+      throw toMaterixError(e, "send");
+    }
+  }
+
+  // ---- threads ----
+
+  /** All threads in the room, newest activity first. */
+  threads(): ThreadSummary[] {
+    const out: ThreadSummary[] = [];
+    for (const thread of this.room.getThreads()) {
+      const root = thread.rootEvent;
+      if (!root) continue;
+      const latest = thread.replyToEvent ?? thread.lastReply() ?? root;
+      out.push({
+        rootEventId: thread.id,
+        rootSenderName: this.senderOf(root).name,
+        rootPreview: this.previewOf(root),
+        replyCount: thread.length,
+        latestTs: latest.getTs(),
+        latestPreview: this.previewOf(latest),
+      });
+    }
+    return out.sort((a, b) => b.latestTs - a.latestTs);
+  }
+
+  /** Renderable items for one thread: the root followed by its replies. */
+  threadItems(rootEventId: string): TimelineItem[] {
+    const myUserId = this.client.getUserId()!;
+    const thread = this.room.getThread(rootEventId);
+    if (!thread) return [];
+    const events = thread.timeline;
+    // The SDK usually seeds the root into the thread timeline, but not always;
+    // make sure it is present at the top.
+    const ordered =
+      events.some((e) => e.getId() === rootEventId) || !thread.rootEvent ? events : [thread.rootEvent, ...events];
+
+    const items: TimelineItem[] = [];
+    let prev: { sender: string; ts: number } | null = null;
+    for (const ev of ordered) {
+      const item = this.toItem(ev, myUserId);
+      if (!item) continue;
+      // Mirror the main timeline's same-sender grouping so avatars/names render.
+      item.groupStart =
+        item.kind !== "message" || !prev || prev.sender !== item.sender.userId || item.ts - prev.ts > 5 * 60_000;
+      items.push(item);
+      prev = item.kind === "message" ? { sender: item.sender.userId, ts: item.ts } : null;
+    }
+    return items;
+  }
+
+  /** Send a threaded reply to the given thread root (Markdown-aware). */
+  async sendThreadReply(rootEventId: string, text: string): Promise<void> {
+    const html = markdownToMatrixHtml(text);
+    const content: IContent = { msgtype: "m.text", body: text };
+    if (html) {
+      content.format = "org.matrix.custom.html";
+      content.formatted_body = html;
+    }
+    // Fall back to the latest known reply so non-threaded clients render a
+    // sensible reply chain; the root itself if the thread has no replies yet.
+    const thread = this.room.getThread(rootEventId);
+    const latestId = thread?.replyToEvent?.getId() ?? thread?.lastReply()?.getId() ?? rootEventId;
+    content["m.relates_to"] = {
+      rel_type: "m.thread",
+      event_id: rootEventId,
+      is_falling_back: true,
+      "m.in_reply_to": { event_id: latestId },
+    };
     try {
       await this.client.sendMessage(this.roomId, content as never);
     } catch (e) {

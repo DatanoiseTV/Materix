@@ -2553,6 +2553,63 @@ button.msg-sender:hover {
     grid-template-columns: repeat(7, 1fr);
     max-height: 40vh;
   }
+
+  /* Thread panel becomes a full-screen sheet. */
+  .thread-pane {
+    width: 100%;
+  }
+}
+
+/* ===== threads ===== */
+
+/* "N replies" affordance under a thread-root message. */
+.thread-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: var(--sp-1);
+  padding: 3px 9px;
+  border-radius: var(--r-pill, 999px);
+  border: 1px solid var(--border);
+  background: var(--bg-pane);
+  color: var(--accent-strong);
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.12s var(--ease);
+}
+.thread-chip:hover {
+  background: var(--bg-hover, color-mix(in srgb, var(--accent-strong) 12%, transparent));
+}
+.msg-row.mine .thread-chip {
+  align-self: flex-end;
+}
+
+/* Right-side thread panel, overlaying the chat pane. */
+.thread-pane {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 380px;
+  max-width: 100%;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-pane);
+  border-left: 1px solid var(--border);
+  box-shadow: -8px 0 24px color-mix(in srgb, var(--bg-chat) 60%, transparent);
+  animation: pop-in 0.14s var(--ease);
+}
+
+.thread-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--sp-3) var(--sp-2);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
 /* ===== spaces ===== */

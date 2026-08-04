@@ -6,6 +6,7 @@ import type { TimelineItem } from "../core/types";
 import { useRoomVersion, useRoomsVersion } from "./hooks";
 import type { Selection } from "./RoomList";
 import { Timeline } from "./Timeline";
+import { ThreadView } from "./ThreadView";
 import { Composer, type ComposeMode } from "./Composer";
 import { Avatar } from "./components/Avatar";
 import { IconBack, IconChat, IconInfo, IconLock, IconPaperclip } from "./components/Icons";
@@ -29,6 +30,7 @@ export function ChatPane({
   const account = accountManager.tryAccount(selection?.accountKey ?? null);
   useRoomVersion(account, selection?.roomId ?? null);
   const [mode, setMode] = useState<ComposeMode | null>(null);
+  const [threadRoot, setThreadRoot] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const dragDepth = useRef(0);
   const dropFilesRef = useRef<((files: FileList | File[]) => void) | null>(null);
@@ -76,6 +78,11 @@ export function ChatPane({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [account, selection?.roomId]);
+
+  // Close the thread panel when switching rooms.
+  useEffect(() => {
+    setThreadRoot(null);
+  }, [selection?.roomId]);
 
   // Mark read when the room is open and messages arrive.
   const version = useRoomVersion(account, selection?.roomId ?? null);
@@ -152,6 +159,7 @@ export function ChatPane({
         handle={handle}
         onReply={(item: TimelineItem) => setMode({ kind: "reply", item })}
         onEdit={(item: TimelineItem) => setMode({ kind: "edit", item })}
+        onOpenThread={setThreadRoot}
       />
       <div className="typing-bar" aria-live="polite">
         {typing}
@@ -186,6 +194,9 @@ export function ChatPane({
           onClearMode={() => setMode(null)}
           dropFilesRef={dropFilesRef}
         />
+      )}
+      {threadRoot && (
+        <ThreadView account={account} handle={handle} rootEventId={threadRoot} onClose={() => setThreadRoot(null)} />
       )}
     </main>
   );
