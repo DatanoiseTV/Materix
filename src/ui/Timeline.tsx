@@ -41,12 +41,16 @@ export function Timeline({
   onReply,
   onEdit,
   onOpenThread,
+  scrollToRef,
 }: {
   account: MatrixAccount;
   handle: RoomHandle;
   onReply: (item: TimelineItem) => void;
   onEdit: (item: TimelineItem) => void;
   onOpenThread?: (rootEventId: string) => void;
+  /** Populated with a "scroll to eventId and flash it" callback for the parent
+   * (in-room search) to drive. Null-safe if no event matches. */
+  scrollToRef?: React.MutableRefObject<((eventId: string) => void) | null>;
 }) {
   const version = useRoomVersion(account, handle.roomId);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -136,6 +140,32 @@ export function Timeline({
         .finally(() => setLoadingOlder(false));
     }
   });
+
+  // Expose a "scroll to event + flash highlight" driver for in-room search.
+  // All items are rendered (no virtualization), so a matched event is always in
+  // the DOM. Escaping the id keeps event ids with `$`/`:` valid in the selector.
+  const flashTimer = useRef<number | null>(null);
+  useEffect(() => {
+    if (!scrollToRef) return;
+    scrollToRef.current = (eventId: string) => {
+      const el = scrollRef.current;
+      if (!el) return;
+      const row = el.querySelector<HTMLElement>(`[data-event-id="${CSS.escape(eventId)}"]`);
+      if (!row) return;
+      stickToBottom.current = false;
+      row.scrollIntoView({ block: "center", behavior: "smooth" });
+      row.classList.remove("msg-highlight");
+      // Force reflow so re-adding the class restarts the animation.
+      void row.offsetWidth;
+      row.classList.add("msg-highlight");
+      if (flashTimer.current) window.clearTimeout(flashTimer.current);
+      flashTimer.current = window.setTimeout(() => row.classList.remove("msg-highlight"), 1600);
+    };
+    return () => {
+      scrollToRef.current = null;
+      if (flashTimer.current) window.clearTimeout(flashTimer.current);
+    };
+  }, [scrollToRef]);
 
   return (
     <>
@@ -274,6 +304,7 @@ export function TimelineRow({
   return (
     <div
       className={`msg-row${mine ? " mine" : ""}${item.groupStart ? " group-start" : ""}${showActions ? " show-actions" : ""}`}
+      data-event-id={item.eventId}
       onContextMenu={openMsgMenu}
       onClick={(e) => {
         // On touch (no hover), tap toggles the action bar.

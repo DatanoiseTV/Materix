@@ -226,6 +226,15 @@ export interface MediaItem {
   h?: number;
 }
 
+/** One in-room search hit over loaded history. */
+export interface SearchHit {
+  eventId: string;
+  senderName: string;
+  ts: number;
+  /** Plain-text excerpt around the first match; UI emphasizes the term. */
+  snippet: string;
+}
+
 export interface MemberSummary {
   userId: string;
   name: string;

@@ -67,6 +67,10 @@ export const IconX = icon(<path d="M18 6 6 18M6 6l12 12" />);
 
 export const IconBack = icon(<path d="m15 18-6-6 6-6" />);
 
+export const IconChevronUp = icon(<path d="m18 15-6-6-6 6" />);
+
+export const IconChevronDown = icon(<path d="m6 9 6 6 6-6" />);
+
 export const IconReply = icon(
   <>
     <polyline points="9 17 4 12 9 7" />
