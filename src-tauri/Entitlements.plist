@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <!-- Voice messages record from the microphone (getUserMedia). Under the
+       hardened runtime this resource-access entitlement is required or macOS
+       denies mic capture. -->
+  <key>com.apple.security.device.audio-input</key>
+  <true/>
+  <!-- "Share location" reads the device location (navigator.geolocation). -->
+  <key>com.apple.security.personal-information.location</key>
+  <true/>
+  <!-- Talks to arbitrary Matrix homeservers and downloads media over the
+       network (harmless without the App Sandbox; required if it is enabled). -->
+  <key>com.apple.security.network.client</key>
+  <true/>
+</dict>
+</plist>

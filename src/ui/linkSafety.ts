@@ -96,7 +96,15 @@ export function assessLink(href: string, text?: string): LinkAssessment {
   return { href, host, suspicious: reasons.length > 0, reasons };
 }
 
-/** Open an external link in the system browser / new tab. */
+/** Open an external link in the system browser (desktop) or a new tab (web). */
 export function openExternal(href: string): void {
+  // In the Tauri desktop shell the webview intercepts window.open, so route
+  // through the opener plugin to hand the URL to the OS browser.
+  if (typeof window !== "undefined" && "__TAURI_INTERNALS__" in window) {
+    import("@tauri-apps/plugin-opener")
+      .then((m) => m.openUrl(href))
+      .catch(() => window.open(href, "_blank", "noopener,noreferrer"));
+    return;
+  }
   window.open(href, "_blank", "noopener,noreferrer");
 }
