@@ -2174,14 +2174,15 @@ button.msg-sender:hover {
 .onboarding-logo-mark {
   width: 44px;
   height: 44px;
-  border-radius: var(--r-md);
-  background: var(--accent);
-  color: var(--on-accent);
-  font-size: var(--fs-xl);
-  font-weight: 800;
   display: flex;
   align-items: center;
   justify-content: center;
+  flex: 0 0 auto;
+}
+
+.onboarding-logo-mark svg {
+  display: block;
+  filter: drop-shadow(0 4px 12px hsl(var(--accent-h) 72% 40% / 0.35));
 }
 
 .onboarding h1 {

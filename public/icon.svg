@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48" role="img" aria-label="Materix">
+  <defs>
+    <linearGradient id="materixTile" x1="8" y1="4" x2="40" y2="44" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#7C6BF5"/>
+      <stop offset="1" stop-color="#4B33CC"/>
+    </linearGradient>
+  </defs>
+  <rect x="3" y="3" width="42" height="42" rx="11.5" fill="url(#materixTile)"/>
+  <g fill="none" stroke="#fff" stroke-width="4.4" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M14 34 V14 L24 26 L34 14 V34"/>
+  </g>
+  <g fill="#fff">
+    <circle cx="14" cy="14" r="3.4"/>
+    <circle cx="24" cy="26" r="3.4"/>
+    <circle cx="34" cy="14" r="3.4"/>
+    <circle cx="14" cy="34" r="2.5" fill-opacity="0.85"/>
+    <circle cx="34" cy="34" r="2.5" fill-opacity="0.85"/>
+  </g>
+</svg>

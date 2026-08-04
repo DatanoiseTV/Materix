@@ -6,6 +6,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { accountManager } from "../core/manager";
 import { MaterixError } from "../core/errors";
 import { useToast } from "./components/Toast";
+import { Logo } from "./components/Logo";
 
 const SUGGESTED_SERVERS = ["matrix.org", "mozilla.org", "fedora.im"];
 
@@ -90,7 +91,7 @@ export function Onboarding({
   const card = (
     <div className="onboarding-card">
         <div className="onboarding-logo">
-          <div className="onboarding-logo-mark">M</div>
+          <div className="onboarding-logo-mark"><Logo size={44} /></div>
           <div>
             <h1>{embedded ? "Add account" : "Materix"}</h1>
             <p className="onboarding-sub">{embedded ? "Sign in to another Matrix account" : "Secure messaging on Matrix"}</p>
