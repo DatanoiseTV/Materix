@@ -21,8 +21,6 @@ import {
 
 type Tool = "blackout" | "pixelate" | "pen" | "crop";
 type Point = { x: number; y: number };
-const MAX_W = 620;
-const MAX_H = 440;
 const PEN_COLORS = ["#ff3b30", "#ffcc00", "#34c759", "#0a84ff", "#ffffff", "#000000"];
 
 export function ImageEditor({
@@ -64,6 +62,13 @@ export function ImageEditor({
     };
   }, [file]);
 
+  // Fit the canvas within the modal on any screen (the modal is min(560,
+  // 100vw-48) wide, so leave room for its padding), and keep it from getting
+  // taller than the viewport allows.
+  const vw = typeof window !== "undefined" ? window.innerWidth : 620;
+  const vh = typeof window !== "undefined" ? window.innerHeight : 900;
+  const MAX_W = Math.min(620, vw - 80);
+  const MAX_H = Math.min(440, vh - 360);
   const orientedW = source ? (orient % 2 ? source.height : source.width) : 0;
   const orientedH = source ? (orient % 2 ? source.width : source.height) : 0;
   const scale = source ? Math.min(MAX_W / orientedW, MAX_H / orientedH, 1) : 1;
