@@ -15,6 +15,32 @@ async function tauriInvoke<T>(cmd: string, args?: Record<string, unknown>): Prom
   return invoke<T>(cmd, args);
 }
 
+// Generic small-secret storage (OS keychain on desktop, localStorage on web).
+// Used for the crypto-store key record; caller owns the full key name.
+export async function secretSet(key: string, value: string): Promise<void> {
+  if (isTauri()) {
+    try {
+      await tauriInvoke("secret_set", { key, value });
+      return;
+    } catch (e) {
+      console.warn("Keychain unavailable, using localStorage", e);
+    }
+  }
+  localStorage.setItem(key, value);
+}
+
+export async function secretGet(key: string): Promise<string | null> {
+  if (isTauri()) {
+    try {
+      const v = await tauriInvoke<string | null>("secret_get", { key });
+      if (v != null) return v;
+    } catch (e) {
+      console.warn("Keychain unavailable, reading localStorage", e);
+    }
+  }
+  return localStorage.getItem(key);
+}
+
 export async function saveSession(key: string, data: SessionData): Promise<void> {
   const value = JSON.stringify(data);
   if (isTauri()) {

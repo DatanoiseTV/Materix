@@ -33,6 +33,7 @@ import { RoomHandle } from "./roomHandle";
 import { previewText } from "./markdown";
 import { CryptoFacade, cryptoCallbacks } from "./crypto";
 import { CallManager } from "./calls";
+import { readStorageKey } from "./cryptoStoreKey";
 import { Emitter } from "./emitter";
 import { toMaterixError } from "./errors";
 
@@ -83,7 +84,15 @@ export class MatrixAccount {
     await store.startup();
 
     try {
-      await this.client.initRustCrypto({ cryptoDatabasePrefix: `materix-crypto-${this.key}` });
+      // Encrypt the crypto store at rest ONLY when a key exists for this account
+      // (created at login for new accounts). Legacy accounts have no key, so
+      // this stays byte-for-byte the original unencrypted init — never a
+      // migration of an existing store. Same db prefix, no deletion.
+      const storageKey = await readStorageKey(this.key);
+      await this.client.initRustCrypto({
+        cryptoDatabasePrefix: `materix-crypto-${this.key}`,
+        ...(storageKey ? { storageKey } : {}),
+      });
       this.crypto.attach();
     } catch (e) {
       // Crypto store corruption must not brick the account; run unencrypted-capable.

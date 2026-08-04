@@ -6,6 +6,7 @@ import type { IAuthData, RegisterRequest, RegisterResponse } from "matrix-js-sdk
 import type { AccountInfo, AccountKey, SessionData } from "./types";
 import { MatrixAccount } from "./account";
 import { accountKeyFor, deleteSession, loadSessions, saveSession } from "./storage";
+import { createStorageKey } from "./cryptoStoreKey";
 import { resolveHomeserver } from "./discovery";
 import { MaterixError, toMaterixError } from "./errors";
 import { Emitter } from "./emitter";
@@ -180,6 +181,11 @@ class AccountManagerImpl {
       return key; // already signed in with this exact session
     }
     await saveSession(key, session);
+    // A fresh login/registration has no crypto store yet, so create the at-rest
+    // encryption key before start() — the new store is then created encrypted.
+    // Restored sessions (manager.init) never come through here, so their
+    // existing stores are left untouched.
+    await createStorageKey(key);
     const account = new MatrixAccount(key, session);
     this.accounts.set(key, account);
     this.wire(account);
