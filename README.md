@@ -11,35 +11,67 @@ the [Client-Server API](https://spec.matrix.org/v1.11/client-server-api/) via
 module. The desktop build is a thin [Tauri 2](https://tauri.app) shell that
 stores access tokens in the OS keychain.
 
+> Status: pre-1.0 (`0.y.z`). The feature set below works and is verified, but
+> the public surface is not yet frozen and breaking changes can land between
+> minor versions.
+
 ## Features
 
+### Accounts and encryption
 - **Multi-account, multi-homeserver.** Log into several accounts at once; one
   unified chat list across all of them, each with its own accent color.
-- **End-to-end encryption.** Rust crypto, encryption on by default for DMs and
-  private rooms, per-account crypto stores.
+- **End-to-end encryption.** Rust crypto, on by default for DMs and private
+  rooms, per-account crypto stores.
 - **Device & user verification.** Interactive SAS (emoji) verification for your
-  own sessions and for contacts (in-room verification, the standard Matrix
-  flow). Verified live against a real homeserver.
+  own sessions and for contacts (in-room, the standard Matrix flow). Contact
+  verification reuses the room you started it from instead of opening a new DM.
 - **Secure key backup.** First-run prompt to set up cross-signing + secret
   storage + server-side key backup; restore encrypted history on a new device
   with your recovery key.
+
+### Messaging
 - **Rich messages.** `m.text` with Markdown → sanitized HTML, `m.notice`,
   `m.emote`, images/video/audio with thumbnails, arbitrary files, and
-  `m.location`. Replies, edits, redactions, reactions (with an emoji picker),
-  read receipts, typing indicators.
+  `m.location` rendered as an embedded map. Replies, edits, redactions,
+  reactions (with an emoji picker), read receipts, typing indicators.
+- **Clickable links with phishing protection.** URLs are auto-linked; a link
+  that looks deceptive (shortener, raw IP, punycode look-alike, embedded
+  credentials, or anchor text naming a different site than the destination)
+  prompts a warning that lists the reasons, with a per-domain "don't ask again"
+  trust list.
 - **Voice messages** (MSC3245) with a live-recorded waveform, and a seekable
-  audio player widget with download.
-- **Polls** (MSC3381): create, vote, live results, end.
+  audio player that keeps playing when you switch chats, with a persistent
+  now-playing bar.
+- **Polls** (MSC3381): create, single- or multi-select vote, live results, end.
 - **Location** sharing: current location, or live location (MSC3672 beacons)
-  for a chosen duration with a Stop-sharing control.
+  for a chosen duration with a Stop-sharing control; others' live beacons
+  render on a map that recenters as they move.
+
+### Sending images (privacy tools)
+- **Edit before sending.** Attaching, pasting, or dropping an image opens an
+  editor with crop, rotate, freehand **pen** annotations, and a secure
+  **censor** (black-out or pixelate) whose regions are baked destructively into
+  the exported pixels.
+- **Metadata stripping.** EXIF/GPS and other metadata are removed by default via
+  a canvas re-encode; if a photo carries GPS, the editor says so explicitly.
+- **Drag-and-drop.** Drop files anywhere on a chat; a full-area overlay confirms
+  the drop, and images route through the editor.
+
+### Organizing and browsing
 - **Explore.** Browse any server's public room directory and search the user
   directory (where the server supports it).
-- **Organize.** Favorites, low-priority, archive (collapsible section), and
-  mute with presets or "until I turn it back on". Muted rooms stay quiet.
-- **Notifications** honoring server push rules, with privacy modes: name +
-  message preview, name only, or off.
-- **Light / dark / system themes**, keyboard-navigable, responsive down to
-  phone widths with safe-area handling and a native-feeling mobile layout.
+- **Media gallery.** Per-room grid of photos/videos and a files list, loaded
+  lazily as you scroll back through history.
+- **Organize.** Favorites, low-priority, archive (collapsible section), and mute
+  with presets or "until I turn it back on". Muted rooms stay quiet.
+- **Notifications** honoring server push rules, with privacy modes (name +
+  message preview, name only, or off) and twelve synthesized notification
+  sounds (no audio assets shipped).
+
+### Look and feel
+- **Light / dark / system themes** with a neutral-slate palette, keyboard
+  navigation, and a responsive layout down to phone widths with safe-area
+  handling and a native-feeling mobile view.
 
 ## Stack
 
@@ -82,22 +114,64 @@ src-tauri/    Tauri 2 desktop shell (keychain IPC, notifications)
 docs/         API contract (authoritative for the Matrix + IPC boundary)
 ```
 
-## Verification status
+## Verification
 
-Exercised end-to-end against a live homeserver (headless-Chrome CDP driving the
-real webview + a Node peer running matrix-js-sdk):
+Beyond `tsc`/build, features are checked against reality rather than assumed:
 
-- Login, sync, unified room list, open room.
-- Send/receive in an **encrypted** DM (message encrypted, delivered, decrypted).
-- **SAS emoji verification** between two sessions — both show identical emojis
-  and reach the verified state.
-- Session restore across reloads; light/dark themes; mobile viewport layout.
+- **Live homeserver** (headless-Chrome CDP driving the real webview + a Node
+  peer running matrix-js-sdk): login, sync, unified room list, send/receive in
+  an encrypted DM, and SAS emoji verification reaching the verified state on
+  both sides.
+- **Image privacy pipeline** (headless): a crafted GPS-tagged JPEG is detected,
+  confirmed stripped after re-encode, and censored regions verified to contain
+  only black pixels.
+- **Link-safety heuristics** across representative benign and phishing URLs.
+- **Theme and layout** via rendered screenshots in light and dark.
+- **Notification sounds** rendered offline to confirm each is distinct and
+  non-silent.
 
-What is **not** implemented in v0.1.0: VoIP/calls, server-side message search,
-spaces navigation (spaces are hidden from the list), threads (thread replies
-render inline, no thread view), and a push gateway (notifications are
-client-side only, so they require the app to be open).
+## Not yet implemented / known limitations
+
+- **Spaces** are recognized but there is no space navigation UI yet (spaces are
+  kept out of the flat room list).
+- **Threads**: thread replies render inline; there is no dedicated thread view.
+- **Message forwarding** is not implemented yet.
+- **VoIP / calls** are not implemented.
+- **Server-side message search** is not wired up (local, loaded-history only).
+- **Notifications are client-side only** (no push gateway), so they require the
+  app to be open.
+- **Local data at rest**: the sync store (room metadata, and any
+  unencrypted-room content) is not encrypted at rest by the app; E2EE room
+  content is stored as ciphertext. An app-managed at-rest encryption layer was
+  prototyped and rolled back for being unsafe to migrate onto existing crypto
+  stores; a non-destructive version is on the roadmap.
+
+## Roadmap
+
+Rough order, subject to change:
+
+1. **Spaces** — sidebar/hierarchy navigation and filtering the room list by
+   space.
+2. **Message forwarding** — forward to another room via a picker.
+3. **Native right-click menus everywhere** — consistent custom context menus so
+   the app never falls back to the browser menu.
+4. **Mobile pass** — audit and tighten every screen for touch and small
+   viewports.
+5. **Threads view** — a proper threaded reply surface.
+6. **At-rest encryption, done safely** — encrypt local stores with an
+   OS-keychain-backed key (desktop) and an optional passcode, without
+   invalidating existing crypto stores.
+7. **Background notifications** — a push path that works when the app is closed.
+8. **Calls** — 1:1 and group VoIP.
+
+## Contributing
+
+Issues and PRs are welcome. Keep the `src/core` / `src/ui` boundary intact (the
+UI must not import `matrix-js-sdk` directly), update `docs/api-contract.md`
+before changing the Matrix/IPC surface, and run `pnpm build` (which type-checks)
+before opening a PR.
 
 ## License
 
-TBD.
+Not yet chosen — until a license is added, the default "all rights reserved"
+applies. A permissive license is intended before 1.0.
