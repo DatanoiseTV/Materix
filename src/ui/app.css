@@ -2220,6 +2220,38 @@ button.msg-sender:hover {
   font-weight: 600;
 }
 
+.auth-mode-switch {
+  display: flex;
+  gap: var(--sp-1);
+  padding: 3px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--bg-input);
+}
+
+.auth-mode-tab {
+  flex: 1;
+  padding: var(--sp-2);
+  border-radius: var(--r-sm);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--text-2);
+  transition: background 0.1s var(--ease), color 0.1s var(--ease);
+}
+
+.auth-mode-tab:hover {
+  color: var(--text-1);
+}
+
+.auth-mode-tab.selected {
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+}
+
+.field-hint-warn {
+  color: var(--danger);
+}
+
 /* ---------- verification / security ---------- */
 
 .sas-emojis {
