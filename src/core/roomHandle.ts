@@ -21,6 +21,7 @@ import type {
   MessageBody,
   PollData,
   RoomDetails,
+  SearchHit,
   ThreadSummary,
   TimelineItem,
 } from "./types";
@@ -43,6 +44,31 @@ function pollContent(ev: MatrixEvent): Record<string, unknown> | undefined {
   return (c["m.poll.start"] ?? c["org.matrix.msc3381.poll.start"] ?? (c.question ? c : undefined)) as
     | Record<string, unknown>
     | undefined;
+}
+
+/** Text that in-room search should match: plain-message bodies and media
+ * captions. Media without a caption carries only its filename as body, which
+ * we skip so search matches what the user typed, not attachment names. A
+ * caption is present when MSC2530 `filename` is set (body != filename). */
+function searchableText(content: IContent): string {
+  const msgtype = content.msgtype as string | undefined;
+  const body = stripReplyFallbackText((content.body as string) ?? "");
+  if (!body) return "";
+  if (msgtype === "m.text" || msgtype === "m.notice" || msgtype === "m.emote") return body;
+  // Media caption (image/video/file/audio with an MSC2530 filename).
+  if (typeof content.filename === "string" && content.filename !== body) return body;
+  return "";
+}
+
+/** A trimmed, single-line excerpt around a match, with ellipses on cut sides. */
+function snippetAround(text: string, idx: number, len: number): string {
+  const pad = 32;
+  const start = Math.max(0, idx - pad);
+  const end = Math.min(text.length, idx + len + pad);
+  let s = text.slice(start, end).replace(/\s+/g, " ").trim();
+  if (start > 0) s = `…${s}`;
+  if (end < text.length) s = `${s}…`;
+  return s;
 }
 
 const RENDERED_STATE = new Set<string>([
@@ -870,6 +896,39 @@ export class RoomHandle {
         size: info.size as number | undefined,
         w: info.w as number | undefined,
         h: info.h as number | undefined,
+      });
+    }
+    return out.reverse(); // newest first
+  }
+
+  /**
+   * Case-insensitive substring search over ALREADY-LOADED, decrypted message
+   * text — plain messages (m.text/notice/emote) and media captions. This does
+   * NOT hit the homeserver search API, so it only covers the history currently
+   * held in the timeline (widen it by paginating back first). Newest first.
+   * Pure and allocation-cheap: one pass over the live timeline.
+   */
+  searchMessages(query: string): SearchHit[] {
+    const needle = query.trim().toLowerCase();
+    if (!needle) return [];
+    const out: SearchHit[] = [];
+    for (const ev of this.room.getLiveTimeline().getEvents()) {
+      if (ev.getType() !== EventType.RoomMessage) continue;
+      if (ev.isRedacted() || ev.isDecryptionFailure() || ev.isBeingDecrypted()) continue;
+      const content = ev.getContent();
+      // Edits render through their target, not standalone — skip the replacement.
+      if (content["m.relates_to"]?.rel_type === "m.replace") continue;
+      const text = searchableText(content);
+      if (!text) continue;
+      const idx = text.toLowerCase().indexOf(needle);
+      if (idx === -1) continue;
+      const eventId = ev.getId();
+      if (!eventId) continue;
+      out.push({
+        eventId,
+        senderName: this.senderOf(ev).name,
+        ts: ev.getTs(),
+        snippet: snippetAround(text, idx, needle.length),
       });
     }
     return out.reverse(); // newest first
