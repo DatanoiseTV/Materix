@@ -20,10 +20,12 @@ export function Onboarding({
   embedded?: boolean;
 }) {
   const [step, setStep] = useState<"server" | "credentials">("server");
+  const [mode, setMode] = useState<"signin" | "register">("signin");
   const [server, setServer] = useState("matrix.org");
   const [flows, setFlows] = useState<{ password: boolean; sso: boolean } | null>(null);
   const [user, setUser] = useState("");
   const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { show } = useToast();
@@ -71,6 +73,25 @@ export function Onboarding({
       onDone();
     } catch (err) {
       setError(err instanceof MaterixError ? err.userMessage : "Sign-in failed.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function doRegister(e: FormEvent) {
+    e.preventDefault();
+    if (password !== confirm) {
+      setError("The passwords don't match.");
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      await accountManager.register(server, { username: user.trim(), password });
+      show("Account created.");
+      onDone();
+    } catch (err) {
+      setError(err instanceof MaterixError ? err.userMessage : "Could not create the account.");
     } finally {
       setBusy(false);
     }
@@ -142,9 +163,12 @@ export function Onboarding({
         )}
 
         {step === "credentials" && (
-          <form onSubmit={doLogin} style={{ display: "flex", flexDirection: "column", gap: "var(--sp-4)" }}>
+          <form
+            onSubmit={mode === "register" ? doRegister : doLogin}
+            style={{ display: "flex", flexDirection: "column", gap: "var(--sp-4)" }}
+          >
             <div className="field-hint">
-              Signing in to <strong>{server}</strong>{" "}
+              {mode === "register" ? "Creating an account on" : "Signing in to"} <strong>{server}</strong>{" "}
               <button
                 type="button"
                 className="chip"
@@ -156,12 +180,85 @@ export function Onboarding({
                 change
               </button>
             </div>
-            {flows?.password !== false && (
+
+            <div className="auth-mode-switch" role="group" aria-label="Sign in or create account">
+              <button
+                type="button"
+                className={`auth-mode-tab${mode === "signin" ? " selected" : ""}`}
+                aria-pressed={mode === "signin"}
+                onClick={() => {
+                  setMode("signin");
+                  setError(null);
+                }}
+              >
+                Sign in
+              </button>
+              <button
+                type="button"
+                className={`auth-mode-tab${mode === "register" ? " selected" : ""}`}
+                aria-pressed={mode === "register"}
+                onClick={() => {
+                  setMode("register");
+                  setError(null);
+                }}
+              >
+                Create account
+              </button>
+            </div>
+
+            {mode === "signin" ? (
+              <>
+                {flows?.password !== false && (
+                  <>
+                    <div className="field">
+                      <label htmlFor="username">Username</label>
+                      <input
+                        id="username"
+                        value={user}
+                        onChange={(e) => setUser(e.target.value)}
+                        placeholder="alice"
+                        autoComplete="username"
+                        autoCapitalize="none"
+                        spellCheck={false}
+                        required
+                      />
+                    </div>
+                    <div className="field">
+                      <label htmlFor="password">Password</label>
+                      <input
+                        id="password"
+                        type="password"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        autoComplete="current-password"
+                        required
+                      />
+                    </div>
+                  </>
+                )}
+                {error && <div className="form-error">{error}</div>}
+                <div style={{ display: "flex", flexDirection: "column", gap: "var(--sp-2)" }}>
+                  {flows?.password !== false && (
+                    <button className="btn primary" disabled={busy || !user.trim() || !password}>
+                      {busy ? <span className="spinner" /> : "Sign in"}
+                    </button>
+                  )}
+                  {flows?.sso && (
+                    <button type="button" className="btn ghost" disabled={busy} onClick={doSso}>
+                      Continue with single sign-on
+                    </button>
+                  )}
+                  {!flows?.password && !flows?.sso && (
+                    <div className="form-error">This server offers no supported sign-in method.</div>
+                  )}
+                </div>
+              </>
+            ) : (
               <>
                 <div className="field">
-                  <label htmlFor="username">Username</label>
+                  <label htmlFor="reg-username">Username</label>
                   <input
-                    id="username"
+                    id="reg-username"
                     value={user}
                     onChange={(e) => setUser(e.target.value)}
                     placeholder="alice"
@@ -172,34 +269,40 @@ export function Onboarding({
                   />
                 </div>
                 <div className="field">
-                  <label htmlFor="password">Password</label>
+                  <label htmlFor="reg-password">Password</label>
                   <input
-                    id="password"
+                    id="reg-password"
                     type="password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    autoComplete="current-password"
+                    autoComplete="new-password"
                     required
                   />
                 </div>
+                <div className="field">
+                  <label htmlFor="reg-confirm">Confirm password</label>
+                  <input
+                    id="reg-confirm"
+                    type="password"
+                    value={confirm}
+                    onChange={(e) => setConfirm(e.target.value)}
+                    autoComplete="new-password"
+                    aria-invalid={confirm.length > 0 && confirm !== password}
+                    required
+                  />
+                  {confirm.length > 0 && confirm !== password && (
+                    <div className="field-hint field-hint-warn">The passwords don't match.</div>
+                  )}
+                </div>
+                {error && <div className="form-error">{error}</div>}
+                <button
+                  className="btn primary"
+                  disabled={busy || !user.trim() || !password || password !== confirm}
+                >
+                  {busy ? <span className="spinner" /> : "Create account"}
+                </button>
               </>
             )}
-            {error && <div className="form-error">{error}</div>}
-            <div style={{ display: "flex", flexDirection: "column", gap: "var(--sp-2)" }}>
-              {flows?.password !== false && (
-                <button className="btn primary" disabled={busy || !user.trim() || !password}>
-                  {busy ? <span className="spinner" /> : "Sign in"}
-                </button>
-              )}
-              {flows?.sso && (
-                <button type="button" className="btn ghost" disabled={busy} onClick={doSso}>
-                  Continue with single sign-on
-                </button>
-              )}
-              {!flows?.password && !flows?.sso && (
-                <div className="form-error">This server offers no supported sign-in method.</div>
-              )}
-            </div>
           </form>
         )}
     </div>
