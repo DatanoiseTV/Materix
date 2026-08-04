@@ -19,12 +19,14 @@ import {
   IconDownload,
   IconEdit,
   IconFile,
+  IconForward,
   IconLocation,
   IconLock,
   IconReply,
   IconSmile,
   IconTrash,
 } from "./components/Icons";
+import { ForwardDialog } from "./dialogs/ForwardDialog";
 import { formatDayDivider, formatSize, formatTime } from "./format";
 import { useToast } from "./components/Toast";
 import { assessLink, isTrusted, openExternal, type LinkAssessment } from "./linkSafety";
@@ -51,6 +53,7 @@ export function Timeline({
   const [lightbox, setLightbox] = useState<string | null>(null);
   const [menu, setMenu] = useState<MenuState | null>(null);
   const [picker, setPicker] = useState<{ x: number; y: number; eventId: string } | null>(null);
+  const [forwardId, setForwardId] = useState<string | null>(null);
   const [linkPrompt, setLinkPrompt] = useState<LinkAssessment | null>(null);
   const { showError } = useToast();
 
@@ -151,6 +154,7 @@ export function Timeline({
               onZoom={setLightbox}
               onUserMenu={setMenu}
               onEmojiPicker={setPicker}
+              onForward={setForwardId}
             />
           ))}
           {items.length === 0 && (
@@ -178,6 +182,7 @@ export function Timeline({
         />
       )}
       {linkPrompt && <LinkWarning assessment={linkPrompt} onClose={() => setLinkPrompt(null)} />}
+      {forwardId && <ForwardDialog source={handle} eventId={forwardId} onClose={() => setForwardId(null)} />}
     </>
   );
 }
@@ -191,6 +196,7 @@ function TimelineRow({
   onZoom,
   onUserMenu,
   onEmojiPicker,
+  onForward,
 }: {
   item: TimelineItem;
   account: MatrixAccount;
@@ -200,6 +206,7 @@ function TimelineRow({
   onZoom: (url: string) => void;
   onUserMenu: (menu: MenuState) => void;
   onEmojiPicker: (p: { x: number; y: number; eventId: string }) => void;
+  onForward: (eventId: string) => void;
 }) {
   const { show, showError } = useToast();
 
@@ -312,6 +319,9 @@ function TimelineRow({
           ))}
           <button onClick={() => onReply(item)} title="Reply" aria-label="Reply">
             <IconReply size={15} />
+          </button>
+          <button onClick={() => onForward(item.eventId!)} title="Forward" aria-label="Forward">
+            <IconForward size={15} />
           </button>
           {mine && item.body?.msgtype === "m.text" && (
             <button onClick={() => onEdit(item)} title="Edit" aria-label="Edit">
