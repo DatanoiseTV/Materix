@@ -12,6 +12,7 @@
     "tauri": "tauri"
   },
   "dependencies": {
+    "@matrix-org/matrix-sdk-crypto-wasm": "18.3.1",
     "@tauri-apps/api": "^2.9.0",
     "@tauri-apps/plugin-notification": "^2.3.1",
     "dompurify": "^3.2.6",
