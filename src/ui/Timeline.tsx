@@ -8,7 +8,7 @@ import type { MessageBody, TimelineItem } from "../core/types";
 import { encryptedMediaUrl, mediaUrl } from "../core/media";
 import { useRoomVersion } from "./hooks";
 import { Avatar } from "./components/Avatar";
-import { ContextMenu, type MenuState } from "./components/ContextMenu";
+import { ContextMenu, type MenuItem, type MenuState } from "./components/ContextMenu";
 import { EmojiPicker } from "./components/EmojiPicker";
 import { AudioPlayer } from "./components/AudioPlayer";
 import { buildUserMenu } from "./userMenu";
@@ -242,9 +242,39 @@ export function TimelineRow({
     if (item.eventId) handle.react(item.eventId, key).catch(showError);
   };
 
+  // Right-click a message → native-style context menu with the same actions as
+  // the hover bar. Defers to the sender/avatar menu when those were targeted.
+  const openMsgMenu = (e: React.MouseEvent) => {
+    if (item.kind !== "message" || !item.eventId) return;
+    if ((e.target as HTMLElement).closest(".msg-sender, .avatar-btn")) return;
+    e.preventDefault();
+    const eventId = item.eventId;
+    const items: MenuItem[] = [
+      { label: "Reply", onClick: () => onReply(item) },
+      { label: "Add reaction", onClick: () => onEmojiPicker({ x: e.clientX - 260, y: e.clientY + 6, eventId }) },
+    ];
+    if (onForward) items.push({ label: "Forward", onClick: () => onForward(eventId) });
+    if (onOpenThread) items.push({ label: "Reply in thread", onClick: () => onOpenThread(eventId) });
+    if (item.body?.text)
+      items.push({
+        label: "Copy text",
+        onClick: () => navigator.clipboard.writeText(item.body!.text ?? "").then(() => show("Copied.")),
+      });
+    if (mine && item.body?.msgtype === "m.text") items.push({ label: "Edit", onClick: () => onEdit(item) });
+    items.push({
+      label: "Delete",
+      danger: true,
+      onClick: () => {
+        if (confirm("Delete this message for everyone?")) handle.redact(eventId).catch(showError);
+      },
+    });
+    onUserMenu({ x: e.clientX, y: e.clientY, items });
+  };
+
   return (
     <div
       className={`msg-row${mine ? " mine" : ""}${item.groupStart ? " group-start" : ""}${showActions ? " show-actions" : ""}`}
+      onContextMenu={openMsgMenu}
       onClick={(e) => {
         // On touch (no hover), tap toggles the action bar.
         if (window.matchMedia("(hover: none)").matches && (e.target as HTMLElement).closest(".bubble")) {

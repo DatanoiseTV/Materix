@@ -43,6 +43,20 @@ export function App() {
       .catch(() => setPhase("onboarding"));
   }, []);
 
+  // Suppress the webview's default (browser) context menu so right-click feels
+  // native — except on inputs and over selected text, where copy/paste is
+  // useful. Custom onContextMenu handlers still open their own menus.
+  useEffect(() => {
+    const onCtx = (e: MouseEvent) => {
+      const t = e.target as HTMLElement;
+      if (t.closest('input, textarea, [contenteditable="true"]')) return;
+      if (window.getSelection()?.toString()) return;
+      e.preventDefault();
+    };
+    document.addEventListener("contextmenu", onCtx);
+    return () => document.removeEventListener("contextmenu", onCtx);
+  }, []);
+
   // App-level command bus (open room / show verification flow from anywhere).
   useEffect(() => {
     const offs = [

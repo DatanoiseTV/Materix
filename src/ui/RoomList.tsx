@@ -6,7 +6,7 @@ import type { RoomSummary, SpaceSummary } from "../core/types";
 import { useAccounts, useClock, useRoomsVersion } from "./hooks";
 import { Avatar } from "./components/Avatar";
 import { ContextMenu, type MenuState } from "./components/ContextMenu";
-import { IconChat, IconLock, IconMuted, IconPlus, IconSearch, IconSettings, IconShield } from "./components/Icons";
+import { IconChat, IconGlobe, IconLock, IconMuted, IconPlus, IconSearch, IconSettings, IconShield } from "./components/Icons";
 import { formatListTime, typingText } from "./format";
 import { useToast } from "./components/Toast";
 
@@ -15,7 +15,7 @@ export interface Selection {
   roomId: string;
 }
 
-export type NewChatTab = "dm" | "group" | "join";
+export type NewChatTab = "dm" | "group" | "join" | "explore";
 
 /** Which space filters the unified room list. */
 type SpaceFilter =
@@ -180,6 +180,14 @@ export function RoomListPane({
         <h1>Chats</h1>
         <button
           className="icon-btn"
+          onClick={() => onNewChat("explore")}
+          title="Explore public rooms"
+          aria-label="Explore public rooms"
+        >
+          <IconGlobe size={20} />
+        </button>
+        <button
+          className="icon-btn"
           onClick={(e) => {
             const r = e.currentTarget.getBoundingClientRect();
             setMenu({
@@ -189,6 +197,7 @@ export function RoomListPane({
                 { label: "New direct message", onClick: () => onNewChat("dm") },
                 { label: "New group", onClick: () => onNewChat("group") },
                 { label: "Join a room", onClick: () => onNewChat("join") },
+                { label: "Explore public rooms", onClick: () => onNewChat("explore") },
               ],
             });
           }}
