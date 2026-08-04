@@ -6,7 +6,9 @@
        touching the microphone or location without the matching key makes the OS
        terminate the app. Tauri merges this file into the generated Info.plist. -->
   <key>NSMicrophoneUsageDescription</key>
-  <string>Materix uses the microphone to record voice messages.</string>
+  <string>Materix uses the microphone for voice messages and calls.</string>
+  <key>NSCameraUsageDescription</key>
+  <string>Materix uses the camera for video calls.</string>
   <key>NSLocationWhenInUseUsageDescription</key>
   <string>Materix uses your location only when you choose to share it in a chat.</string>
 </dict>

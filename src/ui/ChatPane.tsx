@@ -18,7 +18,9 @@ import {
   IconInfo,
   IconLock,
   IconPaperclip,
+  IconPhone,
   IconSearch,
+  IconVideo,
   IconX,
 } from "./components/Icons";
 import { formatTime, typingText } from "./format";
@@ -162,6 +164,26 @@ export function ChatPane({
             {details.topic ? ` · ${details.topic}` : ""}
           </div>
         </div>
+        {details.memberCount === 2 && !summary?.isInvite && (
+          <>
+            <button
+              className="icon-btn"
+              onClick={() => account.calls.startVoiceCall(selection.roomId).catch(showError)}
+              title="Voice call"
+              aria-label="Voice call"
+            >
+              <IconPhone size={20} />
+            </button>
+            <button
+              className="icon-btn"
+              onClick={() => account.calls.startVideoCall(selection.roomId).catch(showError)}
+              title="Video call"
+              aria-label="Video call"
+            >
+              <IconVideo size={20} />
+            </button>
+          </>
+        )}
         <button
           className={`icon-btn${searchOpen ? " active" : ""}`}
           onClick={() => setSearchOpen((v) => !v)}
