@@ -49,6 +49,14 @@ export interface RoomSummary {
   typing: string[];
 }
 
+/** A joined space (room where isSpaceRoom() is true), for the space selector. */
+export interface SpaceSummary {
+  accountKey: AccountKey;
+  roomId: string;
+  name: string;
+  avatarUrl?: string;
+}
+
 export type MessageBody =
   | { msgtype: "m.text" | "m.notice" | "m.emote"; text: string; html?: string }
   | {
