@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { accountManager } from "../core/manager";
-import type { RoomSummary } from "../core/types";
+import type { RoomSummary, SpaceSummary } from "../core/types";
 import { useAccounts, useClock, useRoomsVersion } from "./hooks";
 import { Avatar } from "./components/Avatar";
 import { ContextMenu, type MenuState } from "./components/ContextMenu";
@@ -16,6 +16,12 @@ export interface Selection {
 }
 
 export type NewChatTab = "dm" | "group" | "join";
+
+/** Which space filters the unified room list. */
+type SpaceFilter =
+  | { kind: "all" }
+  | { kind: "home" }
+  | { kind: "space"; accountKey: string; roomId: string };
 
 const HOUR = 3_600_000;
 const MUTE_PRESETS: [string, number][] = [
@@ -88,6 +94,7 @@ export function RoomListPane({
   useAccounts();
   const now = useClock(30_000);
   const [filter, setFilter] = useState("");
+  const [space, setSpace] = useState<SpaceFilter>({ kind: "all" });
   const [menu, setMenu] = useState<MenuState | null>(null);
   const [showArchived, setShowArchived] = useState(false);
   const { showError, show } = useToast();
@@ -107,17 +114,61 @@ export function RoomListPane({
     return rooms;
   }, [accounts, accountManager.events.version("rooms")]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const spaces = useMemo(() => {
+    const list: SpaceSummary[] = [];
+    for (const a of accounts) {
+      try {
+        list.push(...accountManager.account(a.key).spaces());
+      } catch {
+        // account may be mid-teardown
+      }
+    }
+    return list.sort((a, b) => a.name.localeCompare(b.name));
+  }, [accounts, accountManager.events.version("rooms")]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Drop back to "All" if the selected space is gone (left / account removed).
+  useEffect(() => {
+    if (
+      space.kind === "space" &&
+      !spaces.some((s) => s.accountKey === space.accountKey && s.roomId === space.roomId)
+    ) {
+      setSpace({ kind: "all" });
+    }
+  }, [space, spaces]);
+
+  // Room ids that pass the active space filter. `null` = no filter (All).
+  const spaceMembership = useMemo(() => {
+    if (space.kind === "all") return null;
+    if (space.kind === "space") {
+      const acc = accountManager.tryAccount(space.accountKey);
+      const ids = acc ? acc.spaceChildRoomIds(space.roomId) : new Set<string>();
+      return (r: RoomSummary) => r.accountKey === space.accountKey && ids.has(r.roomId);
+    }
+    // Home: rooms in no space of their own account.
+    const byAccount = new Map<string, Set<string>>();
+    for (const a of accounts) {
+      const acc = accountManager.tryAccount(a.key);
+      if (!acc) continue;
+      const union = new Set<string>();
+      for (const s of acc.spaces()) for (const id of acc.spaceChildRoomIds(s.roomId)) union.add(id);
+      byAccount.set(a.key, union);
+    }
+    return (r: RoomSummary) => !byAccount.get(r.accountKey)?.has(r.roomId);
+  }, [space, accounts, accountManager.events.version("rooms")]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const q = filter.trim().toLowerCase();
   const visible = allRooms.filter((r) => !r.isSpace && (!q || r.name.toLowerCase().includes(q)));
+  // Invitations stay visible regardless of space; chats are space-filtered.
+  const inSpace = visible.filter((r) => r.isInvite || !spaceMembership || spaceMembership(r));
 
-  const invites = visible.filter((r) => r.isInvite);
-  const archived = visible
+  const invites = inSpace.filter((r) => r.isInvite);
+  const archived = inSpace
     .filter((r) => !r.isInvite && r.isArchived)
     .sort((a, b) => b.lastActivityTs - a.lastActivityTs);
-  const chats = visible
+  const chats = inSpace
     .filter((r) => !r.isInvite && !r.isLowPriority && !r.isArchived)
     .sort((a, b) => Number(b.isFavorite) - Number(a.isFavorite) || b.lastActivityTs - a.lastActivityTs);
-  const lowPriority = visible
+  const lowPriority = inSpace
     .filter((r) => !r.isInvite && r.isLowPriority && !r.isArchived)
     .sort((a, b) => b.lastActivityTs - a.lastActivityTs);
 
@@ -159,6 +210,49 @@ export function RoomListPane({
           aria-label="Search chats"
         />
       </div>
+      {spaces.length > 0 && (
+        <div className="space-strip" role="tablist" aria-label="Spaces">
+          <button
+            className={`space-chip${space.kind === "all" ? " active" : ""}`}
+            role="tab"
+            aria-selected={space.kind === "all"}
+            onClick={() => setSpace({ kind: "all" })}
+          >
+            All
+          </button>
+          <button
+            className={`space-chip${space.kind === "home" ? " active" : ""}`}
+            role="tab"
+            aria-selected={space.kind === "home"}
+            onClick={() => setSpace({ kind: "home" })}
+          >
+            Home
+          </button>
+          {spaces.map((s) => {
+            const active =
+              space.kind === "space" && space.accountKey === s.accountKey && space.roomId === s.roomId;
+            return (
+              <button
+                key={s.accountKey + s.roomId}
+                className={`space-chip space${active ? " active" : ""}`}
+                role="tab"
+                aria-selected={active}
+                title={s.name}
+                onClick={() => setSpace({ kind: "space", accountKey: s.accountKey, roomId: s.roomId })}
+              >
+                <Avatar
+                  account={accountManager.tryAccount(s.accountKey)}
+                  mxc={s.avatarUrl}
+                  name={s.name}
+                  id={s.roomId}
+                  size={22}
+                />
+                <span className="space-chip-name">{s.name}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
       <div className="rooms-scroll">
         {invites.length > 0 && (
           <div className="rooms-section">
@@ -253,13 +347,15 @@ export function RoomListPane({
           </div>
         )}
 
-        {visible.length === 0 && (
+        {inSpace.length === 0 && (
           <div className="empty-state" style={{ padding: "var(--sp-5)" }}>
             <div className="empty-glyph">
               <IconChat size={30} />
             </div>
             {q ? (
               <p>No chats match "{filter}".</p>
+            ) : space.kind !== "all" ? (
+              <p>No chats in this space yet.</p>
             ) : (
               <>
                 <h2 style={{ fontSize: "var(--fs-lg)" }}>No chats yet</h2>

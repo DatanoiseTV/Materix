@@ -24,6 +24,7 @@ import type {
   PublicRoomsPage,
   RoomSummary,
   SessionData,
+  SpaceSummary,
   SyncStateName,
   UserSearchResult,
 } from "./types";
@@ -207,6 +208,45 @@ export class MatrixAccount {
         return m === "join" || m === "invite";
       })
       .map((r) => this.summarize(r));
+  }
+
+  /** Visible joined spaces (rooms where isSpaceRoom() is true). */
+  spaces(): SpaceSummary[] {
+    if (!this.client) return [];
+    return this.client
+      .getVisibleRooms()
+      .filter((r) => r.getMyMembership() === "join" && r.isSpaceRoom())
+      .map((r) => ({
+        accountKey: this.key,
+        roomId: r.roomId,
+        name: r.name || "Unnamed space",
+        avatarUrl: r.getMxcAvatarUrl() ?? undefined,
+      }));
+  }
+
+  /**
+   * Resolve the flat set of non-space child room ids of a space via its
+   * `m.space.child` state, descending into nested spaces. Cycle-guarded so a
+   * space that (directly or transitively) lists itself cannot loop forever.
+   */
+  spaceChildRoomIds(spaceRoomId: string): Set<string> {
+    const result = new Set<string>();
+    const visited = new Set<string>();
+    const descend = (roomId: string): void => {
+      if (visited.has(roomId)) return;
+      visited.add(roomId);
+      const room = this.client.getRoom(roomId);
+      if (!room) return;
+      for (const ev of room.currentState.getStateEvents(EventType.SpaceChild)) {
+        const childId = ev.getStateKey();
+        // An `m.space.child` with no `via` is a removed/invalid link.
+        if (!childId || !Array.isArray(ev.getContent().via)) continue;
+        if (this.client.getRoom(childId)?.isSpaceRoom()) descend(childId);
+        else result.add(childId);
+      }
+    };
+    descend(spaceRoomId);
+    return result;
   }
 
   private summarize(room: Room): RoomSummary {

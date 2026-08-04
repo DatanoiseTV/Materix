@@ -2521,3 +2521,51 @@ button.msg-sender:hover {
     max-height: 40vh;
   }
 }
+
+/* ===== spaces ===== */
+.space-strip {
+  display: flex;
+  gap: var(--sp-2);
+  align-items: center;
+  overflow-x: auto;
+  padding: var(--sp-2) var(--sp-3);
+  border-bottom: 1px solid var(--border);
+  scrollbar-width: none;
+}
+.space-strip::-webkit-scrollbar {
+  display: none;
+}
+.space-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex: 0 0 auto;
+  max-width: 160px;
+  height: 32px;
+  padding: 0 var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-full);
+  background: var(--bg-input);
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+.space-chip.space {
+  padding-left: var(--sp-1);
+}
+.space-chip:hover {
+  background: var(--bg-hover);
+  color: var(--text-1);
+}
+.space-chip.active {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent-strong);
+}
+.space-chip-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
