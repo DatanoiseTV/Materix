@@ -31,6 +31,9 @@ stores access tokens in the OS keychain.
 - **Secure key backup.** First-run prompt to set up cross-signing + secret
   storage + server-side key backup; restore encrypted history on a new device
   with your recovery key.
+- **Crypto store encrypted at rest** for new logins — a per-account key
+  (OS keychain on desktop) encrypts the Rust crypto store; existing sessions are
+  left untouched (never migrated).
 
 ### Messaging
 - **Rich messages.** `m.text` with Markdown → sanitized HTML, `m.notice`,
@@ -46,6 +49,10 @@ stores access tokens in the OS keychain.
   thread roots, reply-in-thread, and an inline thread composer.
 - **Forwarding.** Forward any message to another room/chat via a searchable
   picker across all your accounts.
+- **Calls.** 1:1 voice and video calls (WebRTC over Matrix) with an incoming-call
+  ring, in-call controls (mute, camera, hangup), and a call timer.
+- **Search.** In-room search over loaded history with jump-to-and-highlight and
+  next/previous navigation.
 - **Voice messages** (MSC3245) with a live-recorded waveform, and a seekable
   audio player that keeps playing when you switch chats, with a persistent
   now-playing bar.
@@ -141,29 +148,29 @@ Beyond `tsc`/build, features are checked against reality rather than assumed:
 
 ## Not yet implemented / known limitations
 
-- **VoIP / calls** are not implemented.
-- **Server-side message search** is not wired up (local, loaded-history only).
-- **Notifications are client-side only** (no push gateway), so they require the
-  app to be open.
-- **Local data at rest**: the sync store (room metadata, and any
-  unencrypted-room content) is not encrypted at rest by the app; E2EE room
-  content is stored as ciphertext. An app-managed at-rest encryption layer was
-  prototyped and rolled back for being unsafe to migrate onto existing crypto
-  stores; a non-destructive version is on the roadmap.
+- **Calls are 1:1 only** — no group calls yet.
+- **Message search is local** — it searches loaded/decrypted history, not the
+  full server-side history (the homeserver search API is not wired up).
+- **Notifications require the app to be running** — desktop notifications go
+  through the Tauri notification plugin, but there is no push gateway for
+  closed-app background delivery.
+- **At-rest encryption covers the crypto store, and only for new logins** — a
+  per-account key (keychain-backed on desktop) encrypts the Rust crypto store
+  for accounts created after this landed; pre-existing sessions stay unencrypted
+  (migrating them safely is future work). The sync store (room metadata / any
+  unencrypted-room content) is not encrypted by the app.
 
 ## Roadmap
 
 Rough order, subject to change:
 
-1. **Native right-click menus everywhere** — consistent custom context menus so
-   the app never falls back to the browser menu.
-2. **Mobile pass** — audit and tighten every screen for touch and small
-   viewports.
-3. **At-rest encryption, done safely** — encrypt local stores with an
-   OS-keychain-backed key (desktop) and an optional passcode, without
-   invalidating existing crypto stores.
+1. **Mobile pass** — audit and tighten every screen for touch and small
+   viewports on real devices.
+2. **Group calls** — extend calls beyond 1:1.
+3. **Server-side search** — use the homeserver search API for full history.
 4. **Background notifications** — a push path that works when the app is closed.
-5. **Calls** — 1:1 and group VoIP.
+5. **At-rest encryption for existing sessions** — a safe migration path, plus an
+   optional app passcode.
 
 ## Contributing
 
