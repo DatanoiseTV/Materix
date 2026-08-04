@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { accountManager } from "../core/manager";
 import type { MatrixAccount } from "../core/account";
+import type { CallSnapshot } from "../core/calls";
 
 /** Re-render on account list / active account / sync-state changes. */
 export function useAccounts() {
@@ -32,6 +33,28 @@ export function useRoomVersion(account: MatrixAccount | null, roomId: string | n
   return useSyncExternalStore(subscribe, () =>
     account && roomId ? account.events.version(`room:${roomId}`) : 0,
   );
+}
+
+/**
+ * The single active (non-idle) call across all accounts, or null. Calls can
+ * ring on any signed-in account, so this subscribes to every account's call
+ * manager and re-subscribes when the account set changes.
+ */
+export function useActiveCall(): { account: MatrixAccount; snap: CallSnapshot } | null {
+  const [, force] = useState(0);
+  const accountsVersion = useAccounts();
+  useEffect(() => {
+    const offs = accountManager.list().map((info) =>
+      accountManager.account(info.key).calls.events.on("call", () => force((n) => n + 1)),
+    );
+    return () => offs.forEach((o) => o());
+  }, [accountsVersion]);
+  for (const info of accountManager.list()) {
+    const account = accountManager.account(info.key);
+    const snap = account.calls.snapshot();
+    if (snap.status !== "idle") return { account, snap };
+  }
+  return null;
 }
 
 /** Resolve a promise-producing loader to state, cancelling on dep change. */
