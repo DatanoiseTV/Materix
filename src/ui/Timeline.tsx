@@ -251,7 +251,7 @@ export function TimelineRow({
     const eventId = item.eventId;
     const items: MenuItem[] = [
       { label: "Reply", onClick: () => onReply(item) },
-      { label: "Add reaction", onClick: () => onEmojiPicker({ x: e.clientX - 260, y: e.clientY + 6, eventId }) },
+      { label: "Add reaction", onClick: () => onEmojiPicker({ x: e.clientX - 300, y: e.clientY + 6, eventId }) },
     ];
     if (onForward) items.push({ label: "Forward", onClick: () => onForward(eventId) });
     if (onOpenThread) items.push({ label: "Reply in thread", onClick: () => onOpenThread(eventId) });
@@ -397,7 +397,7 @@ export function TimelineRow({
           <button
             onClick={(e) => {
               const r = e.currentTarget.getBoundingClientRect();
-              onEmojiPicker({ x: r.left - 260, y: r.bottom + 6, eventId: item.eventId! });
+              onEmojiPicker({ x: r.left - 300, y: r.bottom + 6, eventId: item.eventId! });
             }}
             title="More reactions"
             aria-label="More reactions"
