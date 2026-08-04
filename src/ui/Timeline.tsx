@@ -14,6 +14,7 @@ import { AudioPlayer } from "./components/AudioPlayer";
 import { buildUserMenu } from "./userMenu";
 import {
   IconAlert,
+  IconChat,
   IconCheck,
   IconClock,
   IconDownload,
@@ -37,11 +38,13 @@ export function Timeline({
   handle,
   onReply,
   onEdit,
+  onOpenThread,
 }: {
   account: MatrixAccount;
   handle: RoomHandle;
   onReply: (item: TimelineItem) => void;
   onEdit: (item: TimelineItem) => void;
+  onOpenThread?: (rootEventId: string) => void;
 }) {
   const version = useRoomVersion(account, handle.roomId);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -151,6 +154,7 @@ export function Timeline({
               onZoom={setLightbox}
               onUserMenu={setMenu}
               onEmojiPicker={setPicker}
+              onOpenThread={onOpenThread}
             />
           ))}
           {items.length === 0 && (
@@ -182,7 +186,7 @@ export function Timeline({
   );
 }
 
-function TimelineRow({
+export function TimelineRow({
   item,
   account,
   handle,
@@ -191,6 +195,7 @@ function TimelineRow({
   onZoom,
   onUserMenu,
   onEmojiPicker,
+  onOpenThread,
 }: {
   item: TimelineItem;
   account: MatrixAccount;
@@ -200,6 +205,7 @@ function TimelineRow({
   onZoom: (url: string) => void;
   onUserMenu: (menu: MenuState) => void;
   onEmojiPicker: (p: { x: number; y: number; eventId: string }) => void;
+  onOpenThread?: (rootEventId: string) => void;
 }) {
   const { show, showError } = useToast();
 
@@ -296,6 +302,18 @@ function TimelineRow({
             ))}
           </div>
         )}
+        {onOpenThread && item.eventId && item.threadReplyCount && item.threadReplyCount > 0 && (
+          <button
+            className="thread-chip"
+            onClick={() => onOpenThread(item.eventId!)}
+            aria-label={`Open thread, ${item.threadReplyCount} ${item.threadReplyCount === 1 ? "reply" : "replies"}`}
+          >
+            <IconChat size={13} />
+            <span>
+              {item.threadReplyCount} {item.threadReplyCount === 1 ? "reply" : "replies"}
+            </span>
+          </button>
+        )}
         {item.receipts && item.receipts.length > 0 && (
           <div className="msg-receipts" title={`Read by ${item.receipts.map((r) => r.name).join(", ")}`}>
             {item.receipts.map((r) => (
@@ -313,6 +331,11 @@ function TimelineRow({
           <button onClick={() => onReply(item)} title="Reply" aria-label="Reply">
             <IconReply size={15} />
           </button>
+          {onOpenThread && (
+            <button onClick={() => onOpenThread(item.eventId!)} title="Reply in thread" aria-label="Reply in thread">
+              <IconChat size={15} />
+            </button>
+          )}
           {mine && item.body?.msgtype === "m.text" && (
             <button onClick={() => onEdit(item)} title="Edit" aria-label="Edit">
               <IconEdit size={15} />

@@ -131,6 +131,18 @@ export interface TimelineItem {
   groupStart?: boolean;
   /** Read receipts to show under this event (other users). */
   receipts?: { userId: string; name: string; avatarUrl?: string }[];
+  /** Set on a thread root message: number of replies in its thread. */
+  threadReplyCount?: number;
+}
+
+/** One thread in a room, summarized for a thread list / affordance. */
+export interface ThreadSummary {
+  rootEventId: string;
+  rootSenderName: string;
+  rootPreview: string;
+  replyCount: number;
+  latestTs: number;
+  latestPreview: string;
 }
 
 export interface PollData {
