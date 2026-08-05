@@ -6,6 +6,9 @@ import {
   Direction,
   EventStatus,
   EventType,
+  GuestAccess,
+  HistoryVisibility,
+  JoinRule,
   type IContent,
   type MatrixClient,
   type MatrixEvent,
@@ -15,6 +18,8 @@ import { encryptAttachment } from "matrix-encrypt-attachment";
 import { parseBeaconContent } from "matrix-js-sdk/lib/content-helpers";
 import type {
   EncryptedFileInfo,
+  HistoryVisibilityValue,
+  JoinRuleValue,
   LiveBeacon,
   MediaItem,
   MemberSummary,
@@ -842,14 +847,63 @@ export class RoomHandle {
     return !!this.room.getLiveTimeline().getPaginationToken(Direction.Backward);
   }
 
-  details(): RoomDetails {
+  /** Raw m.room.power_levels content (empty object when unset). */
+  private powerLevels(): Record<string, unknown> {
+    return this.room.currentState.getStateEvents(EventType.RoomPowerLevels, "")?.getContent() ?? {};
+  }
+
+  /** This user's effective power level in the room. */
+  private myPowerLevel(): number {
     const me = this.client.getUserId()!;
-    const pl = this.room.currentState.getStateEvents(EventType.RoomPowerLevels, "")?.getContent() ?? {};
+    const pl = this.powerLevels();
     const users = (pl.users ?? {}) as Record<string, number>;
-    const myPl = users[me] ?? ((pl.users_default as number) ?? 0);
+    return users[me] ?? ((pl.users_default as number) ?? 0);
+  }
+
+  /** Power level required to send the given state event, per the room's
+   * `events` map, falling back to the supplied default when unspecified. */
+  private stateEventLevel(type: string, fallback: number): number {
+    const events = (this.powerLevels().events ?? {}) as Record<string, number>;
+    return events[type] ?? fallback;
+  }
+
+  private canSet(type: string, fallback: number): boolean {
+    return this.myPowerLevel() >= this.stateEventLevel(type, fallback);
+  }
+
+  /** True when the user may edit at least one room-settings field. */
+  canEditRoom(): boolean {
+    return (
+      this.canSet(EventType.RoomName, 50) ||
+      this.canSet(EventType.RoomTopic, 50) ||
+      this.canSet(EventType.RoomAvatar, 50) ||
+      this.canSet(EventType.RoomJoinRules, 100) ||
+      this.canSet(EventType.RoomHistoryVisibility, 100) ||
+      this.canSet(EventType.RoomGuestAccess, 100)
+    );
+  }
+
+  details(): RoomDetails {
+    const pl = this.powerLevels();
+    const myPl = this.myPowerLevel();
     const inviteLevel = (pl.invite as number) ?? 0;
     const kickLevel = (pl.kick as number) ?? 50;
     const redactLevel = (pl.redact as number) ?? 50;
+    const joinRule = (this.room.currentState
+      .getStateEvents(EventType.RoomJoinRules, "")
+      ?.getContent().join_rule as JoinRuleValue) ?? "invite";
+    const historyVisibility = (this.room.currentState
+      .getStateEvents(EventType.RoomHistoryVisibility, "")
+      ?.getContent().history_visibility as HistoryVisibilityValue) ?? "shared";
+    const guestAccess = ((this.room.currentState
+      .getStateEvents(EventType.RoomGuestAccess, "")
+      ?.getContent().guest_access as string) ?? "forbidden") as "can_join" | "forbidden";
+    const canEditName = this.canSet(EventType.RoomName, 50);
+    const canEditTopic = this.canSet(EventType.RoomTopic, 50);
+    const canEditAvatar = this.canSet(EventType.RoomAvatar, 50);
+    const canEditJoinRule = this.canSet(EventType.RoomJoinRules, 100);
+    const canEditHistoryVisibility = this.canSet(EventType.RoomHistoryVisibility, 100);
+    const canEditGuestAccess = this.canSet(EventType.RoomGuestAccess, 100);
     return {
       roomId: this.roomId,
       name: this.room.name,
@@ -863,7 +917,113 @@ export class RoomHandle {
       canInvite: myPl >= inviteLevel,
       canKick: myPl >= kickLevel,
       canRedactOthers: myPl >= redactLevel,
+      joinRule,
+      historyVisibility,
+      guestAccess,
+      canEditName,
+      canEditTopic,
+      canEditAvatar,
+      canEditJoinRule,
+      canEditHistoryVisibility,
+      canEditGuestAccess,
+      canEditRoom:
+        canEditName ||
+        canEditTopic ||
+        canEditAvatar ||
+        canEditJoinRule ||
+        canEditHistoryVisibility ||
+        canEditGuestAccess,
     };
+  }
+
+  // ---- room settings (state events, each power-level guarded) ----
+
+  /** Rename the room (m.room.name). */
+  async setRoomName(name: string): Promise<void> {
+    if (!this.canSet(EventType.RoomName, 50)) throw toMaterixError(new Error("You cannot rename this room."));
+    try {
+      await this.client.sendStateEvent(this.roomId, EventType.RoomName, { name: name.trim() }, "");
+    } catch (e) {
+      throw toMaterixError(e);
+    }
+  }
+
+  /** Set the room topic (m.room.topic). */
+  async setTopic(topic: string): Promise<void> {
+    if (!this.canSet(EventType.RoomTopic, 50)) throw toMaterixError(new Error("You cannot change the topic."));
+    try {
+      await this.client.sendStateEvent(this.roomId, EventType.RoomTopic, { topic }, "");
+    } catch (e) {
+      throw toMaterixError(e);
+    }
+  }
+
+  /** Upload an image and set it as the room avatar (m.room.avatar). */
+  async setRoomAvatar(file: File): Promise<void> {
+    if (!this.canSet(EventType.RoomAvatar, 50)) throw toMaterixError(new Error("You cannot change the room avatar."));
+    const mime = file.type || "image/png";
+    const info: Record<string, unknown> = { mimetype: mime, size: file.size };
+    try {
+      const bmp = await createImageBitmap(file);
+      info.w = bmp.width;
+      info.h = bmp.height;
+      bmp.close();
+    } catch {
+      // dimensions are optional
+    }
+    try {
+      const upload = await this.client.uploadContent(file, { type: mime });
+      await this.client.sendStateEvent(this.roomId, EventType.RoomAvatar, { url: upload.content_uri, info }, "");
+    } catch (e) {
+      throw toMaterixError(e);
+    }
+  }
+
+  /** Set who may join the room (m.room.join_rules). */
+  async setJoinRule(rule: "public" | "invite"): Promise<void> {
+    if (!this.canSet(EventType.RoomJoinRules, 100)) throw toMaterixError(new Error("You cannot change the join rule."));
+    try {
+      await this.client.sendStateEvent(
+        this.roomId,
+        EventType.RoomJoinRules,
+        { join_rule: rule === "public" ? JoinRule.Public : JoinRule.Invite },
+        "",
+      );
+    } catch (e) {
+      throw toMaterixError(e);
+    }
+  }
+
+  /** Set history visibility for new members (m.room.history_visibility). */
+  async setHistoryVisibility(visibility: HistoryVisibilityValue): Promise<void> {
+    if (!this.canSet(EventType.RoomHistoryVisibility, 100))
+      throw toMaterixError(new Error("You cannot change history visibility."));
+    try {
+      await this.client.sendStateEvent(
+        this.roomId,
+        EventType.RoomHistoryVisibility,
+        { history_visibility: visibility as HistoryVisibility },
+        "",
+      );
+    } catch (e) {
+      throw toMaterixError(e);
+    }
+  }
+
+  /** Toggle whether guest accounts may join (m.room.guest_access). */
+  async setGuestAccess(allow: boolean): Promise<void> {
+    if (!this.canSet(EventType.RoomGuestAccess, 100))
+      throw toMaterixError(new Error("You cannot change guest access."));
+    try {
+      await this.client.sendStateEvent(
+        this.roomId,
+        EventType.RoomGuestAccess,
+        { guest_access: allow ? GuestAccess.CanJoin : GuestAccess.Forbidden },
+        "",
+      );
+    } catch (e) {
+      throw toMaterixError(e);
+    }
   }
 
   /** Collect image/video (and optionally file) events from loaded history. */
