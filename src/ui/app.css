@@ -3105,6 +3105,49 @@ button.msg-sender:hover {
 .call-overlay-active .call-encryption.e2e {
   color: color-mix(in srgb, var(--success) 55%, white);
 }
+/* Row of status badges (encryption + media path) under the call title. */
+.call-badges {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--sp-2);
+  margin-top: var(--sp-2);
+}
+.call-badges .call-encryption {
+  margin-top: 0;
+}
+.call-mediapath {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  text-shadow: none;
+  color: var(--text-2);
+  background: var(--bg-hover);
+}
+.call-mediapath.direct {
+  color: var(--success);
+  background: color-mix(in srgb, var(--success) 16%, transparent);
+}
+.call-mediapath.relay {
+  color: var(--warning);
+  background: color-mix(in srgb, var(--warning) 18%, transparent);
+}
+/* Over the dark video stage, lift contrast. */
+.call-overlay-active .call-mediapath {
+  background: rgba(0, 0, 0, 0.42);
+  color: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(4px);
+}
+.call-overlay-active .call-mediapath.direct {
+  color: color-mix(in srgb, var(--success) 55%, white);
+}
+.call-overlay-active .call-mediapath.relay {
+  color: color-mix(in srgb, var(--warning) 60%, white);
+}
 .call-actions {
   display: flex;
   gap: var(--sp-5);

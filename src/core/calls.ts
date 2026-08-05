@@ -44,6 +44,12 @@ export interface CallSnapshot {
    * encrypted peer-to-peer regardless; this flag is the stronger guarantee.
    */
   encrypted: boolean;
+  /**
+   * How the media is actually flowing once connected, from the selected ICE
+   * candidate pair: "direct" (host/STUN — peer-to-peer) or "relay" (routed
+   * through a TURN server, so it is not P2P). Null until known / not connected.
+   */
+  mediaPath: "direct" | "relay" | null;
   /** ms epoch when the call first reached "connected", for the call timer. */
   startedAt: number | null;
   /** Human-readable reason the call ended in error, else null. */
@@ -62,6 +68,7 @@ const IDLE: CallSnapshot = {
   micMuted: false,
   videoMuted: false,
   encrypted: false,
+  mediaPath: null,
   startedAt: null,
   error: null,
   localStream: null,
@@ -80,7 +87,9 @@ export class CallManager {
   private answered = false;
   private startedAt: number | null = null;
   private error: string | null = null;
+  private mediaPath: "direct" | "relay" | null = null;
   private resetTimer: ReturnType<typeof setTimeout> | undefined;
+  private statsTimer: ReturnType<typeof setInterval> | undefined;
   private snap: CallSnapshot = IDLE;
 
   /** Wire the incoming-call listener. Call once, after the client exists. */
@@ -187,6 +196,7 @@ export class CallManager {
     this.answered = false;
     this.startedAt = null;
     this.error = null;
+    this.mediaPath = null;
 
     // An 'error' listener MUST be attached before place*/answer or the SDK
     // throws — attach the full set here.
@@ -205,6 +215,7 @@ export class CallManager {
   private onState = (state: CallState): void => {
     if (state === CallState.Connected && this.startedAt === null) {
       this.startedAt = Date.now();
+      this.startStatsPolling();
     }
     if (state === CallState.Ended) {
       this.finish();
@@ -212,6 +223,29 @@ export class CallManager {
     }
     this.publish();
   };
+
+  /** While connected, poll WebRTC stats to learn whether media is flowing
+   * peer-to-peer or via a TURN relay, and reflect it in the snapshot. */
+  private startStatsPolling(): void {
+    clearInterval(this.statsTimer);
+    const tick = () => void this.pollMediaPath();
+    tick();
+    this.statsTimer = setInterval(tick, 3000);
+  }
+
+  private async pollMediaPath(): Promise<void> {
+    const pc = this.call?.peerConn;
+    if (!pc) return;
+    try {
+      const path = classifyMediaPath(await pc.getStats());
+      if (path && path !== this.mediaPath) {
+        this.mediaPath = path;
+        this.publish();
+      }
+    } catch {
+      // getStats can reject during teardown; ignore.
+    }
+  }
 
   private onHangup = (): void => {
     this.finish();
@@ -225,6 +259,8 @@ export class CallManager {
   private finish(): void {
     const call = this.call;
     if (call) this.detach(call);
+    clearInterval(this.statsTimer);
+    this.statsTimer = undefined;
     this.call = null;
     this.snap = {
       ...this.snap,
@@ -266,6 +302,7 @@ export class CallManager {
       micMuted: call.isMicrophoneMuted(),
       videoMuted: call.isLocalVideoMuted(),
       encrypted: this.client.getRoom(call.roomId ?? undefined)?.hasEncryptionStateEvent() ?? false,
+      mediaPath: this.mediaPath,
       startedAt: this.startedAt,
       error: this.error,
       localStream: call.localUsermediaStream ?? null,
@@ -302,6 +339,40 @@ export class CallManager {
       peerAvatarMxc: member.getMxcAvatarUrl() ?? null,
     };
   }
+}
+
+/**
+ * Classify the media path from a WebRTC stats report: find the selected ICE
+ * candidate pair and check whether either end is a TURN "relay" candidate.
+ * Returns "relay" (routed through a TURN server — not peer-to-peer), "direct"
+ * (host/STUN pair — P2P), or null if no pair is active yet.
+ */
+function classifyMediaPath(stats: RTCStatsReport): "direct" | "relay" | null {
+  // getStats() typings vary across TS lib versions; index by id via forEach.
+  const byId = new Map<string, Record<string, unknown>>();
+  stats.forEach((r) => byId.set((r as { id: string }).id, r as Record<string, unknown>));
+
+  let pair: Record<string, unknown> | undefined;
+  for (const r of byId.values()) {
+    if (r.type === "transport" && typeof r.selectedCandidatePairId === "string") {
+      pair = byId.get(r.selectedCandidatePairId) ?? pair;
+    }
+  }
+  if (!pair) {
+    for (const r of byId.values()) {
+      if (r.type === "candidate-pair" && r.state === "succeeded" && (r.nominated || r.selected)) {
+        pair = r;
+        break;
+      }
+    }
+  }
+  if (!pair) return null;
+
+  const local = byId.get(pair.localCandidateId as string);
+  const remote = byId.get(pair.remoteCandidateId as string);
+  if (!local && !remote) return null;
+  const relayed = local?.candidateType === "relay" || remote?.candidateType === "relay";
+  return relayed ? "relay" : "direct";
 }
 
 /** Best-effort human message for a getUserMedia / placement failure. */

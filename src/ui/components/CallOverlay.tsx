@@ -10,6 +10,8 @@ import { useActiveCall, useClock } from "../hooks";
 import { startRingback, startRingtone } from "../sounds";
 import { Avatar } from "./Avatar";
 import {
+  IconCheck,
+  IconGlobe,
   IconLock,
   IconMic,
   IconMicOff,
@@ -39,6 +41,29 @@ function CallEncryption({ encrypted }: { encrypted: boolean }) {
     >
       <IconLock size={13} />
       <span>Encrypted media</span>
+    </div>
+  );
+}
+
+/** Whether the media is flowing peer-to-peer or via a TURN relay, read from the
+ * selected ICE candidate pair. Null until the call is connected and known. */
+function MediaPath({ path }: { path: "direct" | "relay" | null }) {
+  if (!path) return null;
+  return path === "relay" ? (
+    <div
+      className="call-mediapath relay"
+      title="Media is routed through a TURN relay server — it is NOT flowing directly peer-to-peer. This is normal behind strict NATs/firewalls, but the relay operator sees the (still DTLS-encrypted) traffic."
+    >
+      <IconGlobe size={13} />
+      <span>Relayed (TURN)</span>
+    </div>
+  ) : (
+    <div
+      className="call-mediapath direct"
+      title="Media is flowing directly peer-to-peer — no relay server is in the media path."
+    >
+      <IconCheck size={13} />
+      <span>Peer-to-peer</span>
     </div>
   );
 }
@@ -147,7 +172,10 @@ function CallSurface({ account, snap }: { account: MatrixAccount; snap: CallSnap
         <div className="call-topbar">
           <div className="call-peer-name">{name}</div>
           <div className="call-status">{statusLine}</div>
-          <CallEncryption encrypted={snap.encrypted} />
+          <div className="call-badges">
+            <CallEncryption encrypted={snap.encrypted} />
+            {status === "connected" && <MediaPath path={snap.mediaPath} />}
+          </div>
         </div>
 
         <audio ref={remoteAudioRef} autoPlay />
