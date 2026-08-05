@@ -51,6 +51,8 @@ export class MatrixAccount {
   client!: MatrixClient;
   syncState: SyncStateName = "initial";
   startError?: string;
+  /** The unlocked crypto-store key (if the account is encrypted), for passcode re-wrapping. */
+  storageKey?: Uint8Array<ArrayBuffer>;
   private handles = new Map<string, RoomHandle>();
   private directRooms = new Set<string>();
   /** Client-side per-room settings, synced via io.materix.settings account data. */
@@ -89,6 +91,7 @@ export class MatrixAccount {
       // this stays byte-for-byte the original unencrypted init — never a
       // migration of an existing store. Same db prefix, no deletion.
       const storageKey = await readStorageKey(this.key);
+      this.storageKey = storageKey ?? undefined;
       await this.client.initRustCrypto({
         cryptoDatabasePrefix: `materix-crypto-${this.key}`,
         ...(storageKey ? { storageKey } : {}),

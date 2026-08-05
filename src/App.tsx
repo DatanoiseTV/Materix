@@ -17,6 +17,7 @@ import { VerificationDialog } from "./ui/dialogs/VerificationDialog";
 import { wireNotifications } from "./ui/notifications";
 import { NowPlaying } from "./ui/components/NowPlaying";
 import { CallOverlay } from "./ui/components/CallOverlay";
+import { PasscodeGate } from "./ui/passcodeGate";
 import { uiBus } from "./ui/bus";
 
 applyTheme();
@@ -130,6 +131,7 @@ export function App() {
       <div className="app-loading">
         <span className="spinner" />
         <span>Opening Materix…</span>
+        <PasscodeGate />
       </div>
     );
   }
@@ -178,6 +180,7 @@ export function App() {
 
       <NowPlaying />
       <CallOverlay />
+      <PasscodeGate />
 
       {dialog.kind === "new-chat" && (
         <NewChatDialog
