@@ -3026,6 +3026,32 @@ button.msg-sender:hover {
   color: var(--text-2);
   margin-top: 2px;
 }
+.call-encryption {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: var(--sp-2);
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--text-2);
+  background: var(--bg-hover);
+  text-shadow: none;
+}
+.call-encryption.e2e {
+  color: var(--success);
+  background: color-mix(in srgb, var(--success) 16%, transparent);
+}
+/* Over the video stage the badge sits on dark pixels — lift contrast. */
+.call-overlay-active .call-encryption {
+  background: rgba(0, 0, 0, 0.42);
+  color: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(4px);
+}
+.call-overlay-active .call-encryption.e2e {
+  color: color-mix(in srgb, var(--success) 55%, white);
+}
 .call-actions {
   display: flex;
   gap: var(--sp-5);

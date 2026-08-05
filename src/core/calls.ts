@@ -37,6 +37,13 @@ export interface CallSnapshot {
   isVideo: boolean;
   micMuted: boolean;
   videoMuted: boolean;
+  /**
+   * Whether the call's *signaling* is end-to-end encrypted, i.e. the room is
+   * E2EE so the SDP/ICE exchange (and the DTLS fingerprints that authenticate
+   * the media) travel over Olm/Megolm. The media itself is always DTLS-SRTP
+   * encrypted peer-to-peer regardless; this flag is the stronger guarantee.
+   */
+  encrypted: boolean;
   /** ms epoch when the call first reached "connected", for the call timer. */
   startedAt: number | null;
   /** Human-readable reason the call ended in error, else null. */
@@ -54,6 +61,7 @@ const IDLE: CallSnapshot = {
   isVideo: false,
   micMuted: false,
   videoMuted: false,
+  encrypted: false,
   startedAt: null,
   error: null,
   localStream: null,
@@ -257,6 +265,7 @@ export class CallManager {
       isVideo: this.videoCall,
       micMuted: call.isMicrophoneMuted(),
       videoMuted: call.isLocalVideoMuted(),
+      encrypted: this.client.getRoom(call.roomId ?? undefined)?.hasEncryptionStateEvent() ?? false,
       startedAt: this.startedAt,
       error: this.error,
       localStream: call.localUsermediaStream ?? null,

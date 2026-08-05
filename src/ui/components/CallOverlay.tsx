@@ -9,13 +9,38 @@ import type { CallSnapshot } from "../../core/calls";
 import { useActiveCall, useClock } from "../hooks";
 import { Avatar } from "./Avatar";
 import {
+  IconLock,
   IconMic,
   IconMicOff,
   IconPhone,
   IconPhoneOff,
+  IconShieldCheck,
   IconVideo,
   IconVideoOff,
 } from "./Icons";
+
+/** Honest call-encryption badge. 1:1 WebRTC media is always DTLS-SRTP
+ * encrypted peer-to-peer; an E2EE room additionally protects the signaling
+ * (and the DTLS fingerprints), which is the stronger end-to-end guarantee. */
+function CallEncryption({ encrypted }: { encrypted: boolean }) {
+  return encrypted ? (
+    <div
+      className="call-encryption e2e"
+      title="End-to-end encrypted: the call media (DTLS-SRTP) and the call setup are encrypted, so the homeserver can't listen in."
+    >
+      <IconShieldCheck size={13} />
+      <span>End-to-end encrypted</span>
+    </div>
+  ) : (
+    <div
+      className="call-encryption"
+      title="The call media is encrypted in transit (DTLS-SRTP), but the call setup is not end-to-end encrypted because this room isn't encrypted."
+    >
+      <IconLock size={13} />
+      <span>Encrypted media</span>
+    </div>
+  );
+}
 
 function fmtDuration(ms: number): string {
   const total = Math.max(0, Math.floor(ms / 1000));
@@ -79,6 +104,7 @@ function CallSurface({ account, snap }: { account: MatrixAccount; snap: CallSnap
           <Avatar account={account} mxc={snap.peerAvatarMxc ?? undefined} name={name} id={snap.peerId ?? name} size={72} />
           <div className="call-peer-name">{name}</div>
           <div className="call-status">{statusLine}</div>
+          <CallEncryption encrypted={snap.encrypted} />
           <div className="call-actions">
             <button className="call-btn decline" onClick={() => calls.hangup()} aria-label="Decline call">
               <IconPhoneOff size={24} />
@@ -112,6 +138,7 @@ function CallSurface({ account, snap }: { account: MatrixAccount; snap: CallSnap
         <div className="call-topbar">
           <div className="call-peer-name">{name}</div>
           <div className="call-status">{statusLine}</div>
+          <CallEncryption encrypted={snap.encrypted} />
         </div>
 
         <audio ref={remoteAudioRef} autoPlay />
