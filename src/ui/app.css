@@ -3499,4 +3499,36 @@ button.msg-sender:hover {
   .threads-panel {
     width: 100%;
   }
+/* ===== read-controls ===== */
+
+/* Compact dot shown for a room marked unread with a zero notification count. */
+.unread-pill.dot {
+  min-width: 10px;
+  width: 10px;
+  height: 10px;
+  padding: 0;
+  background: var(--accent);
+}
+
+.unread-pill.dot.muted {
+  background: var(--border-strong);
+}
+
+/* Top-of-list "Mark all as read" action. */
+.mark-all-read {
+  display: block;
+  width: 100%;
+  padding: var(--sp-2) var(--sp-3);
+  border: none;
+  background: transparent;
+  color: var(--accent-strong);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+  border-radius: var(--r-md);
+}
+
+.mark-all-read:hover {
+  background: var(--accent-soft);
 }

@@ -40,6 +40,10 @@ import {
   escapeHtml,
 } from "./markdown";
 
+// MSC2867 marked-unread room account data (stable + unstable Famedly prefix).
+const MARKED_UNREAD = "m.marked_unread";
+const MARKED_UNREAD_UNSTABLE = "com.famedly.marked_unread";
+
 // MSC3381 poll event types (stable + unstable prefixes).
 const POLL_START = ["m.poll.start", "org.matrix.msc3381.poll.start"];
 const POLL_RESPONSE = ["m.poll.response", "org.matrix.msc3381.poll.response"];
@@ -897,13 +901,45 @@ export class RoomHandle {
     if (ev) await this.client.resendEvent(ev, this.room);
   }
 
-  /** Mark the room read up to its latest event. */
+  /**
+   * Mark the room read up to its latest event, and clear any explicit
+   * marked-unread flag — opening / reading a room always resolves it.
+   */
   async markRead(): Promise<void> {
     const events = this.room.getLiveTimeline().getEvents();
     const last = [...events].reverse().find((e) => !!e.getId());
-    if (!last) return;
-    await this.client.sendReadReceipt(last);
-    await this.client.setRoomReadMarkers(this.roomId, last.getId()!, last);
+    if (last) {
+      await this.client.sendReadReceipt(last);
+      await this.client.setRoomReadMarkers(this.roomId, last.getId()!, last);
+    }
+    if (this.isMarkedUnread()) await this.markUnread(false);
+  }
+
+  /**
+   * Whether the room carries an explicit MSC2867 marked-unread flag. Reads the
+   * stable `m.marked_unread` room account data, falling back to the unstable
+   * `com.famedly.marked_unread` type that older clients still write.
+   */
+  isMarkedUnread(): boolean {
+    for (const type of [MARKED_UNREAD, MARKED_UNREAD_UNSTABLE]) {
+      const content = this.room.getAccountData(type)?.getContent<{ unread?: boolean }>();
+      if (content && typeof content.unread === "boolean") return content.unread;
+    }
+    return false;
+  }
+
+  /**
+   * Set (or clear) the explicit MSC2867 marked-unread flag on the room. Writes
+   * both the stable and unstable account-data types so clients reading either
+   * one stay in sync.
+   */
+  async markUnread(unread: boolean): Promise<void> {
+    try {
+      await this.client.setRoomAccountData(this.roomId, MARKED_UNREAD as never, { unread } as never);
+      await this.client.setRoomAccountData(this.roomId, MARKED_UNREAD_UNSTABLE as never, { unread } as never);
+    } catch (e) {
+      throw toMaterixError(e);
+    }
   }
 
   async setTyping(typing: boolean): Promise<void> {

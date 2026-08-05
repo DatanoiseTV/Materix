@@ -128,6 +128,11 @@ export class MatrixAccount {
     c.on(RoomEvent.LocalEchoUpdated, (_ev, room) => bumpRoom(room));
     c.on(RoomEvent.Receipt, (_ev, room) => bumpRoom(room));
     c.on(RoomEvent.Redaction, (_ev, room) => bumpRoom(room));
+    // Explicit marked-unread flag (MSC2867) arrives as room account data.
+    c.on(RoomEvent.AccountData, (ev, room) => {
+      const type = ev.getType();
+      if (type === "m.marked_unread" || type === "com.famedly.marked_unread") bumpRoom(room);
+    });
     c.on(RoomEvent.Name, () => bumpRooms());
     c.on(RoomEvent.MyMembership, () => bumpRooms());
     c.on(RoomEvent.Tags, () => bumpRooms());
@@ -191,6 +196,15 @@ export class MatrixAccount {
   async setMuted(roomId: string, durationMs: number | undefined): Promise<void> {
     const mutedUntil = !durationMs ? 0 : durationMs === Infinity ? Number.MAX_SAFE_INTEGER : Date.now() + durationMs;
     await this.saveRoomSettings(roomId, { mutedUntil });
+  }
+
+  /** Send a read receipt for (and clear marked-unread on) every joined room. */
+  async markAllRead(): Promise<void> {
+    if (!this.client) return;
+    const rooms = this.client
+      .getVisibleRooms()
+      .filter((r) => r.getMyMembership() === "join" && !r.isSpaceRoom());
+    await Promise.allSettled(rooms.map((r) => this.room(r.roomId).markRead()));
   }
 
   private rebuildDirectSet(): void {
@@ -289,6 +303,7 @@ export class MatrixAccount {
       inviterName: inviter ? (room.getMember(inviter)?.name ?? inviter) : undefined,
       isSpace: room.isSpaceRoom(),
       unreadCount: room.getUnreadNotificationCount() ?? 0,
+      markedUnread: this.room(room.roomId).isMarkedUnread(),
       highlightCount: room.getUnreadNotificationCount("highlight" as never) ?? 0,
       lastActivityTs: room.getLastActiveTimestamp(),
       lastEvent: last,
