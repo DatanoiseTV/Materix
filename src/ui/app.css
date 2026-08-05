@@ -3366,3 +3366,129 @@ button.msg-sender:hover {
   gap: var(--sp-2);
   justify-content: flex-end;
 }
+
+/* ===== threads-panel ===== */
+
+/* Right-side room-wide thread list, overlaying the chat pane like the
+   single-thread view. */
+.threads-panel {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 380px;
+  max-width: 100%;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-pane);
+  border-left: 1px solid var(--border);
+  box-shadow: -8px 0 24px color-mix(in srgb, var(--bg-chat) 60%, transparent);
+  animation: pop-in 0.14s var(--ease);
+}
+
+.threads-panel-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--sp-2);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.threads-panel-item {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  width: 100%;
+  text-align: left;
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--r-md);
+  cursor: pointer;
+  background: transparent;
+  color: var(--text-1);
+}
+.threads-panel-item:hover {
+  background: var(--bg-hover);
+}
+
+.threads-panel-item-meta {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp-2);
+}
+.threads-panel-item-sender {
+  font-weight: 600;
+  font-size: var(--fs-sm);
+  color: var(--text-1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.threads-panel-item-time {
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+  flex: 0 0 auto;
+}
+.threads-panel-item-root {
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.threads-panel-item-foot {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+.threads-panel-item-count {
+  flex: 0 0 auto;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--accent-strong);
+}
+.threads-panel-item-latest {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.threads-panel-empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-2);
+  padding: var(--sp-4);
+  text-align: center;
+  color: var(--text-2);
+}
+.threads-panel-empty-glyph {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  border-radius: var(--r-full, 999px);
+  background: var(--bg-hover);
+  color: var(--text-3);
+}
+.threads-panel-empty-sub {
+  font-size: var(--fs-sm);
+  color: var(--text-3);
+}
+
+@media (max-width: 760px) {
+  .threads-panel {
+    width: 100%;
+  }
+}

@@ -9,6 +9,7 @@ import { useRoomVersion, useRoomsVersion } from "./hooks";
 import type { Selection } from "./RoomList";
 import { Timeline } from "./Timeline";
 import { ThreadView } from "./ThreadView";
+import { ThreadsPanel } from "./ThreadsPanel";
 import { Composer, type ComposeMode } from "./Composer";
 import { Avatar } from "./components/Avatar";
 import {
@@ -22,6 +23,7 @@ import {
   IconPhone,
   IconPin,
   IconSearch,
+  IconThreads,
   IconVideo,
   IconX,
 } from "./components/Icons";
@@ -47,6 +49,7 @@ export function ChatPane({
   const [mode, setMode] = useState<ComposeMode | null>(null);
   const [threadRoot, setThreadRoot] = useState<string | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [threadsOpen, setThreadsOpen] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const dragDepth = useRef(0);
   const dropFilesRef = useRef<((files: FileList | File[]) => void) | null>(null);
@@ -100,6 +103,7 @@ export function ChatPane({
   useEffect(() => {
     setThreadRoot(null);
     setSearchOpen(false);
+    setThreadsOpen(false);
   }, [selection?.roomId]);
 
   // Mark read when the room is open and messages arrive.
@@ -195,6 +199,15 @@ export function ChatPane({
         >
           <IconSearch size={20} />
         </button>
+        <button
+          className={`icon-btn${threadsOpen ? " active" : ""}`}
+          onClick={() => setThreadsOpen((v) => !v)}
+          title="Threads"
+          aria-label="Threads"
+          aria-pressed={threadsOpen}
+        >
+          <IconThreads size={20} />
+        </button>
         <button className="icon-btn" onClick={onToggleDetails} title="Room info" aria-label="Room info">
           <IconInfo size={20} />
         </button>
@@ -252,6 +265,17 @@ export function ChatPane({
           mode={mode}
           onClearMode={() => setMode(null)}
           dropFilesRef={dropFilesRef}
+        />
+      )}
+      {threadsOpen && !threadRoot && (
+        <ThreadsPanel
+          account={account}
+          handle={handle}
+          onOpenThread={(rootEventId) => {
+            setThreadsOpen(false);
+            setThreadRoot(rootEventId);
+          }}
+          onClose={() => setThreadsOpen(false)}
         />
       )}
       {threadRoot && (
