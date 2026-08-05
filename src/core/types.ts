@@ -116,6 +116,7 @@ export type TimelineItemKind =
   | "state"
   | "encrypted-pending"
   | "redacted"
+  | "ignored"
   | "day-divider"
   | "read-marker";
 

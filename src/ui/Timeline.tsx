@@ -250,10 +250,24 @@ export function TimelineRow({
 
   const openUserMenu = (e: React.MouseEvent) => {
     e.preventDefault();
+    const userId = item.sender.userId;
     onUserMenu({
       x: e.clientX,
       y: e.clientY,
-      items: buildUserMenu(account, item.sender.userId, { show, showError, roomId: handle.roomId }),
+      items: buildUserMenu(account, userId, {
+        show,
+        showError,
+        roomId: handle.roomId,
+        canBan: handle.canBan(),
+        onBan: () => {
+          const reason = prompt(`Ban ${item.sender.name} from this room? Optionally add a reason:`);
+          if (reason === null) return;
+          handle
+            .ban(userId, reason || undefined)
+            .then(() => show("User banned."))
+            .catch(showError);
+        },
+      }),
     });
   };
 
@@ -265,6 +279,9 @@ export function TimelineRow({
   }
   if (item.kind === "member" || item.kind === "state") {
     return <div className="state-line">{item.stateText}</div>;
+  }
+  if (item.kind === "ignored") {
+    return <div className="state-line ignored-msg">Message from ignored user</div>;
   }
 
   const mine = !!item.isMine;
@@ -291,6 +308,29 @@ export function TimelineRow({
         onClick: () => navigator.clipboard.writeText(item.body!.text ?? "").then(() => show("Copied.")),
       });
     if (mine && item.body?.msgtype === "m.text") items.push({ label: "Edit", onClick: () => onEdit(item) });
+    const mx = e.clientX;
+    const my = e.clientY;
+    if (!mine)
+      items.push({
+        label: "Report message",
+        danger: true,
+        onClick: () => {
+          // Second-level menu of preset reasons; picking one reports immediately.
+          const reasons = ["Spam", "Inappropriate content", "Harassment", "Illegal content", "Other"];
+          onUserMenu({
+            x: mx,
+            y: my,
+            items: reasons.map((reason) => ({
+              label: reason,
+              onClick: () =>
+                handle
+                  .report(eventId, reason)
+                  .then(() => show("Message reported."))
+                  .catch(showError),
+            })),
+          });
+        },
+      });
     items.push({
       label: "Delete",
       danger: true,

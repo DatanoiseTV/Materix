@@ -142,14 +142,15 @@ export class RoomHandle {
       }
     };
 
+    const ignored = new Set(this.client.getIgnoredUsers());
     for (const ev of events) {
-      const item = this.toItem(ev, myUserId);
+      const item = this.toItem(ev, myUserId, ignored);
       if (item) push(ev, item);
     }
     return items;
   }
 
-  private toItem(ev: MatrixEvent, myUserId: string): TimelineItem | null {
+  private toItem(ev: MatrixEvent, myUserId: string, ignored?: Set<string>): TimelineItem | null {
     const type = ev.getType();
     const sender = this.senderOf(ev);
     const base = {
@@ -159,6 +160,18 @@ export class RoomHandle {
       ts: ev.getTs(),
       isMine: ev.getSender() === myUserId,
     };
+
+    // Collapse message/poll content from ignored users into a subtle placeholder.
+    // Membership/state events are left to render normally (never crash on them).
+    if (
+      ignored?.has(ev.getSender() ?? "") &&
+      (type === EventType.RoomMessage ||
+        type === EventType.RoomMessageEncrypted ||
+        type === "m.sticker" ||
+        POLL_START.includes(type))
+    ) {
+      return { ...base, kind: "ignored" };
+    }
 
     if (ev.isRedacted()) {
       if (type !== EventType.RoomMessage && type !== EventType.RoomMessageEncrypted && type !== "m.sticker") return null;
@@ -514,9 +527,10 @@ export class RoomHandle {
       events.some((e) => e.getId() === rootEventId) || !thread.rootEvent ? events : [thread.rootEvent, ...events];
 
     const items: TimelineItem[] = [];
+    const ignored = new Set(this.client.getIgnoredUsers());
     let prev: { sender: string; ts: number } | null = null;
     for (const ev of ordered) {
-      const item = this.toItem(ev, myUserId);
+      const item = this.toItem(ev, myUserId, ignored);
       if (!item) continue;
       // Mirror the main timeline's same-sender grouping so avatars/names render.
       item.groupStart =
@@ -1010,6 +1024,41 @@ export class RoomHandle {
     } catch (e) {
       throw toMaterixError(e);
     }
+  }
+
+  /** Report an event to the homeserver's moderators. Score −100 (most severe). */
+  async report(eventId: string, reason: string): Promise<void> {
+    try {
+      await this.client.reportEvent(this.roomId, eventId, -100, reason);
+    } catch (e) {
+      throw toMaterixError(e);
+    }
+  }
+
+  async ban(userId: string, reason?: string): Promise<void> {
+    try {
+      await this.client.ban(this.roomId, userId, reason);
+    } catch (e) {
+      throw toMaterixError(e);
+    }
+  }
+
+  async unban(userId: string): Promise<void> {
+    try {
+      await this.client.unban(this.roomId, userId);
+    } catch (e) {
+      throw toMaterixError(e);
+    }
+  }
+
+  /** Whether the current user's power level meets the room's ban requirement. */
+  canBan(): boolean {
+    const me = this.client.getUserId()!;
+    const pl = this.room.currentState.getStateEvents(EventType.RoomPowerLevels, "")?.getContent() ?? {};
+    const users = (pl.users ?? {}) as Record<string, number>;
+    const myPl = users[me] ?? ((pl.users_default as number) ?? 0);
+    const banLevel = (pl.ban as number) ?? 50;
+    return myPl >= banLevel;
   }
 
   async leave(): Promise<void> {

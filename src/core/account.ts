@@ -151,6 +151,9 @@ export class MatrixAccount {
         this.loadRoomSettings();
         bumpRooms();
       }
+      // Ignore-list changes (this device or another) must re-render timelines so
+      // ignored senders' messages collapse/reveal immediately.
+      if (ev.getType() === EventType.IgnoredUserList) bumpRooms();
     });
     this.loadRoomSettings();
     c.on(CryptoEvent.VerificationRequestReceived as never, (() => this.events.emit("self")) as never);
@@ -531,6 +534,27 @@ export class MatrixAccount {
       return results;
     } catch {
       return /^@[^:]+:.+/.test(query.trim()) ? [{ userId: query.trim() }] : [];
+    }
+  }
+
+  /** User IDs on the account-level ignore list (m.ignored_user_list). */
+  ignoredUsers(): string[] {
+    return this.client?.getIgnoredUsers() ?? [];
+  }
+
+  /** Add or remove `userId` from the account ignore list. */
+  async setIgnored(userId: string, ignored: boolean): Promise<void> {
+    const current = this.client.getIgnoredUsers();
+    const next = ignored
+      ? [...new Set([...current, userId])]
+      : current.filter((u) => u !== userId);
+    // No-op if nothing changes (avoids a needless account-data round-trip).
+    if (next.length === current.length && next.every((u) => current.includes(u))) return;
+    try {
+      await this.client.setIgnoredUsers(next);
+      this.events.emit("rooms");
+    } catch (e) {
+      throw toMaterixError(e);
     }
   }
 

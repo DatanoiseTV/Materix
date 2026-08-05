@@ -174,6 +174,15 @@ export function DetailsPane({
                       onKick: () => {
                         if (confirm(`Remove ${m.name} from the room?`)) handle!.kick(m.userId).catch(showError);
                       },
+                      canBan: handle?.canBan() ?? false,
+                      onBan: () => {
+                        const reason = prompt(`Ban ${m.name} from this room? Optionally add a reason:`);
+                        if (reason === null) return;
+                        handle!
+                          .ban(m.userId, reason || undefined)
+                          .then(() => show("User banned."))
+                          .catch(showError);
+                      },
                     }),
                   });
                 }}

@@ -14,6 +14,9 @@ export function buildUserMenu(
     roomId?: string;
     canKick?: boolean;
     onKick?: () => void;
+    /** Show "Ban from room" (caller supplies the room-scoped handler). */
+    canBan?: boolean;
+    onBan?: () => void;
   },
 ): MenuItem[] {
   const items: MenuItem[] = [];
@@ -57,8 +60,26 @@ export function buildUserMenu(
       navigator.clipboard.writeText(userId).then(() => opts.show("User ID copied."));
     },
   });
+  if (userId !== me) {
+    const ignored = account.ignoredUsers().includes(userId);
+    items.push({
+      label: ignored ? "Unignore user" : "Ignore user",
+      danger: !ignored,
+      onClick: async () => {
+        try {
+          await account.setIgnored(userId, !ignored);
+          opts.show(ignored ? "User unignored." : "User ignored.");
+        } catch (e) {
+          opts.showError(e);
+        }
+      },
+    });
+  }
   if (opts.canKick && userId !== me && opts.onKick) {
     items.push({ label: "Remove from room", danger: true, onClick: opts.onKick });
+  }
+  if (opts.canBan && userId !== me && opts.onBan) {
+    items.push({ label: "Ban from room", danger: true, onClick: opts.onBan });
   }
   return items;
 }

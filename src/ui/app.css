@@ -3054,3 +3054,11 @@ button.msg-sender:hover {
   background: var(--danger);
   filter: brightness(1.12);
 }
+
+/* ===== moderation ===== */
+
+/* Collapsed placeholder shown in place of an ignored user's message body. */
+.ignored-msg {
+  font-style: italic;
+  opacity: 0.6;
+}
