@@ -1,7 +1,7 @@
 // Message timeline: scroll management (stick to bottom, load older on top),
 // message bubbles, media, reactions, hover actions.
 
-import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { Fragment, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import type { MatrixAccount } from "../core/account";
 import type { RoomHandle } from "../core/roomHandle";
 import type { MessageBody, TimelineItem } from "../core/types";
@@ -16,6 +16,7 @@ import {
   IconAlert,
   IconChat,
   IconCheck,
+  IconChevronDown,
   IconClock,
   IconDownload,
   IconEdit,
@@ -34,6 +35,7 @@ import { formatDayDivider, formatDuration, formatSize, formatTime } from "./form
 import { useToast } from "./components/Toast";
 import { assessLink, isTrusted, openExternal, type LinkAssessment } from "./linkSafety";
 import { LinkWarning } from "./components/LinkWarning";
+import { InlineThread } from "./InlineThread";
 
 const QUICK_REACTIONS = ["👍", "❤️", "😂", "😮", "😢", "🎉"];
 
@@ -42,14 +44,12 @@ export function Timeline({
   handle,
   onReply,
   onEdit,
-  onOpenThread,
   scrollToRef,
 }: {
   account: MatrixAccount;
   handle: RoomHandle;
   onReply: (item: TimelineItem) => void;
   onEdit: (item: TimelineItem) => void;
-  onOpenThread?: (rootEventId: string) => void;
   /** Populated with a "scroll to eventId and flash it" callback for the parent
    * (in-room search) to drive. Null-safe if no event matches. */
   scrollToRef?: React.MutableRefObject<((eventId: string) => void) | null>;
@@ -64,7 +64,19 @@ export function Timeline({
   const [picker, setPicker] = useState<{ x: number; y: number; eventId: string } | null>(null);
   const [forwardId, setForwardId] = useState<string | null>(null);
   const [linkPrompt, setLinkPrompt] = useState<LinkAssessment | null>(null);
+  const [openThreads, setOpenThreads] = useState<ReadonlySet<string>>(() => new Set());
   const { showError } = useToast();
+
+  // Toggle a message's inline thread open/closed (from its "N replies" chip or
+  // the "Reply in thread" action). Expanding renders the replies + a composer
+  // directly beneath the root row.
+  const toggleThread = (rootEventId: string) =>
+    setOpenThreads((prev) => {
+      const next = new Set(prev);
+      if (next.has(rootEventId)) next.delete(rootEventId);
+      else next.add(rootEventId);
+      return next;
+    });
 
   // Intercept clicks on any message link — open directly if it looks safe or is
   // trusted, otherwise show the warning first.
@@ -178,21 +190,34 @@ export function Timeline({
               <span className="spinner" /> Loading history…
             </div>
           )}
-          {items.map((item) => (
-            <TimelineRow
-              key={item.id}
-              item={item}
-              account={account}
-              handle={handle}
-              onReply={onReply}
-              onEdit={onEdit}
-              onZoom={setLightbox}
-              onUserMenu={setMenu}
-              onEmojiPicker={setPicker}
-              onForward={setForwardId}
-              onOpenThread={onOpenThread}
-            />
-          ))}
+          {items.map((item) => {
+            const threadOpen = !!item.eventId && openThreads.has(item.eventId);
+            return (
+              <Fragment key={item.id}>
+                <TimelineRow
+                  item={item}
+                  account={account}
+                  handle={handle}
+                  onReply={onReply}
+                  onEdit={onEdit}
+                  onZoom={setLightbox}
+                  onUserMenu={setMenu}
+                  onEmojiPicker={setPicker}
+                  onForward={setForwardId}
+                  onOpenThread={toggleThread}
+                  threadOpen={threadOpen}
+                />
+                {threadOpen && item.eventId && (
+                  <InlineThread
+                    account={account}
+                    handle={handle}
+                    rootEventId={item.eventId}
+                    onCollapse={() => toggleThread(item.eventId!)}
+                  />
+                )}
+              </Fragment>
+            );
+          })}
           {items.length === 0 && (
             <div className="empty-state">
               <div className="empty-glyph">
@@ -234,6 +259,7 @@ export function TimelineRow({
   onEmojiPicker,
   onForward,
   onOpenThread,
+  threadOpen,
 }: {
   item: TimelineItem;
   account: MatrixAccount;
@@ -245,6 +271,8 @@ export function TimelineRow({
   onEmojiPicker: (p: { x: number; y: number; eventId: string }) => void;
   onForward?: (eventId: string) => void;
   onOpenThread?: (rootEventId: string) => void;
+  /** Whether this root's inline thread is currently expanded (chip reflects it). */
+  threadOpen?: boolean;
 }) {
   const { show, showError } = useToast();
 
@@ -432,14 +460,16 @@ export function TimelineRow({
         )}
         {onOpenThread && item.eventId && item.threadReplyCount && item.threadReplyCount > 0 && (
           <button
-            className="thread-chip"
+            className={`thread-chip${threadOpen ? " open" : ""}`}
             onClick={() => onOpenThread(item.eventId!)}
-            aria-label={`Open thread, ${item.threadReplyCount} ${item.threadReplyCount === 1 ? "reply" : "replies"}`}
+            aria-expanded={threadOpen}
+            aria-label={`${threadOpen ? "Collapse" : "Open"} thread, ${item.threadReplyCount} ${item.threadReplyCount === 1 ? "reply" : "replies"}`}
           >
             <IconChat size={13} />
             <span>
               {item.threadReplyCount} {item.threadReplyCount === 1 ? "reply" : "replies"}
             </span>
+            <IconChevronDown size={13} className="thread-chip-caret" />
           </button>
         )}
         {item.receipts && item.receipts.length > 0 && (

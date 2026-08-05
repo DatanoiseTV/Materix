@@ -2687,6 +2687,59 @@ button.msg-sender:hover {
 .msg-row.mine .thread-chip {
   align-self: flex-end;
 }
+.thread-chip-caret {
+  transition: transform 0.15s var(--ease);
+  opacity: 0.7;
+}
+.thread-chip.open {
+  background: var(--accent-soft, color-mix(in srgb, var(--accent-strong) 16%, transparent));
+}
+.thread-chip.open .thread-chip-caret {
+  transform: rotate(180deg);
+}
+
+/* Inline thread: replies rendered under the root message, indented to align
+   with the message content and connected by a left rail. */
+.inline-thread {
+  margin: 2px 0 var(--sp-3) calc(36px + var(--sp-3) + var(--sp-2));
+  padding-left: var(--sp-3);
+  border-left: 2px solid var(--accent-soft, color-mix(in srgb, var(--accent-strong) 24%, transparent));
+  max-width: 720px;
+  animation: pop-in 0.14s var(--ease);
+}
+.inline-thread-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--sp-1) var(--sp-2) var(--sp-2);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--text-3);
+}
+.inline-thread-collapse {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--text-2);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: var(--r-sm);
+}
+.inline-thread-collapse:hover {
+  background: var(--bg-hover);
+  color: var(--text-1);
+}
+.inline-thread-body {
+  max-height: 420px;
+  overflow-y: auto;
+}
+/* Compact the reused thread composer when it sits inside the timeline. */
+.inline-thread .composer-wrap {
+  padding: var(--sp-2) 0 0;
+  border-top: none;
+  background: transparent;
+}
 
 /* Right-side thread panel, overlaying the chat pane. */
 .thread-pane {

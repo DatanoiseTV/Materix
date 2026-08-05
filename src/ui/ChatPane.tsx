@@ -245,7 +245,6 @@ export function ChatPane({
         handle={handle}
         onReply={(item: TimelineItem) => setMode({ kind: "reply", item })}
         onEdit={(item: TimelineItem) => setMode({ kind: "edit", item })}
-        onOpenThread={setThreadRoot}
         scrollToRef={scrollToEventRef}
       />
       <div className="typing-bar" aria-live="polite">

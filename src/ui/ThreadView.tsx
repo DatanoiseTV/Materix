@@ -12,7 +12,7 @@ import { EmojiPicker } from "./components/EmojiPicker";
 import { IconEdit, IconReply, IconSend, IconX } from "./components/Icons";
 import { useToast } from "./components/Toast";
 
-interface ThreadMode {
+export interface ThreadMode {
   kind: "reply" | "edit";
   item: TimelineItem;
 }
@@ -102,7 +102,7 @@ function onLinkOpen(e: React.MouseEvent) {
   window.open(href, "_blank", "noopener,noreferrer");
 }
 
-function ThreadComposer({
+export function ThreadComposer({
   handle,
   rootEventId,
   mode,
