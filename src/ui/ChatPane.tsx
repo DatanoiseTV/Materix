@@ -3,7 +3,8 @@
 import { useMemo, useRef, useState } from "react";
 import { accountManager } from "../core/manager";
 import type { RoomHandle } from "../core/roomHandle";
-import type { TimelineItem } from "../core/types";
+import type { SearchHit, TimelineItem } from "../core/types";
+import { MaterixError } from "../core/errors";
 import { useRoomVersion, useRoomsVersion } from "./hooks";
 import type { Selection } from "./RoomList";
 import { Timeline } from "./Timeline";
@@ -258,9 +259,14 @@ export function ChatPane({
 }
 
 /**
- * In-room search over already-loaded history (see RoomHandle.searchMessages).
- * Local-only: it never calls the homeserver search API, so it matches only the
- * messages currently in the timeline. Users can pull older pages to widen it.
+ * In-room search with two scopes:
+ *   - "loaded" (default): synchronous, local-only match over the events already
+ *     in the timeline (see RoomHandle.searchMessages). Users can pull older
+ *     pages to widen it.
+ *   - "server": full-history search via the homeserver's search API
+ *     (RoomHandle.searchServer), debounced. Some homeservers don't index
+ *     messages, so this scope surfaces a clear error when unsupported.
+ * Both scopes yield the same SearchHit shape and render through one list.
  */
 function RoomSearch({
   handle,
@@ -274,24 +280,67 @@ function RoomSearch({
   onJump: (eventId: string) => void;
 }) {
   const [query, setQuery] = useState("");
+  const [scope, setScope] = useState<"loaded" | "server">("loaded");
   const [active, setActive] = useState(0);
   const [loadingOlder, setLoadingOlder] = useState(false);
+  const [serverResults, setServerResults] = useState<SearchHit[]>([]);
+  const [serverLoading, setServerLoading] = useState(false);
+  const [serverError, setServerError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const { showError } = useToast();
 
   // `version` bumps when the timeline changes (e.g. after pulling older pages),
-  // so results re-derive against the freshly loaded events.
-  const results = useMemo(() => handle.searchMessages(query), [handle, query, version]);
+  // so local results re-derive against the freshly loaded events.
+  const localResults = useMemo(() => handle.searchMessages(query), [handle, query, version]);
   const canPaginate = handle.canPaginateBack();
+
+  const trimmed = query.trim();
+
+  // Server search: debounce the query, then hit the homeserver. A generation
+  // counter drops results from stale in-flight requests (query changed since).
+  useEffect(() => {
+    if (scope !== "server") return;
+    if (!trimmed) {
+      setServerResults([]);
+      setServerError(null);
+      setServerLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setServerLoading(true);
+    setServerError(null);
+    const t = setTimeout(() => {
+      handle
+        .searchServer(trimmed)
+        .then((hits) => {
+          if (cancelled) return;
+          setServerResults(hits);
+        })
+        .catch((e: unknown) => {
+          if (cancelled) return;
+          setServerResults([]);
+          setServerError(e instanceof MaterixError ? e.userMessage : "Search failed. Try again.");
+        })
+        .finally(() => {
+          if (!cancelled) setServerLoading(false);
+        });
+    }, 350);
+    return () => {
+      cancelled = true;
+      clearTimeout(t);
+    };
+  }, [handle, scope, trimmed]);
+
+  const results = scope === "server" ? serverResults : localResults;
 
   useEffect(() => {
     inputRef.current?.focus();
   }, []);
 
-  // Reset the cursor whenever the query changes.
+  // Reset the cursor whenever the query or scope changes.
   useEffect(() => {
     setActive(0);
-  }, [query]);
+  }, [query, scope]);
 
   const jump = (idx: number) => {
     if (!results.length) return;
@@ -322,6 +371,7 @@ function RoomSearch({
   };
 
   const count = results.length;
+  const serverScope = scope === "server";
   return (
     <div className="room-search" onKeyDown={onKeyDown}>
       <div className="room-search-bar">
@@ -330,14 +380,14 @@ function RoomSearch({
           <input
             ref={inputRef}
             type="text"
-            placeholder="Search loaded messages…"
+            placeholder={serverScope ? "Search all history…" : "Search loaded messages…"}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             aria-label="Search messages in this room"
           />
         </div>
         <span className="room-search-count" aria-live="polite">
-          {query.trim() ? (count ? `${active + 1}/${count}` : "0") : ""}
+          {serverScope && serverLoading ? "…" : trimmed ? (count ? `${active + 1}/${count}` : "0") : ""}
         </span>
         <button
           className="icon-btn"
@@ -361,7 +411,25 @@ function RoomSearch({
           <IconX size={18} />
         </button>
       </div>
-      {query.trim() && (
+      <div className="room-search-scope" role="tablist" aria-label="Search scope">
+        <button
+          className={`room-search-scope-btn${!serverScope ? " active" : ""}`}
+          role="tab"
+          aria-selected={!serverScope}
+          onClick={() => setScope("loaded")}
+        >
+          Loaded
+        </button>
+        <button
+          className={`room-search-scope-btn${serverScope ? " active" : ""}`}
+          role="tab"
+          aria-selected={serverScope}
+          onClick={() => setScope("server")}
+        >
+          All history
+        </button>
+      </div>
+      {trimmed && (
         <div className="room-search-results" role="listbox" aria-label="Search results">
           {results.map((hit, i) => (
             <button
@@ -376,27 +444,41 @@ function RoomSearch({
                 <span className="room-search-result-time">{formatTime(hit.ts)}</span>
               </span>
               <span className="room-search-result-snippet">
-                <Emphasized text={hit.snippet} term={query.trim()} />
+                <Emphasized text={hit.snippet} term={trimmed} />
               </span>
             </button>
           ))}
-          {!count && (
-            <div className="room-search-empty">
-              No matches in loaded history.
-              {canPaginate && (
-                <>
-                  {" "}
-                  <button className="room-search-more" onClick={loadOlder} disabled={loadingOlder}>
-                    {loadingOlder ? "Loading…" : "Search older messages"}
-                  </button>
-                </>
+          {serverScope ? (
+            <>
+              {serverLoading && <div className="room-search-status">Searching all history…</div>}
+              {!serverLoading && serverError && (
+                <div className="room-search-status room-search-error">{serverError}</div>
               )}
-            </div>
-          )}
-          {count > 0 && canPaginate && (
-            <button className="room-search-more" onClick={loadOlder} disabled={loadingOlder}>
-              {loadingOlder ? "Loading older messages…" : "Search older messages"}
-            </button>
+              {!serverLoading && !serverError && !count && (
+                <div className="room-search-empty">No matches in this room's history.</div>
+              )}
+            </>
+          ) : (
+            <>
+              {!count && (
+                <div className="room-search-empty">
+                  No matches in loaded history.
+                  {canPaginate && (
+                    <>
+                      {" "}
+                      <button className="room-search-more" onClick={loadOlder} disabled={loadingOlder}>
+                        {loadingOlder ? "Loading…" : "Search older messages"}
+                      </button>
+                    </>
+                  )}
+                </div>
+              )}
+              {count > 0 && canPaginate && (
+                <button className="room-search-more" onClick={loadOlder} disabled={loadingOlder}>
+                  {loadingOlder ? "Loading older messages…" : "Search older messages"}
+                </button>
+              )}
+            </>
           )}
         </div>
       )}
