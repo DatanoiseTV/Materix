@@ -36,6 +36,9 @@ stores access tokens in the OS keychain.
   left untouched (never migrated).
 - **Export / import E2E room keys** — back up your encrypted history or move it
   between devices with an Element-compatible passphrase-encrypted key file.
+- **Optional app passcode** — wrap the crypto-store key with a passcode-derived
+  key (PBKDF2 + AES-GCM) and unlock on launch, for stronger at-rest protection
+  (especially on web).
 
 ### Messaging
 - **Rich messages.** `m.text` with Markdown → sanitized HTML, `m.notice`,
@@ -48,7 +51,11 @@ stores access tokens in the OS keychain.
   prompts a warning that lists the reasons, with a per-domain "don't ask again"
   trust list.
 - **Threads.** A dedicated thread panel with an "N replies" affordance on
-  thread roots, reply-in-thread, and an inline thread composer.
+  thread roots, reply-in-thread, an inline thread composer, and a room-wide
+  threads list.
+- **Read state.** Mark rooms read or unread; mark all as read.
+- **Presence.** Online / away / last-seen for direct-message peers (where the
+  server exposes presence).
 - **Forwarding.** Forward any message to another room/chat via a searchable
   picker across all your accounts.
 - **Calls.** 1:1 voice and video calls (WebRTC over Matrix) with an incoming-call
@@ -81,8 +88,9 @@ stores access tokens in the OS keychain.
 ### Organizing and browsing
 - **Spaces.** Filter the unified room list by Matrix Space (with a Home view for
   rooms in no space), resolving nested space hierarchies.
-- **Room settings.** Edit name, topic, avatar, join rule, and history visibility
-  (each gated by your power level).
+- **Room settings & roles.** Edit name, topic, avatar, join rule, and history
+  visibility, and promote/demote members' power levels — each gated by your own
+  power level.
 - **Explore.** Browse any server's public room directory and search the user
   directory (where the server supports it).
 - **Media gallery.** Per-room grid of photos/videos and a files list, loaded
@@ -174,12 +182,12 @@ Beyond `tsc`/build, features are checked against reality rather than assumed:
 
 Rough order, subject to change:
 
-1. **Mobile pass** — audit and tighten every screen for touch and small
-   viewports on real devices.
-2. **Group calls** — extend calls beyond 1:1.
-3. **Background notifications** — a push path that works when the app is closed.
-4. **At-rest encryption for existing sessions** — a safe migration path, plus an
-   optional app passcode.
+1. **Group calls** — extend calls beyond 1:1.
+2. **Background notifications** — a push path that works when the app is closed.
+3. **At-rest encryption for existing (pre-feature) sessions** — a safe migration
+   path so already-logged-in accounts get an encrypted store too.
+4. **On-device verification** of the newer server-touching features (calls,
+   server search, moderation, power levels) against a live homeserver.
 
 ## Contributing
 
