@@ -3323,4 +3323,46 @@ button.msg-sender:hover {
    of the icon buttons (they had color/background changes with no transition). */
 .msg-actions button {
   transition: background 0.12s var(--ease), color 0.12s var(--ease);
+/* ===== key-export ===== */
+
+.key-export {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  padding: var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--bg-input);
+}
+.key-export-head {
+  display: flex;
+  gap: var(--sp-2);
+  align-items: flex-start;
+  color: var(--text-2);
+}
+.key-export-title {
+  font-weight: 600;
+  color: var(--text-1);
+}
+.key-export-sub {
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+  margin-top: 2px;
+}
+.key-export-actions {
+  display: flex;
+  gap: var(--sp-2);
+}
+.key-export-actions .btn {
+  flex: 1;
+}
+.key-export-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+.key-export-form-actions {
+  display: flex;
+  gap: var(--sp-2);
+  justify-content: flex-end;
 }

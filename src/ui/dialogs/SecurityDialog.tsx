@@ -6,7 +6,7 @@
 import { useEffect, useState } from "react";
 import type { MatrixAccount } from "../../core/account";
 import { Modal } from "../components/Modal";
-import { IconKey, IconShieldCheck } from "../components/Icons";
+import { IconDownload, IconFile, IconKey, IconShieldCheck } from "../components/Icons";
 import { useToast } from "../components/Toast";
 import { uiBus } from "../bus";
 
@@ -162,11 +162,152 @@ export function SecurityDialog({ account, onClose }: { account: MatrixAccount; o
           <p style={{ display: "flex", gap: 8, alignItems: "center" }}>
             <IconShieldCheck size={18} /> This session is verified and key backup is connected.
           </p>
+          <KeyExportSection account={account} />
           <button className="btn primary" onClick={onClose}>
             Done
           </button>
         </>
       )}
     </Modal>
+  );
+}
+
+/**
+ * Manual room-key backup: export every key this session holds into a
+ * passphrase-encrypted file (the Element-compatible MEGOLM SESSION DATA
+ * format), or import such a file. Used for offline backups and for moving
+ * encrypted history to another client without the server-side key backup.
+ */
+function KeyExportSection({ account }: { account: MatrixAccount }) {
+  const { show, showError } = useToast();
+  const [mode, setMode] = useState<null | "export" | "import">(null);
+  const [exportPw, setExportPw] = useState("");
+  const [importPw, setImportPw] = useState("");
+  const [file, setFile] = useState<File | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const reset = () => {
+    setMode(null);
+    setExportPw("");
+    setImportPw("");
+    setFile(null);
+  };
+
+  const doExport = async () => {
+    setBusy(true);
+    try {
+      const text = await account.crypto.exportRoomKeys(exportPw);
+      const url = URL.createObjectURL(new Blob([text], { type: "text/plain" }));
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `materix-keys-${new Date().toISOString().slice(0, 10)}.txt`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      show("Encryption keys exported.");
+      reset();
+    } catch (e) {
+      showError(e);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const doImport = async () => {
+    if (!file) return;
+    setBusy(true);
+    try {
+      const text = await file.text();
+      const { imported, total } = await account.crypto.importRoomKeys(text, importPw);
+      show(`Imported ${imported} of ${total} message keys.`);
+      reset();
+    } catch (e) {
+      showError(e);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="key-export">
+      <div className="key-export-head">
+        <IconKey size={16} />
+        <div>
+          <div className="key-export-title">Encryption keys</div>
+          <div className="key-export-sub">
+            Save a passphrase-protected copy of your encrypted history, or restore one, to back it up or move it
+            between devices.
+          </div>
+        </div>
+      </div>
+
+      {mode === null && (
+        <div className="key-export-actions">
+          <button className="btn secondary" onClick={() => setMode("export")}>
+            <IconDownload size={16} /> Export keys
+          </button>
+          <button className="btn secondary" onClick={() => setMode("import")}>
+            <IconFile size={16} /> Import keys
+          </button>
+        </div>
+      )}
+
+      {mode === "export" && (
+        <div className="key-export-form">
+          <div className="field">
+            <label htmlFor="kx-export-pw">Passphrase</label>
+            <input
+              id="kx-export-pw"
+              type="password"
+              value={exportPw}
+              onChange={(e) => setExportPw(e.target.value)}
+              autoComplete="new-password"
+            />
+            <div className="field-hint">You will need this passphrase to import the file later.</div>
+          </div>
+          <div className="key-export-form-actions">
+            <button className="btn ghost" disabled={busy} onClick={reset}>
+              Cancel
+            </button>
+            <button className="btn primary" disabled={busy || !exportPw} onClick={doExport}>
+              {busy ? <span className="spinner" /> : "Download key file"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {mode === "import" && (
+        <div className="key-export-form">
+          <div className="field">
+            <label htmlFor="kx-import-file">Key file</label>
+            <input
+              id="kx-import-file"
+              type="file"
+              accept=".txt,text/plain"
+              onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+            />
+          </div>
+          <div className="field">
+            <label htmlFor="kx-import-pw">Passphrase</label>
+            <input
+              id="kx-import-pw"
+              type="password"
+              value={importPw}
+              onChange={(e) => setImportPw(e.target.value)}
+              autoComplete="off"
+            />
+          </div>
+          <div className="key-export-form-actions">
+            <button className="btn ghost" disabled={busy} onClick={reset}>
+              Cancel
+            </button>
+            <button className="btn primary" disabled={busy || !file || !importPw} onClick={doImport}>
+              {busy ? <span className="spinner" /> : "Import keys"}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
