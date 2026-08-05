@@ -227,6 +227,19 @@ export interface MediaItem {
   h?: number;
 }
 
+/** A message pinned in the room (m.room.pinned_events), resolved for display. */
+export interface PinnedMessage {
+  eventId: string;
+  /** Sender display name, or "" when the pinned event is not loaded. */
+  senderName: string;
+  /** One-line preview, or a placeholder when the event is not loaded. */
+  preview: string;
+  /** Origin timestamp, or 0 when the pinned event is not loaded. */
+  ts: number;
+  /** False when the pinned event id is not present in loaded history. */
+  loaded: boolean;
+}
+
 /** One in-room search hit over loaded history. */
 export interface SearchHit {
   eventId: string;

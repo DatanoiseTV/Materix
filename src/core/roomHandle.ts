@@ -19,6 +19,7 @@ import type {
   MediaItem,
   MemberSummary,
   MessageBody,
+  PinnedMessage,
   PollData,
   RoomDetails,
   SearchHit,
@@ -584,6 +585,69 @@ export class RoomHandle {
 
   async redact(eventId: string): Promise<void> {
     await this.client.redactEvent(this.roomId, eventId);
+  }
+
+  // ---- pinned messages (m.room.pinned_events) ----
+
+  /** Event ids currently pinned in the room, in pin order (latest last). */
+  pinnedEventIds(): string[] {
+    const pinned = this.room.currentState
+      .getStateEvents(EventType.RoomPinnedEvents, "")
+      ?.getContent().pinned;
+    return Array.isArray(pinned) ? pinned.filter((id): id is string => typeof id === "string") : [];
+  }
+
+  isPinned(eventId: string): boolean {
+    return this.pinnedEventIds().includes(eventId);
+  }
+
+  /**
+   * Pinned messages resolved for display, in pin order (latest last). Ids whose
+   * event is not in loaded history are still returned (loaded=false) so the
+   * banner count matches the pinned state and unpinning stays possible.
+   */
+  pinnedMessages(): PinnedMessage[] {
+    return this.pinnedEventIds().map((eventId) => {
+      const ev = this.room.findEventById(eventId);
+      if (!ev) return { eventId, senderName: "", preview: "Message not loaded", ts: 0, loaded: false };
+      return { eventId, senderName: this.senderOf(ev).name, preview: this.previewOf(ev), ts: ev.getTs(), loaded: true };
+    });
+  }
+
+  /** Whether I have the power level to change the room's pinned events. */
+  canPin(): boolean {
+    const me = this.client.getUserId()!;
+    const pl = this.room.currentState.getStateEvents(EventType.RoomPowerLevels, "")?.getContent() ?? {};
+    const users = (pl.users ?? {}) as Record<string, number>;
+    const myPl = users[me] ?? ((pl.users_default as number) ?? 0);
+    const events = (pl.events ?? {}) as Record<string, number>;
+    const pinLevel = events[EventType.RoomPinnedEvents] ?? ((pl.state_default as number) ?? 50);
+    return myPl >= pinLevel;
+  }
+
+  async pin(eventId: string): Promise<void> {
+    const current = this.pinnedEventIds();
+    if (current.includes(eventId)) return;
+    try {
+      await this.client.sendStateEvent(this.roomId, EventType.RoomPinnedEvents, { pinned: [...current, eventId] }, "");
+    } catch (e) {
+      throw toMaterixError(e);
+    }
+  }
+
+  async unpin(eventId: string): Promise<void> {
+    const current = this.pinnedEventIds();
+    if (!current.includes(eventId)) return;
+    try {
+      await this.client.sendStateEvent(
+        this.roomId,
+        EventType.RoomPinnedEvents,
+        { pinned: current.filter((id) => id !== eventId) },
+        "",
+      );
+    } catch (e) {
+      throw toMaterixError(e);
+    }
   }
 
   /**
