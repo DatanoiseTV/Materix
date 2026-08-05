@@ -3499,6 +3499,8 @@ button.msg-sender:hover {
   .threads-panel {
     width: 100%;
   }
+}
+
 /* ===== read-controls ===== */
 
 /* Compact dot shown for a room marked unread with a zero notification count. */
