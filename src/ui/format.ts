@@ -48,6 +48,17 @@ export function formatSize(bytes?: number): string {
   return `${(bytes / 1024 / 1024 / 1024).toFixed(2)} GB`;
 }
 
+/** Media clock: m:ss, or h:mm:ss past an hour. */
+export function formatDuration(ms?: number): string {
+  if (!ms || ms < 0) return "";
+  const total = Math.round(ms / 1000);
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = total % 60;
+  const mm = h ? String(m).padStart(2, "0") : String(m);
+  return `${h ? `${h}:` : ""}${mm}:${String(s).padStart(2, "0")}`;
+}
+
 export function initialsOf(name: string): string {
   const clean = name.replace(/^[@#!]/, "").trim();
   const parts = clean.split(/[\s._-]+/).filter(Boolean);

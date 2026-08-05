@@ -72,6 +72,8 @@ export type MessageBody =
       h?: number;
       mime?: string;
       size?: number;
+      /** Video duration in ms (m.video only), when the sender supplied it. */
+      durationMs?: number;
     }
   | {
       msgtype: "m.file";

@@ -774,7 +774,68 @@ button.msg-sender:hover {
   display: block;
   max-width: 100%;
   max-height: 380px;
+  width: 320px;
   border-radius: calc(var(--r-bubble) - 4px);
+  background: var(--bg-hover);
+}
+
+/* Poster placeholder for an encrypted video (or one still downloading): the
+   thumbnail with a centered play button, click-to-load. */
+.msg-video-poster {
+  position: relative;
+  overflow: hidden;
+  padding: 0;
+  border: none;
+  cursor: pointer;
+  display: block;
+}
+.msg-video-poster img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.msg-video-play {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+  transition: background 0.15s, transform 0.15s;
+}
+.msg-video-poster:hover .msg-video-play {
+  background: rgba(0, 0, 0, 0.65);
+  transform: scale(1.06);
+}
+.msg-video-poster.loading .msg-video-play {
+  animation: video-pulse 1.1s ease-in-out infinite;
+}
+@keyframes video-pulse {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+.msg-video-dur {
+  position: absolute;
+  right: var(--sp-2);
+  bottom: var(--sp-2);
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: var(--fs-xs);
+  font-variant-numeric: tabular-nums;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.6);
 }
 
 .msg-file {

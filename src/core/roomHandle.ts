@@ -40,6 +40,67 @@ import {
   escapeHtml,
 } from "./markdown";
 
+/**
+ * Best-effort video poster: decode the file in a hidden <video>, grab a frame
+ * shortly after the start, and JPEG-encode it, returning the poster blob plus
+ * the video's pixel size and duration. Resolves null if the browser can't
+ * decode the codec (the send then proceeds without a thumbnail). Bounded by a
+ * timeout so a stuck decode never blocks the upload.
+ */
+function videoPoster(
+  file: File,
+): Promise<{ blob: Blob; w: number; h: number; durationMs: number } | null> {
+  return new Promise((resolve) => {
+    let done = false;
+    const url = URL.createObjectURL(file);
+    const v = document.createElement("video");
+    const finish = (result: { blob: Blob; w: number; h: number; durationMs: number } | null) => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      URL.revokeObjectURL(url);
+      resolve(result);
+    };
+    const timer = setTimeout(() => finish(null), 8000);
+    v.muted = true;
+    v.preload = "metadata";
+    v.crossOrigin = "anonymous";
+    v.onloadeddata = () => {
+      // Seek a little past the first frame to avoid an all-black opener.
+      const t = Number.isFinite(v.duration) && v.duration > 0 ? Math.min(0.1, v.duration / 2) : 0;
+      if (v.currentTime === t) v.onseeked?.(new Event("seeked"));
+      else v.currentTime = t;
+    };
+    v.onseeked = () => {
+      try {
+        const w = v.videoWidth;
+        const h = v.videoHeight;
+        if (!w || !h) return finish(null);
+        const canvas = document.createElement("canvas");
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return finish(null);
+        ctx.drawImage(v, 0, 0, w, h);
+        canvas.toBlob(
+          (blob) =>
+            finish(
+              blob
+                ? { blob, w, h, durationMs: Math.round((Number.isFinite(v.duration) ? v.duration : 0) * 1000) }
+                : null,
+            ),
+          "image/jpeg",
+          0.72,
+        );
+      } catch {
+        finish(null);
+      }
+    };
+    v.onerror = () => finish(null);
+    v.src = url;
+  });
+}
+
 // MSC2867 marked-unread room account data (stable + unstable Famedly prefix).
 const MARKED_UNREAD = "m.marked_unread";
 const MARKED_UNREAD_UNSTABLE = "com.famedly.marked_unread";
@@ -349,6 +410,7 @@ export class RoomHandle {
         h: info.h as number | undefined,
         mime: info.mimetype as string | undefined,
         size: info.size as number | undefined,
+        durationMs: msgtype === "m.video" ? (info.duration as number | undefined) : undefined,
       };
     }
     if (msgtype === "m.audio") {
@@ -840,6 +902,15 @@ export class RoomHandle {
         // dimensions are optional
       }
     }
+    // A video carries a poster frame so the recipient sees it instantly instead
+    // of waiting for the whole (possibly encrypted) file to download. Generation
+    // is best-effort — an undecodable codec just sends without a thumbnail.
+    const poster = msgtype === "m.video" ? await videoPoster(file).catch(() => null) : null;
+    if (poster) {
+      info.w = poster.w;
+      info.h = poster.h;
+      if (poster.durationMs) info.duration = poster.durationMs;
+    }
     // A caption becomes the body; the original filename is preserved separately
     // (MSC2530-style) so it still downloads with a sensible name.
     const caption = opts?.caption?.trim();
@@ -849,8 +920,23 @@ export class RoomHandle {
     const progress = onProgress
       ? { progressHandler: (p: { loaded: number; total: number }) => onProgress(p.loaded, p.total) }
       : {};
+    const encryptedRoom = this.room.hasEncryptionStateEvent();
     try {
-      if (this.room.hasEncryptionStateEvent()) {
+      if (poster) {
+        const thumbInfo = { mimetype: "image/jpeg", w: poster.w, h: poster.h, size: poster.blob.size };
+        if (encryptedRoom) {
+          const encThumb = await encryptAttachment(await poster.blob.arrayBuffer());
+          const up = await this.client.uploadContent(new Blob([encThumb.data]), {
+            type: "application/octet-stream",
+          });
+          info.thumbnail_file = { ...encThumb.info, url: up.content_uri, mimetype: "image/jpeg" };
+        } else {
+          const up = await this.client.uploadContent(poster.blob, { type: "image/jpeg" });
+          info.thumbnail_url = up.content_uri;
+        }
+        info.thumbnail_info = thumbInfo;
+      }
+      if (encryptedRoom) {
         const encrypted = await encryptAttachment(await file.arrayBuffer());
         const upload = await this.client.uploadContent(new Blob([encrypted.data]), {
           type: "application/octet-stream",

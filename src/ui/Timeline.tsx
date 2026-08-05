@@ -24,12 +24,13 @@ import {
   IconLocation,
   IconLock,
   IconPin,
+  IconPlay,
   IconReply,
   IconSmile,
   IconTrash,
 } from "./components/Icons";
 import { ForwardDialog } from "./dialogs/ForwardDialog";
-import { formatDayDivider, formatSize, formatTime } from "./format";
+import { formatDayDivider, formatDuration, formatSize, formatTime } from "./format";
 import { useToast } from "./components/Toast";
 import { assessLink, isTrusted, openExternal, type LinkAssessment } from "./linkSafety";
 import { LinkWarning } from "./components/LinkWarning";
@@ -777,9 +778,59 @@ function VideoContent({
   body: Extract<MessageBody, { msgtype: "m.image" | "m.video" }>;
   account: MatrixAccount;
 }) {
-  const src = useMediaSrc(account, body.mxc, body.file, body.mime);
-  if (!src) return <div className="skeleton" style={{ width: 320, aspectRatio: 16 / 9, maxWidth: "100%" }} />;
-  return <video className="msg-video" src={src} controls preload="metadata" />;
+  const isEncrypted = !!body.file;
+  const poster = useMediaSrc(
+    account,
+    body.thumbMxc,
+    body.thumbFile,
+    body.thumbFile ? undefined : "image/jpeg",
+    body.thumbMxc && !body.thumbFile ? { w: 640, h: 480 } : undefined,
+  );
+  // Unencrypted video streams straight from the homeserver; an encrypted one
+  // must be downloaded and decrypted whole, so defer that until the user hits
+  // play (the click is also the gesture that lets it autoplay).
+  const [play, setPlay] = useState(!isEncrypted);
+  const src = useMediaSrc(account, play ? body.mxc : undefined, play ? body.file : undefined, body.mime);
+  const ratio = body.w && body.h ? Math.min(3, Math.max(0.4, body.w / body.h)) : 16 / 9;
+
+  if (isEncrypted && !play) {
+    return (
+      <button
+        type="button"
+        className="msg-video msg-video-poster"
+        style={{ aspectRatio: ratio }}
+        onClick={() => setPlay(true)}
+        aria-label="Play video"
+      >
+        {poster && <img src={poster} alt={body.text} />}
+        <span className="msg-video-play">
+          <IconPlay size={26} />
+        </span>
+        {body.durationMs ? <span className="msg-video-dur">{formatDuration(body.durationMs)}</span> : null}
+      </button>
+    );
+  }
+  if (!src) {
+    return (
+      <div className="msg-video msg-video-poster loading" style={{ aspectRatio: ratio }}>
+        {poster && <img src={poster} alt={body.text} />}
+        <span className="msg-video-play">
+          <IconPlay size={26} />
+        </span>
+      </div>
+    );
+  }
+  return (
+    <video
+      className="msg-video"
+      src={src}
+      poster={poster}
+      controls
+      autoPlay={isEncrypted}
+      preload="metadata"
+      style={{ aspectRatio: ratio }}
+    />
+  );
 }
 
 function FileContent({
