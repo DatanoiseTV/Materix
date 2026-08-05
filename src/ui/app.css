@@ -3054,3 +3054,47 @@ button.msg-sender:hover {
   background: var(--danger);
   filter: brightness(1.12);
 }
+
+/* ===== key-export ===== */
+
+.key-export {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  padding: var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--bg-input);
+}
+.key-export-head {
+  display: flex;
+  gap: var(--sp-2);
+  align-items: flex-start;
+  color: var(--text-2);
+}
+.key-export-title {
+  font-weight: 600;
+  color: var(--text-1);
+}
+.key-export-sub {
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+  margin-top: 2px;
+}
+.key-export-actions {
+  display: flex;
+  gap: var(--sp-2);
+}
+.key-export-actions .btn {
+  flex: 1;
+}
+.key-export-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+.key-export-form-actions {
+  display: flex;
+  gap: var(--sp-2);
+  justify-content: flex-end;
+}

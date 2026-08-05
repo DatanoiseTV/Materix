@@ -3,14 +3,17 @@
 
 import type { MatrixClient } from "matrix-js-sdk";
 import {
+  ImportRoomKeyStage,
   VerificationPhase,
   VerificationRequestEvent,
   VerifierEvent,
+  type ImportRoomKeyProgressData,
   type ShowSasCallbacks,
   type VerificationRequest,
 } from "matrix-js-sdk/lib/crypto-api";
 import { decodeRecoveryKey } from "matrix-js-sdk/lib/crypto-api/recovery-key";
 import { CryptoEvent } from "matrix-js-sdk/lib/crypto-api/CryptoEvent";
+import { decodeBase64, encodeBase64 } from "matrix-js-sdk/lib/base64";
 import type { DeviceSummary, KeyBackupStatus, SasFlow, SasPhase } from "./types";
 import { Emitter } from "./emitter";
 import { toMaterixError } from "./errors";
@@ -36,6 +39,127 @@ export const cryptoCallbacks = {
     ssKeyCache.set(keyId, key as Uint8Array<ArrayBuffer>);
   },
 };
+
+// ---------------------------------------------------------------------------
+// Encrypted room-key export file ("-----BEGIN MEGOLM SESSION DATA-----").
+//
+// matrix-js-sdk 41.9.0 no longer ships encryptMegolmKeyFile/decryptMegolmKeyFile
+// (they went with the legacy crypto stack), so we reproduce the on-disk format
+// here so exports interoperate with Element. Layout of the binary blob:
+//   [0]        version = 1
+//   [1..17)    16-byte salt
+//   [17..33)   16-byte AES-CTR IV
+//   [33..37)   PBKDF2 round count, big-endian uint32
+//   [37..N-32) AES-256-CTR ciphertext of the UTF-8 JSON
+//   [N-32..N)  HMAC-SHA-256 over everything preceding it
+// Keys: PBKDF2-SHA-512(passphrase, salt, rounds) -> 512 bits, split into a
+// 256-bit AES key and a 256-bit HMAC key.
+const MEGOLM_HEADER = "-----BEGIN MEGOLM SESSION DATA-----";
+const MEGOLM_TRAILER = "-----END MEGOLM SESSION DATA-----";
+const MEGOLM_KDF_ROUNDS = 500_000;
+
+async function deriveMegolmFileKeys(
+  salt: Uint8Array<ArrayBuffer>,
+  rounds: number,
+  passphrase: string,
+): Promise<[CryptoKey, CryptoKey]> {
+  const baseKey = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(passphrase),
+    "PBKDF2",
+    false,
+    ["deriveBits"],
+  );
+  const bits = new Uint8Array(
+    await crypto.subtle.deriveBits({ name: "PBKDF2", salt, iterations: rounds, hash: "SHA-512" }, baseKey, 512),
+  );
+  const aesKey = await crypto.subtle.importKey("raw", bits.slice(0, 32), { name: "AES-CTR" }, false, [
+    "encrypt",
+    "decrypt",
+  ]);
+  const hmacKey = await crypto.subtle.importKey("raw", bits.slice(32, 64), { name: "HMAC", hash: "SHA-256" }, false, [
+    "sign",
+    "verify",
+  ]);
+  return [aesKey, hmacKey];
+}
+
+function packMegolmKeyFile(body: Uint8Array): string {
+  const b64 = encodeBase64(body);
+  const lines = b64.match(/.{1,64}/g) ?? [b64];
+  return [MEGOLM_HEADER, ...lines, MEGOLM_TRAILER, ""].join("\n");
+}
+
+function unpackMegolmKeyFile(fileText: string): Uint8Array<ArrayBuffer> {
+  const start = fileText.indexOf(MEGOLM_HEADER);
+  if (start < 0) throw new Error("no header");
+  const afterHeader = start + MEGOLM_HEADER.length;
+  const end = fileText.indexOf(MEGOLM_TRAILER, afterHeader);
+  if (end < 0) throw new Error("no trailer");
+  const b64 = fileText.slice(afterHeader, end).replace(/\s+/g, "");
+  if (!b64) throw new Error("empty body");
+  return decodeBase64(b64);
+}
+
+async function encryptMegolmKeyFile(plaintext: string, passphrase: string): Promise<string> {
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const iv = crypto.getRandomValues(new Uint8Array(16));
+  // Clear the high bit of the counter so a long file can't wrap the 64-bit
+  // counter back onto an already-used block (matches Element's exporter).
+  iv[8] &= 0x7f;
+  const rounds = MEGOLM_KDF_ROUNDS;
+  const [aesKey, hmacKey] = await deriveMegolmFileKeys(salt, rounds, passphrase);
+  const cipher = new Uint8Array(
+    await crypto.subtle.encrypt(
+      { name: "AES-CTR", counter: iv, length: 64 },
+      aesKey,
+      new TextEncoder().encode(plaintext),
+    ),
+  );
+
+  const body = new Uint8Array(1 + 16 + 16 + 4 + cipher.length + 32);
+  let o = 0;
+  body[o++] = 1;
+  body.set(salt, o);
+  o += 16;
+  body.set(iv, o);
+  o += 16;
+  body[o++] = (rounds >>> 24) & 0xff;
+  body[o++] = (rounds >>> 16) & 0xff;
+  body[o++] = (rounds >>> 8) & 0xff;
+  body[o++] = rounds & 0xff;
+  body.set(cipher, o);
+  o += cipher.length;
+  const mac = new Uint8Array(await crypto.subtle.sign("HMAC", hmacKey, body.subarray(0, o)));
+  body.set(mac, o);
+  return packMegolmKeyFile(body);
+}
+
+async function decryptMegolmKeyFile(fileText: string, passphrase: string): Promise<string> {
+  let body: Uint8Array<ArrayBuffer>;
+  try {
+    body = unpackMegolmKeyFile(fileText);
+  } catch {
+    throw new Error("This file isn't a Matrix encrypted keys export.");
+  }
+  if (body.length < 1 + 16 + 16 + 4 + 32 || body[0] !== 1) {
+    throw new Error("This file isn't a valid Matrix encrypted keys export.");
+  }
+  const salt = body.subarray(1, 17);
+  const iv = body.subarray(17, 33);
+  const rounds = ((body[33] << 24) | (body[34] << 16) | (body[35] << 8) | body[36]) >>> 0;
+  const cipher = body.subarray(37, body.length - 32);
+  const mac = body.subarray(body.length - 32);
+  const [aesKey, hmacKey] = await deriveMegolmFileKeys(salt, rounds, passphrase);
+  const ok = await crypto.subtle.verify("HMAC", hmacKey, mac, body.subarray(0, body.length - 32));
+  if (!ok) throw new Error("Incorrect passphrase, or the file has been altered.");
+  try {
+    const plain = await crypto.subtle.decrypt({ name: "AES-CTR", counter: iv, length: 64 }, aesKey, cipher);
+    return new TextDecoder().decode(plain);
+  } catch {
+    throw new Error("Incorrect passphrase, or the file has been altered.");
+  }
+}
 
 export class CryptoFacade {
   readonly events = new Emitter<"flows" | "status">();
@@ -231,6 +355,55 @@ export class CryptoFacade {
       throw toMaterixError(e);
     } finally {
       pendingRecoveryKey = null;
+    }
+  }
+
+  /**
+   * Export every room key this session holds into the Element-compatible,
+   * passphrase-encrypted "MEGOLM SESSION DATA" text. Use it to back up
+   * encrypted history or move it to another device.
+   */
+  async exportRoomKeys(passphrase: string): Promise<string> {
+    const crypto = this.client.getCrypto();
+    if (!crypto) throw toMaterixError(new Error("Encryption isn't available for this account."));
+    if (!passphrase) throw toMaterixError(new Error("Choose a passphrase to protect the export."));
+    try {
+      const json = await crypto.exportRoomKeysAsJson();
+      return await encryptMegolmKeyFile(json, passphrase);
+    } catch (e) {
+      throw toMaterixError(e);
+    }
+  }
+
+  /**
+   * Import room keys from an encrypted "MEGOLM SESSION DATA" file (as produced
+   * by exportRoomKeys or Element). Returns how many keys were imported and how
+   * many the file contained.
+   */
+  async importRoomKeys(fileText: string, passphrase: string): Promise<{ imported: number; total: number }> {
+    const crypto = this.client.getCrypto();
+    if (!crypto) throw toMaterixError(new Error("Encryption isn't available for this account."));
+    let json: string;
+    try {
+      json = await decryptMegolmKeyFile(fileText, passphrase);
+    } catch (e) {
+      throw toMaterixError(e);
+    }
+    try {
+      let imported = 0;
+      let total = 0;
+      await crypto.importRoomKeysAsJson(json, {
+        progressCallback: (stage: ImportRoomKeyProgressData) => {
+          if (stage.stage === ImportRoomKeyStage.LoadKeys) {
+            imported = stage.successes;
+            total = stage.total;
+          }
+        },
+      });
+      this.events.emit("status");
+      return { imported, total };
+    } catch {
+      throw toMaterixError(new Error("That isn't a valid room-keys file."));
     }
   }
 }
