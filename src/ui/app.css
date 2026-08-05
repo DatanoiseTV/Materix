@@ -3272,4 +3272,55 @@ button.msg-sender:hover {
 
 .room-settings-radio-title {
   font-weight: 600;
+/* ===== polish ===== */
+
+/* Keyboard focus for the composer. Its textarea sets `outline: none` (so the
+   caret sits flush), which otherwise leaves tab-focus invisible; lift the ring
+   onto the wrapper, matching the global focus-visible treatment. */
+.composer {
+  transition: border-color 0.12s var(--ease), box-shadow 0.12s var(--ease);
+}
+.composer:focus-within {
+  border-color: var(--accent);
+  box-shadow: var(--shadow-1), 0 0 0 1px var(--accent);
+}
+
+/* The forward dialog's inline search field also clears its input outline;
+   surface focus on the field so keyboard users see where they are. */
+.forward-search {
+  transition: box-shadow 0.12s var(--ease);
+}
+.forward-search:focus-within {
+  box-shadow: 0 0 0 2px var(--accent);
+}
+
+/* Non-WebKit (Firefox) scrollbars. WebKit is styled via ::-webkit-scrollbar
+   above; this brings the same thin, tokenized treatment everywhere else.
+   Scoped to the real scroll containers so it never fights the deliberately
+   hidden strips (e.g. .space-strip sets scrollbar-width: none). */
+@supports (scrollbar-width: thin) {
+  .rooms-scroll,
+  .timeline,
+  .thread-body,
+  .details-pane,
+  .modal-body,
+  .emoji-grid,
+  .forward-list,
+  .room-search-results,
+  .rail-accounts {
+    scrollbar-width: thin;
+    scrollbar-color: var(--scrollbar) transparent;
+  }
+}
+
+/* Reaction chips only transitioned their border; include the background so the
+   "mine" tint and hover settle as smoothly as the border does. */
+.reaction-chip {
+  transition: border-color 0.1s var(--ease), background 0.1s var(--ease);
+}
+
+/* Give the message hover-action buttons the same motion language as the rest
+   of the icon buttons (they had color/background changes with no transition). */
+.msg-actions button {
+  transition: background 0.12s var(--ease), color 0.12s var(--ease);
 }
