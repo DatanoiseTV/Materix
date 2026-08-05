@@ -3534,3 +3534,33 @@ button.msg-sender:hover {
 .mark-all-read:hover {
   background: var(--accent-soft);
 }
+
+/* ===== presence ===== */
+.avatar-presence {
+  position: relative;
+  display: inline-flex;
+  flex: 0 0 auto;
+}
+
+.presence-dot {
+  position: absolute;
+  right: -1px;
+  bottom: -1px;
+  width: 32%;
+  height: 32%;
+  min-width: 9px;
+  min-height: 9px;
+  max-width: 14px;
+  max-height: 14px;
+  border-radius: var(--r-full);
+  border: 2px solid var(--bg-pane);
+  box-sizing: border-box;
+}
+
+.presence-online {
+  background: var(--success);
+}
+
+.presence-unavailable {
+  background: var(--warning);
+}

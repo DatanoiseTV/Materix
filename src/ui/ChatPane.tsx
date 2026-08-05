@@ -27,7 +27,7 @@ import {
   IconVideo,
   IconX,
 } from "./components/Icons";
-import { formatTime, typingText } from "./format";
+import { formatListTime, formatTime, typingText } from "./format";
 import { useToast } from "./components/Toast";
 import { useEffect } from "react";
 import { LiveBeacons } from "./LiveBeacons";
@@ -132,6 +132,18 @@ export function ChatPane({
   const details = handle.details();
   const typing = typingText(handle.typingNames());
 
+  // For a two-person direct message, resolve the peer's presence so the header
+  // can show it (sub-line + avatar dot). Presence is often disabled server-side,
+  // in which case presenceOf returns offline/unknown and we fall back cleanly.
+  const isDm = !!(details.isDirect && summary?.isDirect);
+  const peerId =
+    isDm && details.memberCount === 2
+      ? handle.members().find((m) => m.userId !== account.info().userId)?.userId
+      : undefined;
+  const presence = peerId ? account.presenceOf(peerId) : undefined;
+  const dmSubText =
+    account.info().userId === details.name ? "" : (presenceLabel(presence) ?? "Direct message");
+
   const dropEnabled = !summary?.isInvite;
 
   return (
@@ -151,7 +163,14 @@ export function ChatPane({
             <IconBack size={20} />
           </button>
         )}
-        <Avatar account={account} mxc={summary?.avatarUrl} name={details.name} id={details.roomId} size={40} />
+        <Avatar
+          account={account}
+          mxc={summary?.avatarUrl}
+          name={details.name}
+          id={details.roomId}
+          size={40}
+          presence={presence?.presence}
+        />
         <div className="chat-header-info">
           <div className="chat-header-name">
             {details.name}
@@ -162,11 +181,7 @@ export function ChatPane({
             )}
           </div>
           <div className="chat-header-sub">
-            {details.isDirect && summary?.isDirect
-              ? account.info().userId === details.name
-                ? ""
-                : "Direct message"
-              : `${details.memberCount} member${details.memberCount === 1 ? "" : "s"}`}
+            {isDm ? dmSubText : `${details.memberCount} member${details.memberCount === 1 ? "" : "s"}`}
             {details.topic ? ` · ${details.topic}` : ""}
           </div>
         </div>
@@ -283,6 +298,22 @@ export function ChatPane({
       )}
     </main>
   );
+}
+
+/**
+ * Sub-line text for a DM peer's presence, or null when nothing meaningful is
+ * known (server disabled presence, user never seen) — the caller then falls
+ * back to the plain "Direct message" label. "Last seen" reuses the room-list
+ * time formatting (time today, weekday this week, date otherwise).
+ */
+function presenceLabel(
+  p?: { presence: "online" | "unavailable" | "offline"; lastActiveTs?: number; statusMsg?: string },
+): string | null {
+  if (!p) return null;
+  const lastSeen = p.lastActiveTs ? `Last seen ${formatListTime(p.lastActiveTs)}` : null;
+  if (p.presence === "online") return p.statusMsg || "Online";
+  if (p.presence === "unavailable") return p.statusMsg || lastSeen || "Away";
+  return lastSeen || p.statusMsg || null;
 }
 
 /**

@@ -161,6 +161,14 @@ export class MatrixAccount {
       if (ev.getType() === EventType.IgnoredUserList) bumpRooms();
     });
     this.loadRoomSettings();
+    // Presence updates arrive as `m.presence` events on the sync stream; the
+    // SDK has already refreshed the corresponding User object by the time this
+    // fires, so a plain "rooms" bump re-renders any header reading presenceOf().
+    // Presence is frequently disabled server-side, in which case no such event
+    // ever arrives and this simply never fires.
+    c.on(ClientEvent.Event, (ev) => {
+      if (ev.getType() === EventType.Presence) this.events.emit("rooms");
+    });
     c.on(CryptoEvent.VerificationRequestReceived as never, (() => this.events.emit("self")) as never);
     this.rebuildDirectSet();
   }
@@ -227,6 +235,30 @@ export class MatrixAccount {
       color: accountColor(this.key),
       syncState: this.syncState,
     };
+  }
+
+  /**
+   * Presence snapshot for a user, read from the SDK's User model. Degrades to
+   * "offline" when the user object is absent or the server never sent presence
+   * (many homeservers disable it) — callers should treat an unknown/offline
+   * result with no `lastActiveTs` as "no indicator". `lastActiveTs` is only
+   * returned when a presence event has actually been seen and the user isn't
+   * flagged currently-active (in which case `lastActiveAgo` is stale).
+   */
+  presenceOf(userId: string): {
+    presence: "online" | "unavailable" | "offline";
+    lastActiveTs?: number;
+    statusMsg?: string;
+  } {
+    const user = this.client?.getUser(userId);
+    if (!user || !user.presence) return { presence: "offline" };
+    const presence =
+      user.presence === "online" || user.presence === "unavailable" ? user.presence : "offline";
+    const lastActiveTs =
+      user.lastPresenceTs && user.lastActiveAgo && !user.currentlyActive
+        ? user.lastPresenceTs - user.lastActiveAgo
+        : undefined;
+    return { presence, lastActiveTs, statusMsg: user.presenceStatusMsg || undefined };
   }
 
   rooms(): RoomSummary[] {
