@@ -72,7 +72,8 @@
   --border-strong: hsl(var(--surface-h) 12% 80%);
   --text-1: hsl(var(--surface-h) 22% 15%);
   --text-2: hsl(var(--surface-h) 12% 42%);
-  --text-3: hsl(var(--surface-h) 10% 56%);
+  /* 46% keeps tertiary text at >=4.5:1 (WCAG AA) on white and the tinted chat bg. */
+  --text-3: hsl(var(--surface-h) 10% 46%);
   --scrollbar: hsl(var(--surface-h) 14% 80%);
 }
 
@@ -93,7 +94,7 @@
     --border-strong: hsl(var(--surface-h) 11% 30%);
     --text-1: hsl(var(--surface-h) 18% 95%);
     --text-2: hsl(var(--surface-h) 11% 66%);
-    --text-3: hsl(var(--surface-h) 9% 50%);
+    --text-3: hsl(var(--surface-h) 9% 56%);
     --scrollbar: hsl(var(--surface-h) 10% 26%);
     --accent: hsl(var(--accent-h) 88% 74%);
     --accent-strong: hsl(var(--accent-h) 85% 68%);
@@ -119,7 +120,7 @@
   --border-strong: hsl(var(--surface-h) 11% 30%);
   --text-1: hsl(var(--surface-h) 18% 95%);
   --text-2: hsl(var(--surface-h) 11% 66%);
-  --text-3: hsl(var(--surface-h) 9% 50%);
+  --text-3: hsl(var(--surface-h) 9% 56%);
   --scrollbar: hsl(var(--surface-h) 10% 26%);
   --accent: hsl(var(--accent-h) 88% 74%);
   --accent-strong: hsl(var(--accent-h) 85% 68%);
