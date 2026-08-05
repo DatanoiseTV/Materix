@@ -8,7 +8,8 @@ import { Avatar } from "./components/Avatar";
 import { ContextMenu, type MenuState } from "./components/ContextMenu";
 import { buildUserMenu } from "./userMenu";
 import { MediaGallery } from "./MediaGallery";
-import { IconLock, IconLogout, IconStar, IconX } from "./components/Icons";
+import { RoomSettingsDialog } from "./dialogs/RoomSettingsDialog";
+import { IconLock, IconLogout, IconSettings, IconStar, IconX } from "./components/Icons";
 import { useToast } from "./components/Toast";
 
 export function DetailsPane({
@@ -27,6 +28,7 @@ export function DetailsPane({
   const [inviting, setInviting] = useState(false);
   const [menu, setMenu] = useState<MenuState | null>(null);
   const [tab, setTab] = useState<"info" | "media">("info");
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const { show, showError } = useToast();
 
   if (!account) return null;
@@ -117,6 +119,11 @@ export function DetailsPane({
           >
             {summary?.isLowPriority ? "Restore priority" : "Mark low priority"}
           </button>
+          {details.canEditRoom && (
+            <button className="btn secondary" onClick={() => setSettingsOpen(true)}>
+              <IconSettings size={16} /> Room settings
+            </button>
+          )}
           <button
             className="btn danger-ghost"
             onClick={async () => {
@@ -207,6 +214,7 @@ export function DetailsPane({
         )}
       </div>
       {menu && <ContextMenu menu={menu} onClose={() => setMenu(null)} />}
+      {settingsOpen && <RoomSettingsDialog account={account} handle={handle} onClose={() => setSettingsOpen(false)} />}
     </aside>
   );
 }

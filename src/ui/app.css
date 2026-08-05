@@ -3209,4 +3209,67 @@ button.msg-sender:hover {
 }
 .room-search-error {
   color: var(--danger);
+/* ===== room-settings ===== */
+.room-settings-avatar {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+}
+
+.room-settings-avatar-controls {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+
+.room-settings-select {
+  border: 1px solid var(--border-strong);
+  background: var(--bg-pane);
+  border-radius: var(--r-md);
+  padding: var(--sp-2) var(--sp-3);
+  font-size: var(--fs-md);
+  width: 100%;
+}
+
+.room-settings-select:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+  border-color: transparent;
+}
+
+.room-settings-radios {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.room-settings-radio {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-md);
+  cursor: pointer;
+}
+
+.room-settings-radio input {
+  margin-top: 3px;
+  flex: 0 0 auto;
+}
+
+.room-settings-radio input:disabled {
+  cursor: not-allowed;
+}
+
+.room-settings-radio > span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.room-settings-radio-title {
+  font-weight: 600;
 }

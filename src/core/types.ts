@@ -266,6 +266,11 @@ export interface CreateRoomOpts {
   public?: boolean;
 }
 
+/** Whether new members can read history before they joined. */
+export type HistoryVisibilityValue = "invited" | "joined" | "shared" | "world_readable";
+/** How the room may be joined. Materix only offers the two common values. */
+export type JoinRuleValue = "public" | "invite" | "knock" | "restricted";
+
 export interface RoomDetails {
   roomId: string;
   name: string;
@@ -279,6 +284,21 @@ export interface RoomDetails {
   canInvite: boolean;
   canKick: boolean;
   canRedactOthers: boolean;
+  /** Current room join rule (defaults to "invite" when unset). */
+  joinRule: JoinRuleValue;
+  /** Current history visibility (defaults to "shared" when unset). */
+  historyVisibility: HistoryVisibilityValue;
+  /** Whether guests may join (m.room.guest_access). */
+  guestAccess: "can_join" | "forbidden";
+  /** Per-field edit permission, derived from the room power levels. */
+  canEditName: boolean;
+  canEditTopic: boolean;
+  canEditAvatar: boolean;
+  canEditJoinRule: boolean;
+  canEditHistoryVisibility: boolean;
+  canEditGuestAccess: boolean;
+  /** True when the user may edit at least one room-settings field. */
+  canEditRoom: boolean;
 }
 
 export interface SendFileProgress {
