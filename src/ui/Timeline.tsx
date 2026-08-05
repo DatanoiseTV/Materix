@@ -399,6 +399,7 @@ export function TimelineRow({
             <span className="msg-time">{formatTime(item.ts)}</span>
           </div>
         )}
+        <div className="msg-bubble-row">
         {item.kind === "redacted" ? (
           <div className="bubble utd">Message deleted</div>
         ) : item.kind === "encrypted-pending" ? (
@@ -511,6 +512,7 @@ export function TimelineRow({
           </button>
         </div>
         )}
+        </div>
       </div>
     </div>
   );

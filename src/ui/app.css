@@ -889,12 +889,26 @@ button.msg-sender:hover {
   border: 1.5px solid var(--bg-chat);
 }
 
-/* hover actions — float in the empty gutter beside the bubble, vertically
-   centered, so they never overlap the sender name row on a grouped message. */
+/* The bubble + its footer/reactions/actions, sized to the bubble (not the wider
+   sender-name meta row) so the hover toolbar can anchor to the bubble corner. */
+.msg-bubble-row {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  min-width: 0;
+  max-width: 100%;
+}
+.msg-row.mine .msg-bubble-row {
+  align-items: flex-end;
+}
+
+/* hover actions — float in the empty gutter just beside the bubble (right for
+   others, left for own messages), anchored to the bubble-row so they hug even a
+   one-word bubble and never cover the sender row or the avatar. */
 .msg-actions {
   position: absolute;
-  top: 50%;
-  transform: translateY(-50%);
+  top: 0;
   left: calc(100% + var(--sp-2));
   right: auto;
   display: none;
@@ -912,23 +926,21 @@ button.msg-sender:hover {
   display: flex;
 }
 
-/* Own messages sit on the right, so the gutter is on their left. */
 .msg-row.mine .msg-actions {
   left: auto;
   right: calc(100% + var(--sp-2));
 }
 
-/* On phones the bubbles are near full-width; hang the bar above instead. */
+/* On phones the bubbles are near full-width; hang the bar above the bubble. */
 @media (max-width: 760px) {
   .msg-actions {
     top: auto;
     bottom: calc(100% + 2px);
     left: auto;
-    right: 4px;
-    transform: none;
+    right: 0;
   }
   .msg-row.mine .msg-actions {
-    left: 4px;
+    left: 0;
     right: auto;
   }
 }
