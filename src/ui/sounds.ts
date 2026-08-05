@@ -143,3 +143,60 @@ export function playSound(id: SoundId): void {
     // Web Audio may be unavailable or gesture-gated; fail silently.
   }
 }
+
+// ----- call ringtones -------------------------------------------------------
+
+export type RingtoneKind = "voice" | "video";
+
+/** One cycle of the incoming-voice ring: a warm two-pulse "ring… ring". */
+function ringVoiceCycle(ac: AudioContext, t: number): void {
+  for (const off of [0, 0.42]) {
+    tone(ac, t + off, { freq: 480, dur: 0.32, type: "sine", gain: 0.17 });
+    tone(ac, t + off, { freq: 620, dur: 0.32, type: "sine", gain: 0.1 });
+  }
+}
+
+/** One cycle of the incoming-video ring: a brighter, more urgent rising
+ * arpeggio with a shimmer on top, clearly distinct from the voice ring. */
+function ringVideoCycle(ac: AudioContext, t: number): void {
+  const notes = [659, 880, 1109, 1319];
+  notes.forEach((f, i) => tone(ac, t + i * 0.13, { freq: f, dur: 0.28, type: "triangle", gain: 0.14 }));
+  tone(ac, t + 0.55, { freq: 1760, dur: 0.45, type: "sine", gain: 0.05 });
+}
+
+/** One cycle of the outgoing ringback (shared by voice and video): a soft,
+ * repeating low double-tone so the caller hears the line ringing. */
+function ringbackCycle(ac: AudioContext, t: number): void {
+  tone(ac, t, { freq: 440, dur: 0.9, type: "sine", gain: 0.08 });
+  tone(ac, t, { freq: 480, dur: 0.9, type: "sine", gain: 0.06 });
+}
+
+function loopCycle(cycle: (ac: AudioContext, t: number) => void, periodMs: number): () => void {
+  let stopped = false;
+  let timer: ReturnType<typeof setInterval> | undefined;
+  try {
+    const ac = audio();
+    const play = () => {
+      if (!stopped) cycle(ac, ac.currentTime + 0.02);
+    };
+    play();
+    timer = setInterval(play, periodMs);
+  } catch {
+    // gesture-gated / unavailable: return a no-op stopper below
+  }
+  return () => {
+    stopped = true;
+    if (timer) clearInterval(timer);
+  };
+}
+
+/** Start looping the incoming-call ringtone for the given call kind. Returns a
+ * stop function; call it on answer / decline / hangup. */
+export function startRingtone(kind: RingtoneKind): () => void {
+  return kind === "video" ? loopCycle(ringVideoCycle, 2600) : loopCycle(ringVoiceCycle, 3000);
+}
+
+/** Start the outgoing ringback tone (same for voice and video). */
+export function startRingback(): () => void {
+  return loopCycle(ringbackCycle, 3000);
+}

@@ -7,6 +7,7 @@ import { useEffect, useRef } from "react";
 import type { MatrixAccount } from "../../core/account";
 import type { CallSnapshot } from "../../core/calls";
 import { useActiveCall, useClock } from "../hooks";
+import { startRingback, startRingtone } from "../sounds";
 import { Avatar } from "./Avatar";
 import {
   IconLock,
@@ -75,6 +76,14 @@ function CallSurface({ account, snap }: { account: MatrixAccount; snap: CallSnap
   useEffect(() => {
     if (localVideoRef.current) localVideoRef.current.srcObject = snap.localStream;
   }, [snap.localStream, showVideoStage]);
+
+  // Ring while the call is pending: a distinct incoming ringtone for voice vs
+  // video, or a shared ringback while we're the ones calling. The cleanup stops
+  // the loop the moment the call is answered, connects, or ends.
+  useEffect(() => {
+    if (status === "incoming") return startRingtone(isVideo ? "video" : "voice");
+    if (status === "outgoing") return startRingback();
+  }, [status, isVideo]);
 
   const name = snap.peerName ?? "Unknown";
   const calls = account.calls;
