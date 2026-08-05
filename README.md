@@ -34,6 +34,8 @@ stores access tokens in the OS keychain.
 - **Crypto store encrypted at rest** for new logins — a per-account key
   (OS keychain on desktop) encrypts the Rust crypto store; existing sessions are
   left untouched (never migrated).
+- **Export / import E2E room keys** — back up your encrypted history or move it
+  between devices with an Element-compatible passphrase-encrypted key file.
 
 ### Messaging
 - **Rich messages.** `m.text` with Markdown → sanitized HTML, `m.notice`,
@@ -51,8 +53,13 @@ stores access tokens in the OS keychain.
   picker across all your accounts.
 - **Calls.** 1:1 voice and video calls (WebRTC over Matrix) with an incoming-call
   ring, in-call controls (mute, camera, hangup), and a call timer.
-- **Search.** In-room search over loaded history with jump-to-and-highlight and
-  next/previous navigation.
+- **Search.** In-room search with jump-to-and-highlight and next/previous
+  navigation — over loaded history, or full history via the homeserver's search
+  API where supported.
+- **Pinned messages.** Pin/unpin (permission-gated) with a banner and a
+  jump-to-message list.
+- **Moderation & safety.** Ignore/unignore users (their messages collapse),
+  report a message, and ban/unban from a room.
 - **Voice messages** (MSC3245) with a live-recorded waveform, and a seekable
   audio player that keeps playing when you switch chats, with a persistent
   now-playing bar.
@@ -74,6 +81,8 @@ stores access tokens in the OS keychain.
 ### Organizing and browsing
 - **Spaces.** Filter the unified room list by Matrix Space (with a Home view for
   rooms in no space), resolving nested space hierarchies.
+- **Room settings.** Edit name, topic, avatar, join rule, and history visibility
+  (each gated by your power level).
 - **Explore.** Browse any server's public room directory and search the user
   directory (where the server supports it).
 - **Media gallery.** Per-room grid of photos/videos and a files list, loaded
@@ -149,8 +158,9 @@ Beyond `tsc`/build, features are checked against reality rather than assumed:
 ## Not yet implemented / known limitations
 
 - **Calls are 1:1 only** — no group calls yet.
-- **Message search is local** — it searches loaded/decrypted history, not the
-  full server-side history (the homeserver search API is not wired up).
+- **Full-history search depends on the server** — the "All history" scope uses
+  the homeserver search API, which many servers don't index (the app falls back
+  to a clear message; loaded-history search always works).
 - **Notifications require the app to be running** — desktop notifications go
   through the Tauri notification plugin, but there is no push gateway for
   closed-app background delivery.
@@ -167,9 +177,8 @@ Rough order, subject to change:
 1. **Mobile pass** — audit and tighten every screen for touch and small
    viewports on real devices.
 2. **Group calls** — extend calls beyond 1:1.
-3. **Server-side search** — use the homeserver search API for full history.
-4. **Background notifications** — a push path that works when the app is closed.
-5. **At-rest encryption for existing sessions** — a safe migration path, plus an
+3. **Background notifications** — a push path that works when the app is closed.
+4. **At-rest encryption for existing sessions** — a safe migration path, plus an
    optional app passcode.
 
 ## Contributing
