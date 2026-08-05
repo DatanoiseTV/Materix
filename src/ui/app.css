@@ -3179,4 +3179,34 @@ button.msg-sender:hover {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+/* ===== server-search ===== */
+.room-search-scope {
+  display: flex;
+  gap: var(--sp-1);
+  padding: 0 var(--sp-3) var(--sp-2);
+}
+.room-search-scope-btn {
+  flex: 1;
+  padding: var(--sp-1) var(--sp-3);
+  border-radius: var(--r-full);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--text-2);
+  background: var(--bg-input);
+  cursor: pointer;
+}
+.room-search-scope-btn:hover {
+  background: var(--bg-hover);
+}
+.room-search-scope-btn.active {
+  color: var(--accent-strong);
+  background: var(--accent-soft);
+}
+.room-search-status {
+  padding: var(--sp-3);
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+}
+.room-search-error {
+  color: var(--danger);
 }

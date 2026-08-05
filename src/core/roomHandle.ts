@@ -26,7 +26,7 @@ import type {
   ThreadSummary,
   TimelineItem,
 } from "./types";
-import { toMaterixError } from "./errors";
+import { MaterixError, toMaterixError } from "./errors";
 import {
   markdownToMatrixHtml,
   sanitizeIncomingHtml,
@@ -1010,6 +1010,69 @@ export class RoomHandle {
       });
     }
     return out.reverse(); // newest first
+  }
+
+  /**
+   * Full-history search via the homeserver's `/search` API, scoped to THIS
+   * room. Unlike {@link searchMessages}, which only sees the events already in
+   * the timeline, this hits the server's full-text index and can match
+   * messages that were never paginated in. Results are mapped to the same
+   * {@link SearchHit} shape so the UI renders local and server hits
+   * identically; newest first.
+   *
+   * Search is optional in the Matrix spec: homeservers without a full-text
+   * index (or with search disabled) answer `M_UNRECOGNIZED` / 404 / 501 for
+   * this endpoint. That case is surfaced as a clear UNSUPPORTED_SERVER error so
+   * the UI can tell the user rather than showing an empty result set.
+   */
+  async searchServer(query: string): Promise<SearchHit[]> {
+    const term = query.trim();
+    if (!term) return [];
+    let res;
+    try {
+      res = await this.client.searchRoomEvents({
+        term,
+        filter: { rooms: [this.roomId], types: [EventType.RoomMessage] },
+      });
+    } catch (e) {
+      const err = (e ?? {}) as { errcode?: string; data?: { errcode?: string }; httpStatus?: number };
+      const errcode = err.errcode ?? err.data?.errcode;
+      if (errcode === "M_UNRECOGNIZED" || err.httpStatus === 404 || err.httpStatus === 501) {
+        throw new MaterixError(
+          "UNSUPPORTED_SERVER",
+          "This homeserver doesn't support full-history search.",
+          false,
+          e,
+        );
+      }
+      throw toMaterixError(e);
+    }
+
+    const needle = term.toLowerCase();
+    const out: SearchHit[] = [];
+    for (const r of res.results) {
+      const ev = r.context.getEvent();
+      const eventId = ev.getId();
+      if (!eventId) continue;
+      if (ev.isRedacted() || ev.isDecryptionFailure() || ev.isBeingDecrypted()) continue;
+      const content = ev.getContent();
+      // Edits render through their target, not standalone — skip the replacement.
+      if (content["m.relates_to"]?.rel_type === "m.replace") continue;
+      // Prefer the searchable text (plain body / media caption); fall back to
+      // the raw body so a hit that matched only in formatted HTML still shows.
+      const text = searchableText(content) || stripReplyFallbackText((content.body as string) ?? "");
+      if (!text) continue;
+      const idx = text.toLowerCase().indexOf(needle);
+      out.push({
+        eventId,
+        senderName: this.senderOf(ev).name,
+        ts: ev.getTs(),
+        snippet: idx === -1 ? text.replace(/\s+/g, " ").trim().slice(0, 120) : snippetAround(text, idx, needle.length),
+      });
+    }
+    // Homeserver order_by defaults to relevance; present newest-first to match
+    // the local search so the scope toggle feels consistent.
+    return out.sort((a, b) => b.ts - a.ts);
   }
 
   /** Currently-live location beacons in this room (yours and others'). */
