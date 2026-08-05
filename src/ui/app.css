@@ -3054,3 +3054,122 @@ button.msg-sender:hover {
   background: var(--danger);
   filter: brightness(1.12);
 }
+
+/* ===== pinned ===== */
+.pinned {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-pane);
+}
+
+.pinned-banner {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  width: 100%;
+  text-align: left;
+  padding: var(--sp-2) var(--sp-4);
+  background: transparent;
+  color: var(--text-1);
+  cursor: pointer;
+}
+.pinned-banner:hover {
+  background: var(--bg-hover);
+}
+
+.pinned-icon {
+  color: var(--accent-strong);
+  flex: 0 0 auto;
+  display: flex;
+}
+
+.pinned-banner-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.pinned-banner-title {
+  font-weight: 600;
+  font-size: var(--fs-xs);
+  color: var(--accent-strong);
+}
+
+.pinned-banner-preview {
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pinned-banner-preview b {
+  color: var(--text-1);
+  font-weight: 600;
+}
+
+.pinned-chevron {
+  color: var(--text-3);
+  flex: 0 0 auto;
+  display: flex;
+}
+
+.pinned-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: var(--sp-1) var(--sp-2) var(--sp-2);
+  max-height: 45vh;
+  overflow-y: auto;
+  border-top: 1px solid var(--border);
+}
+
+.pinned-item {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+}
+
+.pinned-item-jump {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  text-align: left;
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--r-md);
+  background: transparent;
+  color: var(--text-1);
+  cursor: pointer;
+}
+.pinned-item-jump:hover {
+  background: var(--bg-hover);
+}
+.pinned-item-jump:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+.pinned-item-jump:disabled:hover {
+  background: transparent;
+}
+
+.pinned-item-sender {
+  font-weight: 600;
+  font-size: var(--fs-sm);
+  color: var(--text-1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pinned-item-preview {
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

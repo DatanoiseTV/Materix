@@ -19,6 +19,7 @@ import {
   IconLock,
   IconPaperclip,
   IconPhone,
+  IconPin,
   IconSearch,
   IconVideo,
   IconX,
@@ -198,6 +199,8 @@ export function ChatPane({
         </button>
       </header>
 
+      <PinnedBanner handle={handle} version={version} onJump={(eventId) => scrollToEventRef.current?.(eventId)} />
+
       {searchOpen && (
         <RoomSearch
           handle={handle}
@@ -254,6 +257,94 @@ export function ChatPane({
         <ThreadView account={account} handle={handle} rootEventId={threadRoot} onClose={() => setThreadRoot(null)} />
       )}
     </main>
+  );
+}
+
+/**
+ * Banner under the chat header summarizing the room's pinned messages
+ * (m.room.pinned_events). Collapsed, it shows the count and the latest pin;
+ * expanded, a small panel lists every pin with jump-to-message and (when
+ * permitted) unpin. Re-derives when `version` bumps, which includes room state
+ * changes, so pins update live.
+ */
+function PinnedBanner({
+  handle,
+  version,
+  onJump,
+}: {
+  handle: RoomHandle;
+  version: number;
+  onJump: (eventId: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const { showError } = useToast();
+  // version participates in the memo so pins re-derive on state changes.
+  const pins = useMemo(() => handle.pinnedMessages(), [handle, version]);
+  const canPin = handle.canPin();
+
+  // Collapse automatically once the room has no pins left.
+  useEffect(() => {
+    if (pins.length === 0) setOpen(false);
+  }, [pins.length]);
+
+  if (pins.length === 0) return null;
+  const latest = pins[pins.length - 1];
+
+  return (
+    <div className="pinned">
+      <button
+        className="pinned-banner"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        aria-label={`${pins.length} pinned message${pins.length === 1 ? "" : "s"}`}
+      >
+        <span className="pinned-icon">
+          <IconPin size={16} />
+        </span>
+        <span className="pinned-banner-body">
+          <span className="pinned-banner-title">
+            {pins.length} pinned message{pins.length === 1 ? "" : "s"}
+          </span>
+          <span className="pinned-banner-preview">
+            {latest.senderName && <b>{latest.senderName}: </b>}
+            {latest.preview}
+          </span>
+        </span>
+        <span className="pinned-chevron" aria-hidden="true">
+          {open ? <IconChevronUp size={16} /> : <IconChevronDown size={16} />}
+        </span>
+      </button>
+      {open && (
+        <div className="pinned-list" role="list" aria-label="Pinned messages">
+          {[...pins].reverse().map((p) => (
+            <div key={p.eventId} className="pinned-item" role="listitem">
+              <button
+                className="pinned-item-jump"
+                onClick={() => {
+                  onJump(p.eventId);
+                  setOpen(false);
+                }}
+                disabled={!p.loaded}
+                title={p.loaded ? "Jump to message" : "Message not loaded"}
+              >
+                <span className="pinned-item-sender">{p.senderName || "Message"}</span>
+                <span className="pinned-item-preview">{p.preview}</span>
+              </button>
+              {canPin && (
+                <button
+                  className="icon-btn"
+                  onClick={() => handle.unpin(p.eventId).catch(showError)}
+                  title="Unpin"
+                  aria-label="Unpin message"
+                >
+                  <IconX size={16} />
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 

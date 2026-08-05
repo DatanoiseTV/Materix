@@ -23,6 +23,7 @@ import {
   IconForward,
   IconLocation,
   IconLock,
+  IconPin,
   IconReply,
   IconSmile,
   IconTrash,
@@ -285,6 +286,13 @@ export function TimelineRow({
     ];
     if (onForward) items.push({ label: "Forward", onClick: () => onForward(eventId) });
     if (onOpenThread) items.push({ label: "Reply in thread", onClick: () => onOpenThread(eventId) });
+    if (handle.canPin()) {
+      const pinned = handle.isPinned(eventId);
+      items.push({
+        label: pinned ? "Unpin" : "Pin",
+        onClick: () => (pinned ? handle.unpin(eventId) : handle.pin(eventId)).catch(showError),
+      });
+    }
     if (item.body?.text)
       items.push({
         label: "Copy text",
@@ -414,6 +422,21 @@ export function TimelineRow({
               <IconEdit size={15} />
             </button>
           )}
+          {handle.canPin() &&
+            (() => {
+              const pinned = handle.isPinned(item.eventId!);
+              return (
+                <button
+                  className={pinned ? "active" : undefined}
+                  onClick={() => (pinned ? handle.unpin(item.eventId!) : handle.pin(item.eventId!)).catch(showError)}
+                  title={pinned ? "Unpin" : "Pin"}
+                  aria-label={pinned ? "Unpin message" : "Pin message"}
+                  aria-pressed={pinned}
+                >
+                  <IconPin size={15} />
+                </button>
+              );
+            })()}
           <button
             onClick={() => {
               if (confirm("Delete this message for everyone?")) {
