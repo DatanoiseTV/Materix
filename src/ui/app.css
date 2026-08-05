@@ -931,6 +931,18 @@ button.msg-sender:hover {
   right: calc(100% + var(--sp-2));
 }
 
+/* Image/video bubbles can be near full-width, leaving no gutter beside them.
+   Overlay the bar inside the media's top-right corner instead (both sides).
+   The higher :has() specificity overrides the gutter rules above. */
+.msg-bubble-row:has(> .bubble.media) .msg-actions {
+  top: var(--sp-2);
+  right: var(--sp-2);
+  left: auto;
+  bottom: auto;
+  background: color-mix(in srgb, var(--bg-elevated) 82%, transparent);
+  backdrop-filter: blur(6px);
+}
+
 /* On phones the bubbles are near full-width; hang the bar above the bubble. */
 @media (max-width: 760px) {
   .msg-actions {
