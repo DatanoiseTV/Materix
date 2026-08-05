@@ -3179,6 +3179,8 @@ button.msg-sender:hover {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
 /* ===== server-search ===== */
 .room-search-scope {
   display: flex;
@@ -3209,6 +3211,8 @@ button.msg-sender:hover {
 }
 .room-search-error {
   color: var(--danger);
+}
+
 /* ===== room-settings ===== */
 .room-settings-avatar {
   display: flex;
@@ -3272,6 +3276,8 @@ button.msg-sender:hover {
 
 .room-settings-radio-title {
   font-weight: 600;
+}
+
 /* ===== polish ===== */
 
 /* Keyboard focus for the composer. Its textarea sets `outline: none` (so the
@@ -3323,6 +3329,8 @@ button.msg-sender:hover {
    of the icon buttons (they had color/background changes with no transition). */
 .msg-actions button {
   transition: background 0.12s var(--ease), color 0.12s var(--ease);
+}
+
 /* ===== key-export ===== */
 
 .key-export {
