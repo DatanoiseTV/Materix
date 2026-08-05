@@ -174,6 +174,14 @@ export function RoomListPane({
 
   const colorOf = (key: string) => accounts.find((a) => a.key === key)?.color ?? "gray";
 
+  const anyUnread = allRooms.some((r) => !r.isInvite && !r.isSpace && (r.unreadCount > 0 || r.markedUnread));
+  const markAllRead = async () => {
+    const results = await Promise.allSettled(accounts.map((a) => accountManager.tryAccount(a.key)?.markAllRead()));
+    const failed = results.find((x) => x.status === "rejected") as PromiseRejectedResult | undefined;
+    if (failed) showError(failed.reason);
+    else show("Marked all as read.");
+  };
+
   return (
     <div className="rooms-pane">
       <div className="rooms-header">
@@ -263,6 +271,11 @@ export function RoomListPane({
         </div>
       )}
       <div className="rooms-scroll">
+        {anyUnread && (
+          <button className="mark-all-read" onClick={markAllRead}>
+            Mark all as read
+          </button>
+        )}
         {invites.length > 0 && (
           <div className="rooms-section">
             <div className="rooms-section-title">Invitations</div>
@@ -476,10 +489,15 @@ function RoomSection({
       x: e.clientX,
       y: e.clientY,
       items: [
-        {
-          label: "Mark as read",
-          onClick: () => account.room(r.roomId).markRead().catch(showError),
-        },
+        r.unreadCount > 0 || r.markedUnread
+          ? {
+              label: "Mark as read",
+              onClick: () => account.room(r.roomId).markRead().catch(showError),
+            }
+          : {
+              label: "Mark as unread",
+              onClick: () => account.room(r.roomId).markUnread(true).catch(showError),
+            },
         {
           label: r.mutedUntil ? "Unmute" : "Mute notifications…",
           onClick: () => {
@@ -532,7 +550,7 @@ function RoomSection({
         return (
           <button
             key={r.accountKey + r.roomId}
-            className={`room-item${selected ? " selected" : ""}${r.unreadCount > 0 ? " unread" : ""}`}
+            className={`room-item${selected ? " selected" : ""}${r.unreadCount > 0 || r.markedUnread ? " unread" : ""}`}
             onClick={() => onSelect({ accountKey: r.accountKey, roomId: r.roomId })}
             onContextMenu={(e) => openMenu(e, r)}
             aria-current={selected}
@@ -567,11 +585,13 @@ function RoomSection({
                   {typing ||
                     (r.lastEvent ? `${r.isDirect ? "" : r.lastEvent.senderName + ": "}${r.lastEvent.preview}` : "No messages yet")}
                 </span>
-                {r.unreadCount > 0 && (
+                {r.unreadCount > 0 ? (
                   <span className={`unread-pill${r.highlightCount > 0 && !r.mutedUntil ? " highlight" : ""}${r.mutedUntil ? " muted" : ""}`}>
                     {r.unreadCount > 99 ? "99+" : r.unreadCount}
                   </span>
-                )}
+                ) : r.markedUnread ? (
+                  <span className={`unread-pill dot${r.mutedUntil ? " muted" : ""}`} aria-label="Unread" />
+                ) : null}
               </div>
             </div>
           </button>

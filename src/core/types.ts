@@ -43,6 +43,8 @@ export interface RoomSummary {
   inviterName?: string;
   isSpace: boolean;
   unreadCount: number;
+  /** Explicit MSC2867 marked-unread flag; shows the room as unread even at zero count. */
+  markedUnread: boolean;
   highlightCount: number;
   lastActivityTs: number;
   lastEvent?: { ts: number; senderName: string; preview: string };
