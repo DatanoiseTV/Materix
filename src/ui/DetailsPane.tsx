@@ -6,7 +6,7 @@ import { useRoomVersion, useRoomsVersion } from "./hooks";
 import type { Selection } from "./RoomList";
 import { Avatar } from "./components/Avatar";
 import { ContextMenu, type MenuState } from "./components/ContextMenu";
-import { buildUserMenu } from "./userMenu";
+import { buildUserMenu, powerLevelMessage } from "./userMenu";
 import { MediaGallery } from "./MediaGallery";
 import { RoomSettingsDialog } from "./dialogs/RoomSettingsDialog";
 import { IconLock, IconLogout, IconSettings, IconStar, IconX } from "./components/Icons";
@@ -188,6 +188,16 @@ export function DetailsPane({
                         handle!
                           .ban(m.userId, reason || undefined)
                           .then(() => show("User banned."))
+                          .catch(showError);
+                      },
+                      canChangePower: handle?.canChangePower() ?? false,
+                      myLevel: details.myPowerLevel,
+                      targetLevel: m.powerLevel,
+                      defaultLevel: handle?.defaultPowerLevel() ?? 0,
+                      onSetPower: (level) => {
+                        handle!
+                          .setPowerLevel(m.userId, level)
+                          .then(() => show(powerLevelMessage(m.name, level, handle!.defaultPowerLevel())))
                           .catch(showError);
                       },
                     }),

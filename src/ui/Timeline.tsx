@@ -11,7 +11,7 @@ import { Avatar } from "./components/Avatar";
 import { ContextMenu, type MenuItem, type MenuState } from "./components/ContextMenu";
 import { EmojiPicker } from "./components/EmojiPicker";
 import { AudioPlayer } from "./components/AudioPlayer";
-import { buildUserMenu } from "./userMenu";
+import { buildUserMenu, powerLevelMessage } from "./userMenu";
 import {
   IconAlert,
   IconChat,
@@ -266,6 +266,16 @@ export function TimelineRow({
           handle
             .ban(userId, reason || undefined)
             .then(() => show("User banned."))
+            .catch(showError);
+        },
+        canChangePower: handle.canChangePower(),
+        myLevel: handle.myLevel(),
+        targetLevel: handle.powerLevelOf(userId),
+        defaultLevel: handle.defaultPowerLevel(),
+        onSetPower: (level) => {
+          handle
+            .setPowerLevel(userId, level)
+            .then(() => show(powerLevelMessage(item.sender.name, level, handle.defaultPowerLevel())))
             .catch(showError);
         },
       }),

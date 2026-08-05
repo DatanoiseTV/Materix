@@ -949,6 +949,59 @@ export class RoomHandle {
     return this.myPowerLevel() >= this.stateEventLevel(type, fallback);
   }
 
+  /** This user's own effective power level (public accessor for menus). */
+  myLevel(): number {
+    return this.myPowerLevel();
+  }
+
+  /** Effective power level of the given user in this room. */
+  powerLevelOf(userId: string): number {
+    const users = (this.powerLevels().users ?? {}) as Record<string, number>;
+    return users[userId] ?? ((this.powerLevels().users_default as number) ?? 0);
+  }
+
+  /** The room's default power level for members without an explicit entry. */
+  defaultPowerLevel(): number {
+    return (this.powerLevels().users_default as number) ?? 0;
+  }
+
+  /**
+   * Whether the user may edit the room's power levels at all. Requires the
+   * power to send the m.room.power_levels state event; the conventional
+   * default required level, when unspecified, is 100. Per-target limits
+   * (you cannot touch someone at or above your own level) are enforced in
+   * {@link setPowerLevel}.
+   */
+  canChangePower(): boolean {
+    return this.canSet(EventType.RoomPowerLevels, 100);
+  }
+
+  /**
+   * Set a member's power level. Clones the m.room.power_levels content and
+   * writes `users[userId] = level`, or deletes the entry when `level` equals
+   * the room default so the member falls back cleanly. You may never set a
+   * member at or above your own level, nor change a member who already sits
+   * at or above it.
+   */
+  async setPowerLevel(userId: string, level: number): Promise<void> {
+    if (!this.canChangePower()) throw toMaterixError(new Error("You cannot change power levels in this room."));
+    const myLevel = this.myPowerLevel();
+    if (level >= myLevel) throw toMaterixError(new Error("You cannot set a power level at or above your own."));
+    const pl = this.powerLevels();
+    const usersDefault = (pl.users_default as number) ?? 0;
+    const users = { ...((pl.users as Record<string, number>) ?? {}) };
+    const targetLevel = users[userId] ?? usersDefault;
+    if (targetLevel >= myLevel)
+      throw toMaterixError(new Error("You cannot change a member at or above your own power level."));
+    if (level === usersDefault) delete users[userId];
+    else users[userId] = level;
+    try {
+      await this.client.sendStateEvent(this.roomId, EventType.RoomPowerLevels, { ...pl, users }, "");
+    } catch (e) {
+      throw toMaterixError(e);
+    }
+  }
+
   /** True when the user may edit at least one room-settings field. */
   canEditRoom(): boolean {
     return (
