@@ -3179,6 +3179,7 @@ button.msg-sender:hover {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
 /* ===== server-search ===== */
 .room-search-scope {
   display: flex;
@@ -3209,6 +3210,7 @@ button.msg-sender:hover {
 }
 .room-search-error {
   color: var(--danger);
+}
 /* ===== room-settings ===== */
 .room-settings-avatar {
   display: flex;
@@ -3272,6 +3274,7 @@ button.msg-sender:hover {
 
 .room-settings-radio-title {
   font-weight: 600;
+}
 /* ===== polish ===== */
 
 /* Keyboard focus for the composer. Its textarea sets `outline: none` (so the
@@ -3323,6 +3326,7 @@ button.msg-sender:hover {
    of the icon buttons (they had color/background changes with no transition). */
 .msg-actions button {
   transition: background 0.12s var(--ease), color 0.12s var(--ease);
+}
 /* ===== key-export ===== */
 
 .key-export {
@@ -3365,4 +3369,125 @@ button.msg-sender:hover {
   display: flex;
   gap: var(--sp-2);
   justify-content: flex-end;
+}
+
+/* ===== mobile-hardening =====
+   Additive responsive rules for the newer surfaces (calls, modals, pinned,
+   threads, in-room search, moderation menus, key export, chat header). These
+   append after the existing @media blocks so the base mobile strategy
+   (single column, rail collapse, .mobile-chat pane swap, safe-area insets)
+   stays intact. Both themes use tokens; the call overlay is deliberately on a
+   dark backdrop and keeps its own light-on-dark treatment. */
+
+@media (max-width: 760px) {
+  /* ---- chat header: fit back + 2 call + search + info without overflow ---- */
+  /* A tighter gap keeps the full icon-button row on one line down to ~320px
+     while the header info column (min-width:0) absorbs the remaining space. */
+  .chat-header {
+    gap: var(--sp-2);
+  }
+
+  /* ---- call overlay: keep controls clear of the home indicator ---- */
+  .call-controls {
+    bottom: calc(var(--sp-5) + env(safe-area-inset-bottom));
+    gap: var(--sp-2);
+    max-width: calc(100vw - var(--sp-4));
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .call-topbar {
+    top: calc(var(--sp-4) + env(safe-area-inset-top));
+    padding: 0 var(--sp-3);
+  }
+  .call-overlay-prompt {
+    top: calc(var(--sp-4) + env(safe-area-inset-top));
+  }
+  /* Lift the self-view above the controls and shrink it so it never eats the
+     remote video on a small screen. */
+  .call-local-pip {
+    right: var(--sp-3);
+    bottom: calc(96px + env(safe-area-inset-bottom));
+    width: 108px;
+    max-width: 28vw;
+  }
+
+  /* ---- modals: use the full small viewport, scroll the body, no clipped
+     footer. Trim the outer margin to 24px so narrow phones get more room. ---- */
+  .modal,
+  .modal.wide {
+    width: min(560px, calc(100vw - var(--sp-5)));
+    max-height: min(680px, calc(100dvh - var(--sp-5)));
+  }
+  .modal:not(.wide) {
+    width: min(440px, calc(100vw - var(--sp-5)));
+  }
+  /* Footer buttons share the row and drop to the next line rather than
+     overflowing; each keeps a >=44px tap target. */
+  .modal-footer {
+    flex-wrap: wrap;
+    padding-bottom: calc(var(--sp-4) + env(safe-area-inset-bottom));
+  }
+  .modal-footer .btn {
+    flex: 1 1 auto;
+  }
+
+  /* ---- touch targets: dialog buttons, scope tabs, context-menu items ---- */
+  .btn {
+    min-height: 44px;
+  }
+  .room-search-scope-btn {
+    min-height: 44px;
+  }
+  /* Moderation / message context menus: never exceed the viewport width and
+     give each action a comfortable tap height. */
+  .ctx-menu {
+    max-width: calc(100vw - var(--sp-4));
+  }
+  .ctx-menu button {
+    min-height: 44px;
+  }
+
+  /* ---- in-room search bar: keep the field usable, nav buttons intact ---- */
+  .room-search {
+    max-height: 60vh;
+  }
+
+  /* ---- message hover/tap actions: larger targets on touch ---- */
+  .msg-actions button {
+    width: 36px;
+    height: 36px;
+  }
+
+  /* ---- image editor: easier-to-hit color swatches ---- */
+  .img-editor-swatches .swatch {
+    width: 30px;
+    height: 30px;
+  }
+
+  /* ---- prevent iOS from zooming when focusing the main text inputs ---- */
+  .composer textarea,
+  .room-search-field input,
+  .img-editor-caption {
+    font-size: 16px;
+  }
+}
+
+@media (max-width: 480px) {
+  /* Roomier bubbles on the smallest screens. */
+  .msg-content {
+    max-width: 88%;
+  }
+  /* Key-export action pair stacks so both buttons stay full-width and tappable. */
+  .key-export-actions {
+    flex-direction: column;
+  }
+  /* Verification emoji grid: 4 columns get cramped under ~360px. */
+  .sas-emojis {
+    grid-template-columns: repeat(3, 1fr);
+  }
+  /* Slightly tighter call controls so three 56px buttons never clip. */
+  .call-control-btn {
+    width: 52px;
+    height: 52px;
+  }
 }
