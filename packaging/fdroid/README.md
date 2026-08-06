@@ -4,13 +4,22 @@
 from a git tag on its own build servers and signs it with the F-Droid key. Your
 only jobs are: (1) make an Android build that works, and (2) submit a recipe.
 
-## The catch: there is no Android build yet
+## Status: the Android build works; on-device testing is the remaining gap
 
-Materix is a Tauri app. Tauri can target Android, but this repo has **not** been
-initialized for mobile — there is no `src-tauri/gen/android`. Getting the app to
-build for Android is the real work here, and it needs iteration on a machine (or
-CI) with the Android SDK + NDK. This is bleeding-edge: very few Tauri apps are on
-F-Droid's main repo today.
+The Android build now succeeds. The [`android.yml`](../../.github/workflows/android.yml)
+workflow runs `tauri android init` + `tauri android build --apk` on GitHub's
+infra and produces an **unsigned universal APK** at
+`src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release-unsigned.apk`
+(~46 MB) — exactly the output F-Droid expects, since F-Droid signs it itself.
+
+What has **not** been done yet:
+
+- **Run it on a device or emulator.** "Builds" is not "works" — the mobile
+  layout, WebView behavior, permissions, and calls need a real on-device pass.
+  Build a debug (auto-signed) APK to test locally: `pnpm tauri android build
+  --apk --debug`, or `pnpm tauri android dev` with an emulator/device attached.
+- **The fdroiddata merge request** (below) — that submission is on GitLab and
+  has to come from you.
 
 ## Steps
 
@@ -61,6 +70,7 @@ Android build first — do step 1 either way.
 
 ## Verification status
 
-The recipe and metadata are scaffolds. The Android build has **not** been
-produced or verified — that is the outstanding work before either F-Droid or
-IzzyOnDroid can accept Materix.
+The Android APK **builds** successfully in CI (verified: unsigned universal
+APK, ~46 MB). It has **not** been run on a device or emulator, and the
+fdroiddata merge request has not been filed. Those two are the outstanding
+work before F-Droid can ship Materix.

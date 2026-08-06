@@ -37,8 +37,9 @@ Builds:
       - . "$HOME/.cargo/env"
       - pnpm install --frozen-lockfile
       - pnpm tauri android init --ci
-      - pnpm tauri android build --apk --target aarch64 --split-per-abi
-    output: src-tauri/gen/android/app/build/outputs/apk/universalRelease/app-universal-release-unsigned.apk
+      - pnpm tauri android build --apk
+    # Path confirmed by a successful CI build (see .github/workflows/android.yml).
+    output: src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release-unsigned.apk
 
 AutoUpdateMode: Version v%v
 UpdateCheckMode: Tags

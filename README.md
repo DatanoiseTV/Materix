@@ -139,10 +139,10 @@ Materix is Apache-2.0 licensed and free to use.
 **Linux desktop (Flathub)** — planned; the flatpak manifest and submission
 steps live in [`packaging/flathub/`](packaging/flathub/).
 
-**Android (F-Droid)** — planned; F-Droid builds and signs from source, so no
-developer certificate is needed. Setup and current status are in
-[`packaging/fdroid/`](packaging/fdroid/). The Android build is not yet
-initialized — that's the outstanding work.
+**Android (F-Droid)** — in progress; F-Droid builds and signs from source, so no
+developer certificate is needed. The Android APK already builds in CI (see the
+"Android build" workflow); what remains is on-device testing and the fdroiddata
+submission. Setup and status are in [`packaging/fdroid/`](packaging/fdroid/).
 
 ## Getting started (from source)
 
