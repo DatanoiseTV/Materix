@@ -14,9 +14,8 @@ cask "materix" do
 
   version "0.1.0"
 
-  # Replace these with the real checksums once v0.1.0 is published.
-  sha256 arm:   "0000000000000000000000000000000000000000000000000000000000000000",
-         intel: "0000000000000000000000000000000000000000000000000000000000000000"
+  sha256 arm:   "f170c18738c893f42a79739547229aa3f8a651c2def3886f327977f0e6330ab4",
+         intel: "b0b496128946ddc27bffc2def262dc8923d43e73b2b5b6cab8baad27bcd56495"
 
   url "https://github.com/DatanoiseTV/Materix/releases/download/v#{version}/Materix_#{version}_#{arch}.dmg"
   name "Materix"
