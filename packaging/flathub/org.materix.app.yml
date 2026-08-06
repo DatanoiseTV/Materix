@@ -55,5 +55,8 @@ modules:
       - type: git
         url: https://github.com/DatanoiseTV/Materix.git
         tag: v0.1.0
-      # - cargo-sources.json   # generated, see README
-      # - node-sources.json    # generated, see README
+      # Vendored Rust crates for the offline build (generated from
+      # src-tauri/Cargo.lock, 985 crates). Regenerate on dependency bumps.
+      - cargo-sources.json
+      # - node-sources.json    # STILL NEEDED: node offline sources (see README).
+      #   Until this exists the build keeps --share=network above.

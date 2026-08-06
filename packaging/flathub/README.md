@@ -15,27 +15,24 @@ offline Flatpak build.
 1. **Add real screenshots.** Put PNGs under `docs/screenshots/` and update the
    `<screenshots>` URLs in the metainfo. Flathub fetches these at build time.
 
-2. **Generate offline source lists.** Flathub builds have no network, so the
-   Rust crates and npm packages must be vendored as generated JSON:
+2. **Offline source lists.** Flathub builds have no network, so dependencies
+   must be vendored as generated JSON.
 
-   ```bash
-   # Rust crates -> cargo-sources.json
-   pip install aiohttp toml
-   curl -O https://raw.githubusercontent.com/flatpak/flatpak-builder-tools/master/cargo/flatpak-cargo-generator.py
-   python3 flatpak-cargo-generator.py src-tauri/Cargo.lock -o packaging/flathub/cargo-sources.json
+   - **Rust crates — DONE.** `cargo-sources.json` (985 crates) is committed and
+     referenced by the manifest. Regenerate it on any dependency bump:
+     ```bash
+     python3 -m venv venv && venv/bin/pip install aiohttp tomlkit
+     curl -O https://raw.githubusercontent.com/flatpak/flatpak-builder-tools/master/cargo/flatpak-cargo-generator.py
+     venv/bin/python flatpak-cargo-generator.py src-tauri/Cargo.lock \
+       -o packaging/flathub/cargo-sources.json
+     ```
 
-   # npm packages -> node-sources.json (from the lockfile)
-   # Use flatpak-builder-tools/node with the pnpm/npm lockfile, or switch the
-   # manifest to `npm ci` with a committed package-lock.json and generate with
-   # flatpak-node-generator.
-   ```
-
-   Then uncomment the `cargo-sources.json` / `node-sources.json` entries in the
-   manifest, remove the `--share=network` build arg, and rebuild.
-
-   > Note: this project uses pnpm. Flathub's node tooling is smoothest with an
-   > npm `package-lock.json`; either commit one for packaging or use the
-   > pnpm path of `flatpak-node-generator`.
+   - **npm packages — STILL NEEDED.** This project uses pnpm, and the classic
+     `flatpak-node-generator` targets npm/yarn. Either commit an npm
+     `package-lock.json` for packaging and generate `node-sources.json` from it,
+     or use the pnpm path of the newer node tooling. Until this exists the
+     manifest keeps `--share=network` in `build-args`; remove it once node is
+     vendored so the build is fully offline as Flathub requires.
 
 3. **Build and validate locally:**
 
