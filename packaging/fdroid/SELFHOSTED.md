@@ -17,10 +17,32 @@ https://datanoisetv.github.io/Materix/fdroid/repo/?fingerprint=27c03fd5e8c4e36e7
 The [`fdroid-repo.yml`](../../.github/workflows/fdroid-repo.yml) workflow, on a
 published release (or manual dispatch):
 
-1. builds the Android APK (`tauri android build --apk`),
-2. signs it with our release key (`apksigner`, PKCS12 keystore from secrets),
-3. builds the F-Droid index with `fdroidserver` (`fdroid update`),
-4. deploys the `fdroid/repo/` tree to GitHub Pages.
+1. **reuses an already-built APK** — it downloads the `materix-android-apk`
+   artifact from the most recent successful [`android.yml`](../../.github/workflows/android.yml)
+   run (or a specific run via the `run_id` input) instead of recompiling. No
+   Rust/NDK/Tauri build runs here, which keeps CI minutes low.
+2. restores every APK already served by the live repo and re-indexes it, so the
+   repository keeps its **full version history**,
+3. signs the new APK with our release key (`apksigner`, PKCS12 keystore from
+   secrets), writing a version-stamped filename (`materix-<versionName>-<versionCode>.apk`)
+   so older versions are never overwritten,
+4. builds the F-Droid index with `fdroidserver` (`fdroid update`, `archive_older: 0`),
+5. deploys the `fdroid/repo/` tree to GitHub Pages.
+
+Because every published version stays in the index, F-Droid users can **update
+and downgrade** between versions. (For downgrades to be meaningful the app's
+`versionCode` must increase between builds — F-Droid distinguishes versions by
+`versionCode`.)
+
+The repository URL is **derived from whichever repo runs the workflow** — its
+GitHub Pages project site, `https://<owner>.github.io/<repo>/fdroid/repo/` —
+so the workflow works unmodified on upstream and on any fork (no hardcoded
+host). To publish under a custom domain, set an Actions variable
+`FDROID_REPO_URL` and it takes precedence.
+
+> Prerequisite: at least one successful **Android build** run must exist so
+> there is an APK artifact to reuse. If none exists, this workflow fails fast
+> with a clear message — run `android.yml` first.
 
 ## The signing key
 
