@@ -60,13 +60,14 @@
     <content_attribute id="social-contacts">intense</content_attribute>
   </content_rating>
 
-  <!-- TODO(before Flathub submission): replace with real hosted screenshot URLs
-       (Flathub fetches these at build time; raw.githubusercontent.com is fine).
-       Add PNGs under docs/screenshots/ and point here. -->
   <screenshots>
     <screenshot type="default">
-      <caption>Unified chat list and an encrypted conversation</caption>
+      <caption>Unified chat list, inline threads, and reactions (dark theme)</caption>
       <image>https://raw.githubusercontent.com/DatanoiseTV/Materix/main/docs/screenshots/chat.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>The same conversation in the light theme</caption>
+      <image>https://raw.githubusercontent.com/DatanoiseTV/Materix/main/docs/screenshots/chat-light.png</image>
     </screenshot>
   </screenshots>
 
