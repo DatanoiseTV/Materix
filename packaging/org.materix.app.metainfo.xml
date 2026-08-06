@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- AppStream metadata, shared by Flathub and F-Droid. Validate with:
+     appstreamcli validate packaging/org.materix.app.metainfo.xml -->
+<component type="desktop-application">
+  <id>org.materix.app</id>
+
+  <name>Materix</name>
+  <summary>Multi-account Matrix messenger with end-to-end encryption</summary>
+
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>Apache-2.0</project_license>
+
+  <developer id="io.github.datanoisetv">
+    <name>The Materix Authors</name>
+  </developer>
+
+  <description>
+    <p>
+      Materix is a multi-account Matrix client for desktop and the web that
+      feels like a mainstream messenger (Signal, Telegram, WhatsApp) while
+      staying a full Matrix client for power users. End-to-end encryption is on
+      by default for direct messages and new private rooms.
+    </p>
+    <p>Features:</p>
+    <ul>
+      <li>Log into several Matrix accounts and homeservers at once, with one unified chat list</li>
+      <li>End-to-end encryption (Rust crypto), device and user verification, and secure key backup</li>
+      <li>Rich messages: Markdown, images, video, files, voice messages, polls, and location sharing</li>
+      <li>Threads expanded inline, replies, edits, reactions, read receipts, and typing indicators</li>
+      <li>1:1 voice and video calls with an encryption and peer-to-peer / relay status indicator</li>
+      <li>Spaces, room settings and roles, moderation tools, and a public-room directory browser</li>
+      <li>Send-time image editor that strips EXIF/GPS metadata and can censor regions before sending</li>
+    </ul>
+  </description>
+
+  <launchable type="desktop-id">org.materix.app.desktop</launchable>
+
+  <url type="homepage">https://github.com/DatanoiseTV/Materix</url>
+  <url type="bugtracker">https://github.com/DatanoiseTV/Materix/issues</url>
+  <url type="vcs-browser">https://github.com/DatanoiseTV/Materix</url>
+
+  <categories>
+    <category>Network</category>
+    <category>InstantMessaging</category>
+    <category>Chat</category>
+  </categories>
+
+  <keywords>
+    <keyword>Matrix</keyword>
+    <keyword>chat</keyword>
+    <keyword>messenger</keyword>
+    <keyword>encryption</keyword>
+  </keywords>
+
+  <content_rating type="oars-1.1">
+    <!-- A general-purpose messenger: users can exchange arbitrary text, media,
+         and contact info in real time. -->
+    <content_attribute id="social-chat">intense</content_attribute>
+    <content_attribute id="social-info">intense</content_attribute>
+    <content_attribute id="social-contacts">intense</content_attribute>
+  </content_rating>
+
+  <!-- TODO(before Flathub submission): replace with real hosted screenshot URLs
+       (Flathub fetches these at build time; raw.githubusercontent.com is fine).
+       Add PNGs under docs/screenshots/ and point here. -->
+  <screenshots>
+    <screenshot type="default">
+      <caption>Unified chat list and an encrypted conversation</caption>
+      <image>https://raw.githubusercontent.com/DatanoiseTV/Materix/main/docs/screenshots/chat.png</image>
+    </screenshot>
+  </screenshots>
+
+  <releases>
+    <release version="0.1.0" date="2026-08-06">
+      <description>
+        <p>First packaged pre-release.</p>
+      </description>
+    </release>
+  </releases>
+</component>

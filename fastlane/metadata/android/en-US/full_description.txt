@@ -1,0 +1,16 @@
+Materix is a multi-account Matrix client that feels like a mainstream messenger (Signal, Telegram, WhatsApp) while staying a full Matrix client for power users. End-to-end encryption is on by default for direct messages and new private rooms.
+
+Materix has no backend of its own: it talks directly to Matrix homeservers over the Client-Server API, with encryption handled by the Rust matrix-sdk-crypto module. Your access tokens are stored in the device's secure storage.
+
+Features:
+
+* Multi-account, multi-homeserver: log into several accounts at once with one unified chat list, each with its own accent color.
+* End-to-end encryption with Rust crypto, on by default for DMs and private rooms, plus interactive device and user verification (emoji SAS) and secure key backup.
+* Rich messages: Markdown, images, video, files, voice messages, polls, and location sharing (including live location).
+* Threads expanded inline in the timeline, plus replies, edits, reactions, read receipts, and typing indicators.
+* 1:1 voice and video calls with distinct ringtones and an on-screen indicator showing whether the call is end-to-end encrypted and whether media flows peer-to-peer or through a relay.
+* Spaces, room settings and roles, moderation (ignore, report, ban), and a public-room directory browser.
+* Send-time image editor that strips EXIF/GPS metadata by default and can crop, annotate, or censor regions before sending.
+* Clickable links with phishing protection, a media gallery, favorites and archive, and mute presets.
+
+Materix is free and open source under the Apache License 2.0.

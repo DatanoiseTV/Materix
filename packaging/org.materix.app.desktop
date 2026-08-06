@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=Materix
+GenericName=Matrix Client
+Comment=Multi-account Matrix messenger with end-to-end encryption
+Exec=materix %u
+Icon=org.materix.app
+Terminal=false
+Categories=Network;InstantMessaging;Chat;
+Keywords=Matrix;chat;messenger;encryption;E2EE;instant messaging;
+StartupWMClass=Materix
+MimeType=x-scheme-handler/matrix;
