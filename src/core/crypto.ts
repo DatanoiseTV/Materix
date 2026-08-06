@@ -31,7 +31,14 @@ export const cryptoCallbacks = {
     }
     if (pendingRecoveryKey) {
       const keyId = Object.keys(keys)[0];
-      if (keyId) return [keyId, pendingRecoveryKey];
+      if (keyId) {
+        // Cache the key so secret fetches that happen AFTER restoreWithRecoveryKey
+        // returns (Rust crypto imports cross-signing secrets via an async
+        // secret-request/gossip cycle) can still read 4S. Without this the device
+        // decrypts history but is never cross-signed → verification never completes.
+        ssKeyCache.set(keyId, pendingRecoveryKey);
+        return [keyId, pendingRecoveryKey];
+      }
     }
     return null;
   },
@@ -344,9 +351,11 @@ export class CryptoFacade {
       throw toMaterixError(new Error("That doesn't look like a valid recovery key."));
     }
     try {
-      // Loads cross-signing + backup secrets from 4S using the pending key.
+      // Import cross-signing secrets from 4S and sign this device (the key is now
+      // cached by getSecretStorageKey, so any deferred secret fetch also succeeds).
+      // NB: no bootstrapSecretStorage here — that's a first-time-setup call and
+      // has no place on the restore path.
       await crypto.bootstrapCrossSigning({});
-      await crypto.bootstrapSecretStorage({});
       await crypto.loadSessionBackupPrivateKeyFromSecretStorage();
       const result = await crypto.restoreKeyBackup();
       this.events.emit("status");
@@ -412,7 +421,12 @@ class SasFlowImpl implements SasFlow {
   readonly flowId: string;
   private sasCallbacks: ShowSasCallbacks | null = null;
   private verifierAttached = false;
+  private confirmed = false;
+  private timeout?: ReturnType<typeof setTimeout>;
   cancelReason?: string;
+
+  /** How long to wait for a peer to respond before failing an initiated request. */
+  private static readonly RESPONSE_TIMEOUT_MS = 120_000;
 
   constructor(
     private req: VerificationRequest,
@@ -426,7 +440,25 @@ class SasFlowImpl implements SasFlow {
    * onChange closure (which reads the flow) is safe to invoke. */
   init(): void {
     this.req.on(VerificationRequestEvent.Change, () => this.step());
+    // If we initiated the request, don't spin forever when no other device
+    // responds — cancel with an actionable reason so the UI can recover.
+    if (this.req.initiatedByMe) {
+      this.timeout = setTimeout(() => {
+        const p = this.req.phase;
+        if (p === VerificationPhase.Unsent || p === VerificationPhase.Requested || p === VerificationPhase.Ready) {
+          this.cancelReason = "No other device responded. Make sure another verified session is online, then try again.";
+          void this.req.cancel().catch(() => undefined);
+        }
+      }, SasFlowImpl.RESPONSE_TIMEOUT_MS);
+    }
     this.step();
+  }
+
+  private clearTimer(): void {
+    if (this.timeout) {
+      clearTimeout(this.timeout);
+      this.timeout = undefined;
+    }
   }
 
   get peer(): SasFlow["peer"] {
@@ -449,6 +481,7 @@ class SasFlowImpl implements SasFlow {
       case VerificationPhase.Ready:
         return "ready";
       case VerificationPhase.Started:
+        if (this.confirmed) return "confirmed";
         return this.sasCallbacks ? "emojis" : "ready";
       case VerificationPhase.Done:
         return "done";
@@ -461,6 +494,11 @@ class SasFlowImpl implements SasFlow {
 
   /** Drive the state machine forward on every request change. */
   private step(): void {
+    // Any real progress (or a terminal state) means we're no longer waiting on
+    // an unanswered request, so drop the response timeout.
+    if (this.req.phase !== VerificationPhase.Requested && this.req.phase !== VerificationPhase.Unsent) {
+      this.clearTimer();
+    }
     if (this.req.phase === VerificationPhase.Ready && this.req.initiatedByMe) {
       void this.beginSas();
     }
@@ -468,7 +506,8 @@ class SasFlowImpl implements SasFlow {
       this.attachVerifier();
     }
     if (this.req.phase === VerificationPhase.Cancelled) {
-      this.cancelReason = this.req.cancellationCode ?? undefined;
+      // Keep a reason we set ourselves (e.g. the timeout) over the raw code.
+      this.cancelReason = this.cancelReason ?? this.req.cancellationCode ?? undefined;
     }
     this.onChange();
   }
@@ -506,10 +545,14 @@ class SasFlowImpl implements SasFlow {
   }
 
   async confirmMatch(): Promise<void> {
+    // Reflect "waiting for the other side to confirm" in the UI immediately.
+    this.confirmed = true;
+    this.onChange();
     await this.sasCallbacks?.confirm();
   }
 
   async cancel(): Promise<void> {
+    this.clearTimer();
     if (this.sasCallbacks) this.sasCallbacks.mismatch();
     else await this.req.cancel();
   }
