@@ -212,11 +212,35 @@ jobs:
           fdroid update --create-metadata --verbose --pretty
 
       - name: Assemble the Pages site
+        env:
+          KS_PASS: ${{ secrets.FDROID_KEYSTORE_PASS }}
+          KS_ALIAS: ${{ secrets.FDROID_KEY_ALIAS }}
+          SOURCE_URL: ${{ github.server_url }}/${{ github.repository }}
         run: |
           set -euo pipefail
           mkdir -p _site/fdroid
           cp -r fdroidrepo/repo _site/fdroid/repo
-          cp packaging/fdroid/landing.html _site/index.html
+
+          # Repo signing-cert fingerprint (SHA-256 of the cert DER) — the value
+          # F-Droid pins the repo to. Derive it from the keystore so the landing
+          # page always advertises the correct URL + fingerprint for this repo.
+          echo "${{ secrets.FDROID_KEYSTORE_B64 }}" | base64 -d > "$RUNNER_TEMP/materix.p12"
+          FP="$(keytool -exportcert -keystore "$RUNNER_TEMP/materix.p12" -storetype PKCS12 \
+                  -storepass "$KS_PASS" -alias "$KS_ALIAS" 2>/dev/null \
+                | openssl dgst -sha256 | awk '{print $NF}')"
+          if [ -z "$FP" ]; then echo "::error::Could not compute repo fingerprint"; exit 1; fi
+          FP_SPACED="$(printf '%s' "$FP" | tr 'a-z' 'A-Z' | sed 's/..../& /g; s/ *$//')"
+          REPO_NOPROTO="${REPO_URL#https://}"
+
+          # Fill the templated landing page with this repo's real values.
+          sed -e "s#__REPO_URL__#${REPO_URL}#g" \
+              -e "s#__REPO_NOPROTO__#${REPO_NOPROTO}#g" \
+              -e "s#__FP_SPACED__#${FP_SPACED}#g" \
+              -e "s#__FP__#${FP}#g" \
+              -e "s#__SOURCE_URL__#${SOURCE_URL}#g" \
+              -e "s#__SOURCE_LABEL__#${SOURCE_URL#https://}#g" \
+              packaging/fdroid/landing.html > _site/index.html
+          echo "Landing page advertises: ${REPO_URL}/?fingerprint=${FP}"
 
       - uses: actions/upload-pages-artifact@v3
         with:
