@@ -120,7 +120,31 @@ core layer in `src/core/` (`AccountManager` → `MatrixAccount` → `RoomHandle`
 plus `CryptoFacade`). The boundary is documented in
 [`docs/api-contract.md`](docs/api-contract.md).
 
-## Getting started
+## Install
+
+Materix is Apache-2.0 licensed and free to use.
+
+**Desktop (macOS / Windows / Linux)** — grab a native bundle from the
+[Releases](https://github.com/DatanoiseTV/Materix/releases) page. The
+[`release.yml`](.github/workflows/release.yml) workflow builds macOS
+(Apple-Silicon + Intel `.dmg`), Windows (`.msi`/`.exe`), and Linux
+(`.AppImage`/`.deb`/`.rpm`) on each `v*` tag.
+
+- macOS via [Homebrew](https://brew.sh) (personal tap):
+  ```bash
+  brew install --cask DatanoiseTV/tap/materix
+  ```
+  (see [`packaging/homebrew/materix.rb`](packaging/homebrew/materix.rb))
+
+**Linux desktop (Flathub)** — planned; the flatpak manifest and submission
+steps live in [`packaging/flathub/`](packaging/flathub/).
+
+**Android (F-Droid)** — planned; F-Droid builds and signs from source, so no
+developer certificate is needed. Setup and current status are in
+[`packaging/fdroid/`](packaging/fdroid/). The Android build is not yet
+initialized — that's the outstanding work.
+
+## Getting started (from source)
 
 ```bash
 pnpm install
