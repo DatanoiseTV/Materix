@@ -10,3 +10,9 @@ src-tauri/gen/
 
 # local UI preview harnesses
 scratch-*.html
+
+# Signing material — never commit
+*.p12
+*.jks
+*.keystore
+keystore-password.txt
