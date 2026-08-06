@@ -4,6 +4,12 @@
   "version": "0.1.0",
   "type": "module",
   "description": "Multi-account Matrix client for web and desktop",
+  "license": "Apache-2.0",
+  "homepage": "https://github.com/DatanoiseTV/Materix",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/DatanoiseTV/Materix.git"
+  },
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",

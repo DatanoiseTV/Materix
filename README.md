@@ -198,5 +198,6 @@ before opening a PR.
 
 ## License
 
-Not yet chosen — until a license is added, the default "all rights reserved"
-applies. A permissive license is intended before 1.0.
+[Apache License 2.0](LICENSE). You may use, modify, and redistribute Materix
+(including in closed-source products) under its terms, which include an explicit
+patent grant. See [`NOTICE`](NOTICE) for third-party attributions.
