@@ -1,0 +1,46 @@
+# F-Droid build recipe for Materix.
+#
+# STATUS: scaffold. F-Droid builds and signs from source on its own servers, so
+# NO signing certificate is needed from you. But an Android build must exist and
+# succeed first, and Tauri Android has not been initialized in this repo yet
+# (there is no src-tauri/gen/android). See packaging/fdroid/README.md.
+#
+# This file is shaped to drop into https://gitlab.com/fdroid/fdroiddata as
+# metadata/org.materix.app.yml once the Android build is green.
+Categories:
+  - Internet
+License: Apache-2.0
+AuthorName: The Materix Authors
+WebSite: https://github.com/DatanoiseTV/Materix
+SourceCode: https://github.com/DatanoiseTV/Materix
+IssueTracker: https://github.com/DatanoiseTV/Materix/issues
+
+RepoType: git
+Repo: https://github.com/DatanoiseTV/Materix.git
+
+Builds:
+  - versionName: 0.1.0
+    versionCode: 1
+    commit: v0.1.0
+    # F-Droid's buildserver has the Android SDK; pin the NDK the build needs.
+    ndk: r26d
+    sudo:
+      - apt-get update
+      - apt-get install -y curl build-essential libwebkit2gtk-4.1-dev
+      - curl -sSf https://sh.rustup.rs | sh -s -- -y
+      - . "$HOME/.cargo/env"
+      - rustup target add aarch64-linux-android armv7-linux-androideabi i686-linux-android x86_64-linux-android
+      - curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
+      - apt-get install -y nodejs
+      - npm i -g pnpm
+    build:
+      - . "$HOME/.cargo/env"
+      - pnpm install --frozen-lockfile
+      - pnpm tauri android init --ci
+      - pnpm tauri android build --apk --target aarch64 --split-per-abi
+    output: src-tauri/gen/android/app/build/outputs/apk/universalRelease/app-universal-release-unsigned.apk
+
+AutoUpdateMode: Version v%v
+UpdateCheckMode: Tags
+CurrentVersion: 0.1.0
+CurrentVersionCode: 1

@@ -1,0 +1,59 @@
+# Flatpak manifest for Materix (Flathub).
+#
+# STATUS: scaffold. A Tauri app builds inside Flatpak from Rust + Node, both of
+# which must run OFFLINE during the Flathub build (no network in the sandbox).
+# That means the cargo crates and npm packages have to be provided as generated
+# "sources" lists. See packaging/flathub/README.md for the exact steps to
+# generate cargo-sources.json and node-sources.json before this manifest builds.
+#
+# This file is intentionally kept close to the canonical Tauri-on-Flathub shape
+# so that, once the sources lists are generated, it can be submitted to
+# https://github.com/flathub/flathub as org.materix.app.
+app-id: org.materix.app
+runtime: org.gnome.Platform
+runtime-version: "47"
+sdk: org.gnome.Sdk
+sdk-extensions:
+  - org.freedesktop.Sdk.Extension.rust-stable
+  - org.freedesktop.Sdk.Extension.node20
+command: materix
+
+finish-args:
+  - --share=network
+  - --share=ipc
+  - --socket=fallback-x11
+  - --socket=wayland
+  - --socket=pulseaudio # voice/video calls
+  - --device=all # camera + microphone for calls
+  - --talk-name=org.freedesktop.Notifications
+  - --talk-name=org.freedesktop.secrets # OS keychain (libsecret) for tokens
+  - --env=RUST_BACKTRACE=1
+
+build-options:
+  append-path: /usr/lib/sdk/rust-stable/bin:/usr/lib/sdk/node20/bin
+  build-args:
+    # The build step needs network ONLY if sources lists are absent. Once
+    # cargo-sources.json / node-sources.json are generated (see README), remove
+    # this so the build is fully offline as Flathub requires.
+    - --share=network
+  env:
+    CARGO_HOME: /run/build/materix/cargo
+
+modules:
+  - name: materix
+    buildsystem: simple
+    build-commands:
+      - npm ci --offline || npm install
+      - npm run build
+      - cargo build --release --manifest-path src-tauri/Cargo.toml
+      - install -Dm755 src-tauri/target/release/app /app/bin/materix
+      - install -Dm644 packaging/org.materix.app.desktop /app/share/applications/org.materix.app.desktop
+      - install -Dm644 packaging/org.materix.app.metainfo.xml /app/share/metainfo/org.materix.app.metainfo.xml
+      - install -Dm644 src-tauri/icons/128x128.png /app/share/icons/hicolor/128x128/apps/org.materix.app.png
+      - install -Dm644 "src-tauri/icons/128x128@2x.png" /app/share/icons/hicolor/256x256/apps/org.materix.app.png
+    sources:
+      - type: git
+        url: https://github.com/DatanoiseTV/Materix.git
+        tag: v0.1.0
+      # - cargo-sources.json   # generated, see README
+      # - node-sources.json    # generated, see README
