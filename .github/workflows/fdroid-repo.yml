@@ -156,10 +156,13 @@ jobs:
           VN="$("$AAPT" dump badging "$UNSIGNED" | sed -n "s/.*versionName='\([^']*\)'.*/\1/p" | head -1)"
           VC="$("$AAPT" dump badging "$UNSIGNED" | sed -n "s/.*versionCode='\([^']*\)'.*/\1/p" | head -1)"
           if [ -z "$VC" ]; then echo "::error::Could not read versionCode from APK"; exit 1; fi
+          if [ -z "$VN" ]; then echo "::error::Could not read versionName from APK"; exit 1; fi
           mkdir -p fdroidrepo/repo
-          # Version-stamped filename so each version is a distinct file and older
-          # ones are never overwritten (the basis for downgrade support).
-          OUT="fdroidrepo/repo/materix-${VN:-0}-${VC}.apk"
+          # versionName is stamped as <yymmdd>_<commit> by android.yml, giving a
+          # human-identifiable, date+commit filename. Each build is a distinct
+          # file (never overwritten) and carries a distinct monotonic versionCode,
+          # which is what lets F-Droid list and switch/downgrade between versions.
+          OUT="fdroidrepo/repo/materix_${VN}.apk"
           "$BT/zipalign" -f -p 4 "$UNSIGNED" "$RUNNER_TEMP/aligned.apk"
           "$BT/apksigner" sign \
             --ks "$RUNNER_TEMP/materix.p12" --ks-type PKCS12 \
