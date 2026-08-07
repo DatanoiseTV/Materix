@@ -51,6 +51,32 @@ jobs:
       - name: Initialize Tauri Android project
         run: pnpm tauri android init --ci || pnpm tauri android init
 
+      - name: Stamp version (date + commit filename, monotonic versionCode)
+        run: |
+          set -euo pipefail
+          SHA="$(git rev-parse --short=7 HEAD)"
+          DATE="$(date -u +%y%m%d)"
+          VN="${DATE}_${SHA}"                       # versionName -> materix_<yymmdd>_<commit>.apk
+          # Monotonic versionCode = whole minutes since 2026-01-01T00:00:00Z.
+          # Small (~3e5), strictly increasing every build, fits Android's int32
+          # cap for centuries. Guarantees each build outranks the previous one
+          # (F-Droid always offers an update) while keeping every build distinct
+          # so users can switch/downgrade between them.
+          VC="$(( ( $(date -u +%s) - 1767225600 ) / 60 ))"
+          GRADLE="src-tauri/gen/android/app/build.gradle.kts"
+          test -f "$GRADLE" || { echo "::error::$GRADLE not found (tauri android init did not generate it)"; exit 1; }
+          python3 - "$GRADLE" "$VC" "$VN" <<'PY'
+          import re, sys
+          path, vc, vn = sys.argv[1], sys.argv[2], sys.argv[3]
+          s = open(path).read()
+          s, n1 = re.subn(r'versionCode\s*=\s*[^\n]+', f'versionCode = {vc}', s)
+          s, n2 = re.subn(r'versionName\s*=\s*[^\n]+', f'versionName = "{vn}"', s)
+          assert n1 >= 1 and n2 >= 1, f"gradle patch failed: versionCode matches={n1} versionName matches={n2}"
+          open(path, 'w').write(s)
+          print(f"patched {path}: versionCode={vc} versionName={vn}")
+          PY
+          echo "Stamped versionName=$VN versionCode=$VC"
+
       - name: Build APK
         run: pnpm tauri android build --apk
 
