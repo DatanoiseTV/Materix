@@ -69,6 +69,14 @@ works — login, send/receive, no crash — before advertising the repo.
 
 ## Verification status
 
-The pipeline is wired but **not yet run** (secrets/Pages are the manual steps
-above, and `fdroidserver` + PKCS12 signing haven't been exercised in CI). Expect
-to iterate the first run or two, same as the initial Android build.
+**Live and verified.** The repo is published and serving a correctly-signed
+index and APK:
+
+- `index-v2.json` lists `org.materix.app` v0.1.0 at the address above.
+- The APK downloads (HTTP 200, ~46 MB, `application/vnd.android.package-archive`).
+- The repo's `entry.jar` signing fingerprint equals `27c03fd5…97e749` — the
+  fingerprint in the add-repo URL — so F-Droid clients accept it.
+
+Still outstanding: the APK **builds and installs** but hasn't been exercised on
+a device (login, send/receive, calls). Confirm it actually works before
+advertising the URL widely.
