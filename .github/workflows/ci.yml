@@ -11,9 +11,12 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # Fast frontend gate: type-check and build the web bundle once.
+  # Fast frontend gate: type-check, unit-test, and build the web bundle once.
+  # This shared TypeScript is what desktop, Android and web all bundle, so a
+  # green run here means a logic change (e.g. read-receipt selection) is safe on
+  # every platform, not just the one it was tested on.
   frontend:
-    name: Frontend (typecheck + build)
+    name: Frontend (typecheck + test + build)
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
@@ -28,6 +31,7 @@ jobs:
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
+      - run: pnpm test
       - run: pnpm build
 
   # Compile the Tauri (Rust) shell on both target OSes so a broken desktop
