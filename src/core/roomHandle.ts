@@ -993,7 +993,17 @@ export class RoomHandle {
    */
   async markRead(): Promise<void> {
     const events = this.room.getLiveTimeline().getEvents();
-    const last = [...events].reverse().find((e) => !!e.getId());
+    // Only send a read receipt for a fully-sent event. A local echo (a message
+    // still sending or failed to send) also has an id — a pending "~roomId:txnId"
+    // — and `status` is non-null; sending a receipt for it is rejected with 400,
+    // and since markRead() runs on every timeline update this loops indefinitely
+    // (hammering the homeserver) whenever a failed message sits at the tail.
+    const last = [...events]
+      .reverse()
+      .find((e) => {
+        const id = e.getId();
+        return !!id && !id.startsWith("~") && e.status === null;
+      });
     if (last) {
       await this.client.sendReadReceipt(last);
       await this.client.setRoomReadMarkers(this.roomId, last.getId()!, last);
