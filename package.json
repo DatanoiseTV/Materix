@@ -16,6 +16,7 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "test:e2e:keyboard": "node e2e/keyboard-audit.mjs",
     "tauri": "tauri"
   },
   "dependencies": {
