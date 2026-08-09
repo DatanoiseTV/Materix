@@ -30,13 +30,29 @@ export function installViewportTracking(): void {
     root.style.setProperty("--kb-inset", `${Math.round(covered)}px`);
   };
 
+  // The keyboard shrinks the viewport AFTER the field was focused (the focus
+  // scroll-into-view already ran against the taller pre-keyboard viewport), so a
+  // field low in a scroll container can be left just behind the keyboard. On each
+  // viewport *resize* (keyboard open/close), re-scroll the focused field into the
+  // now-smaller viewport. Only on resize — not scroll — to avoid a scroll loop.
+  const keepFocusedVisible = () => {
+    const el = document.activeElement as HTMLElement | null;
+    if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable)) {
+      el.scrollIntoView({ block: "nearest", inline: "nearest" });
+    }
+  };
+  const onResize = () => {
+    apply();
+    keepFocusedVisible();
+  };
+
   apply();
 
   if (vv) {
-    vv.addEventListener("resize", apply);
+    vv.addEventListener("resize", onResize);
     vv.addEventListener("scroll", apply);
   }
   // Fallbacks for environments without visualViewport and for rotation.
-  window.addEventListener("resize", apply);
-  window.addEventListener("orientationchange", apply);
+  window.addEventListener("resize", onResize);
+  window.addEventListener("orientationchange", onResize);
 }
