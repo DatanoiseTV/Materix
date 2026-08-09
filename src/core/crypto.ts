@@ -186,12 +186,23 @@ export class CryptoFacade {
       this.track(req);
     }) as never);
     this.client.on(CryptoEvent.KeysChanged as never, (() => this.events.emit("status")) as never);
+    // A successful verification imports the cross-signing + key-backup secrets via
+    // an async gossip cycle that finishes SECONDS AFTER the SAS flow reports
+    // "done". These fire when that trust / backup state actually flips, so the
+    // "Verify this session" banner (which recomputes securityState() on "status")
+    // clears on its own instead of lingering until the next app reload.
+    this.client.on(CryptoEvent.UserTrustStatusChanged as never, (() => this.events.emit("status")) as never);
+    this.client.on(CryptoEvent.KeyBackupStatus as never, (() => this.events.emit("status")) as never);
   }
 
   private track(req: VerificationRequest): SasFlowImpl {
     const flow = new SasFlowImpl(req, this.accountKey, () => {
       this.events.emit("flows");
       if (flow.phase === "done" || flow.phase === "cancelled") {
+        // A completed verification changes this session's security posture, so
+        // refresh derived UI (the security banner) at once rather than waiting
+        // for the trust-status gossip to arrive.
+        if (flow.phase === "done") this.events.emit("status");
         // Keep terminal flows visible briefly; UI dismisses them.
         setTimeout(() => {
           this.flows.delete(flow.flowId);
@@ -446,7 +457,7 @@ class SasFlowImpl implements SasFlow {
       this.timeout = setTimeout(() => {
         const p = this.req.phase;
         if (p === VerificationPhase.Unsent || p === VerificationPhase.Requested || p === VerificationPhase.Ready) {
-          this.cancelReason = "No other device responded. Make sure another verified session is online, then try again.";
+          this.cancelReason = "No other device responded. Make sure another of your sessions is signed in and online, or verify this session with your recovery key instead.";
           void this.req.cancel().catch(() => undefined);
         }
       }, SasFlowImpl.RESPONSE_TIMEOUT_MS);
