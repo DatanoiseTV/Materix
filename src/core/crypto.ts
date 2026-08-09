@@ -248,8 +248,49 @@ export class CryptoFacade {
   /** Verify this session against another of the user's own sessions. */
   async startOwnVerification(): Promise<SasFlow> {
     const crypto = this.client.getCrypto()!;
+    await this.awaitVerificationReady();
     const req = await crypto.requestOwnUserVerification();
     return this.track(req);
+  }
+
+  /**
+   * Block (bounded) until it's safe to start an outgoing own-user verification.
+   *
+   * On a freshly logged-in / data-wiped session the initial `/sync` delivers a
+   * backlog of to-device events. If `requestOwnUserVerification()` runs while
+   * that backlog is still being processed, a stale verification event from the
+   * backlog collides with the brand-new request and the crypto machine cancels
+   * it (`code: m.user`) about a second later — so the peer (e.g. Element) only
+   * ever sees a request that is immediately withdrawn and no prompt appears.
+   * This is timing-dependent, which is why it reproduces on the optimized
+   * release build but often not on slower debug runs.
+   *
+   * We wait until (a) the client is past the initial sync (state `SYNCING`, i.e.
+   * at least one incremental sync after `PREPARED`, so the to-device backlog has
+   * drained) and (b) another of our own devices is actually present in the
+   * crypto store (so the request has a real recipient). Bounded so a genuinely
+   * lone or still-catching-up device proceeds anyway; the SasFlow's own
+   * response timeout covers the no-peer case.
+   */
+  private async awaitVerificationReady(timeoutMs = 20_000): Promise<void> {
+    const crypto = this.client.getCrypto();
+    if (!crypto) return;
+    const me = this.client.getUserId()!;
+    const thisDevice = this.client.getDeviceId();
+    const deadline = Date.now() + timeoutMs;
+    for (;;) {
+      const pastInitialSync = this.client.getSyncState() === "SYNCING";
+      let hasOtherDevice = false;
+      try {
+        const devices = (await crypto.getUserDeviceInfo([me], true))?.get(me);
+        hasOtherDevice = !!devices && [...devices.keys()].some((d) => d !== thisDevice);
+      } catch {
+        /* device query not ready yet — keep waiting */
+      }
+      if (pastInitialSync && hasOtherDevice) return;
+      if (Date.now() >= deadline) return;
+      await new Promise((r) => setTimeout(r, 400));
+    }
   }
 
   async ownDevices(): Promise<DeviceSummary[]> {
