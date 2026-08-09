@@ -83,23 +83,32 @@ async function connectCDP() {
 }
 
 // --- DOM helpers (run inside the WebView) ---
+// The app keeps several views MOUNTED at once (a room's composer, room-info, …
+// stay in the DOM behind modals), so every match must be filtered by real
+// VISIBILITY, not mere presence — otherwise selectors hit hidden duplicates.
+const VIS = "(e=>e&&e.checkVisibility&&e.checkVisibility()&&e.getBoundingClientRect().width>0&&e.getBoundingClientRect().height>0)";
 const clickAria = (c, label) =>
-  c.evaluate(`(el=>{if(el){el.click();return true}return false})(document.querySelector(${JSON.stringify(`[aria-label=${JSON.stringify(label)}]`)}))`);
+  c.evaluate(`(()=>{const vis=${VIS};const el=[...document.querySelectorAll(${JSON.stringify(`[aria-label=${JSON.stringify(label)}]`)})].find(vis);if(el){el.click();return true}return false})()`);
 const clickText = (c, text, contains = false) =>
-  c.evaluate(`(()=>{const t=${JSON.stringify(text)};const el=[...document.querySelectorAll('button,[role=button],[role=menuitem],a,li')].find(e=>{const s=e.textContent.trim();return ${contains ? "s.includes(t)" : "s===t"}});if(el){el.click();return true}return false})()`);
-const has = (c, sel) => c.evaluate(`!!document.querySelector(${JSON.stringify(sel)})`);
+  c.evaluate(`(()=>{const vis=${VIS};const t=${JSON.stringify(text)};const el=[...document.querySelectorAll('button,[role=button],[role=menuitem],a,li')].filter(vis).find(e=>{const s=e.textContent.trim();return ${contains ? "s.includes(t)" : "s===t"}});if(el){el.click();return true}return false})()`);
+const visible = (c, sel) => c.evaluate(`(()=>{const vis=${VIS};return [...document.querySelectorAll(${JSON.stringify(sel)})].some(vis)})()`);
 // Hide the soft keyboard WITHOUT adb key events (BACK/ESC would background the
 // app and get it LMK-killed) — blurring the focused input hides the IME.
 const blur = (c) => c.evaluate("(document.activeElement&&document.activeElement.blur&&document.activeElement.blur(),true)");
 
 // Reset to the chat list using in-app navigation only (never adb BACK).
+// Order matters: checkVisibility() reports background controls (e.g. the New-chat
+// button) as "visible" even when an overlay covers them, so CLOSE overlays first,
+// then leave any open room, and only then treat "New chat visible" as "at list".
 async function ensureList(c) {
-  for (let i = 0; i < 6; i++) {
-    if ((await has(c, '[aria-label="New chat"]')) && !(await has(c, '[placeholder="Message"]'))) return;
-    if (await clickAria(c, "Close")) { await sleep(400); continue; } // close a dialog/modal
-    const back = await c.evaluate(`(()=>{const b=document.querySelector('[aria-label="Back"],[aria-label*="back" i]');if(b){b.click();return true}return false})()`);
-    if (!back) await c.evaluate("history.back()"); // SPA route back — stays in the app
-    await sleep(500);
+  for (let i = 0; i < 10; i++) {
+    if ((await clickAria(c, "Close")) || (await clickAria(c, "Close room info"))) { await sleep(400); continue; } // dialogs/modals
+    if (await visible(c, '[aria-label="Back to chat list"]')) { // inside a room
+      (await clickAria(c, "Back to chat list")) || (await c.evaluate("history.back()"));
+      await sleep(500); continue;
+    }
+    if (await visible(c, '[aria-label="New chat"]')) return; // now genuinely at the list
+    await sleep(300);
   }
 }
 async function openRoom(c) {
@@ -114,7 +123,7 @@ async function openRoom(c) {
 async function checkInput(c, sel, label) {
   await blur(c); await sleep(400); // reset: hide any existing keyboard (no adb keys)
   const found = await c.evaluate(
-    `(el=>{if(!el)return null;const r=el.getBoundingClientRect();return{cx:r.left+r.width/2,cy:r.top+r.height/2,dpr:devicePixelRatio,full:screen.height}})(document.querySelector(${JSON.stringify(sel)}))`,
+    `(()=>{const vis=${VIS};const el=[...document.querySelectorAll(${JSON.stringify(sel)})].find(vis);if(!el)return null;const r=el.getBoundingClientRect();return{cx:r.left+r.width/2,cy:r.top+r.height/2,dpr:devicePixelRatio,full:screen.height}})()`,
   );
   if (!found) return { label, sel, status: "NOT_FOUND" };
   const FULL = found.full; // screen.height is already CSS px in WebView — invariant to the keyboard
@@ -130,7 +139,7 @@ async function checkInput(c, sel, label) {
   }
   await sleep(600); // let scroll-into-view / layout settle before measuring
   const a = await c.evaluate(
-    `(el=>{if(!el)return null;const r=el.getBoundingClientRect();return{top:r.top,bottom:r.bottom,vvh:visualViewport.height,vvtop:visualViewport.offsetTop}})(document.querySelector(${JSON.stringify(sel)}))`,
+    `(()=>{const vis=${VIS};const el=[...document.querySelectorAll(${JSON.stringify(sel)})].find(vis)||document.querySelector(${JSON.stringify(sel)});if(!el)return null;const r=el.getBoundingClientRect();return{top:r.top,bottom:r.bottom,vvh:visualViewport.height,vvtop:visualViewport.offsetTop}})()`,
   );
   await blur(c); await sleep(300); // hide keyboard for next step (no adb keys)
   if (!a) return { label, sel, status: "NOT_FOUND" };
@@ -152,8 +161,9 @@ const VIEWS = [
   { name: "New chat — Join by address", nav: async (c) => { await ensureList(c); await clickAria(c, "New chat"); await sleep(800); await clickText(c, "Join a room"); await sleep(900); }, inputs: [['input[placeholder*="room:"]', "Room address"]] },
   { name: "New chat — Explore", nav: async (c) => { await ensureList(c); await clickAria(c, "New chat"); await sleep(800); await clickText(c, "Explore public rooms"); await sleep(900); }, inputs: [['input[placeholder*="public rooms"]', "Explore search"]] },
   { name: "Room — composer", nav: openRoom, inputs: [['[placeholder="Message"]', "Composer"]] },
-  { name: "Room — search", nav: async (c) => { await openRoom(c); await clickAria(c, "Search"); await sleep(900); }, inputs: [['input[placeholder*="history"]', "In-room search"], ['input[placeholder*="messages"]', "In-room search"]] },
-  { name: "Room info — invite", nav: async (c) => { await openRoom(c); await clickAria(c, "Room info"); await sleep(600); }, inputs: [['input[placeholder*="server.org"]', "Invite (details)"]] },
+  { name: "Room — search", nav: async (c) => { await openRoom(c); await clickAria(c, "Search messages"); await sleep(700); }, inputs: [['input[placeholder*="history"]', "In-room search"], ['input[placeholder*="messages"]', "In-room search"]] },
+  { name: "Room — emoji search", nav: async (c) => { await openRoom(c); await clickAria(c, "Insert emoji"); await sleep(700); }, inputs: [['input[placeholder*="emoji" i]', "Emoji search"]] },
+  { name: "Room info — invite", nav: async (c) => { await openRoom(c); await clickAria(c, "Room info"); await sleep(700); }, inputs: [['input[placeholder*="server.org"]', "Invite (details)"]] },
   { name: "Room settings — name/topic", nav: async (c) => { await openRoom(c); await clickAria(c, "Room info"); await sleep(500); await clickText(c, "Room settings", true); await sleep(600); }, inputs: [['input[value="Notes to self"], input[placeholder*="name" i]', "Room name"], ['textarea[placeholder*="about"]', "Room topic"]] },
 ];
 
@@ -166,6 +176,7 @@ const main = async () => {
   for (const v of VIEWS) {
     DBG("view:", v.name);
     try { await v.nav(c); } catch (e) { DBG("  nav error:", e.message); for (const [, lbl] of v.inputs) results.push({ view: v.name, label: lbl, status: "NAV_ERROR" }); continue; }
+    if (process.env.KBAUDIT_DEBUG) DBG("  after nav, first input visible:", await visible(c, v.inputs[0][0]));
     const seen = new Set();
     for (const [sel, lbl] of v.inputs) {
       if (seen.has(lbl)) continue;

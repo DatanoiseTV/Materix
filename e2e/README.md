@@ -34,16 +34,28 @@ forwards the host hardware keyboard, which would otherwise suppress the soft
 keyboard. Run the emulator with **≥ 6 GB RAM** (`hw.ramSize`), otherwise Android's
 low-memory killer reaps the app / WebView renderer mid-run.
 
-## Status / notes
+## Status
 
-- Reliably verifies: chat-list search, new-DM search, room composer, room-settings
-  name + topic — all PASS (viewport 915→578, input well within).
-- Flags the room-info **invite** field (bottom ~21px under the keyboard) — worth a
-  human look; likely the field's bottom padding, not the text area.
-- A few New-chat sub-modals (Group / Join / Explore) and in-room search need nav
-  selectors hardened; they currently report `NOT_FOUND`. Add/adjust entries in the
-  `VIEWS` array — nav is in-app (CDP clicks / `history.back()`), never adb BACK
-  (which backgrounds the app and gets it LMK-killed).
+All 12 covered views PASS (viewport 915→578, input within it): chat-list search;
+new-chat DM / group-name / group-invite / join-by-address / explore; room
+composer; in-room search; emoji search; room-info invite; room-settings name +
+topic.
+
+The room-info invite field was originally flagged `FAIL_HIDDEN` (bottom ~14px
+behind the keyboard) — a real bug this audit caught: the focus scroll-into-view
+runs against the taller pre-keyboard viewport and nothing re-scrolls after the
+keyboard shrinks it. Fixed in `src/ui/viewport.ts` (re-scroll the focused field
+on visual-viewport resize).
+
+## Notes / extending
+
+- Nav is in-app only (CDP `element.click()` / `history.back()`), never adb BACK —
+  that backgrounds the app and Android's LMK reaps it. Reset via `ensureList`
+  closes overlays FIRST (checkVisibility() reports covered controls as visible).
+- Selectors go by `aria-label` (e.g. "New chat", "Back to chat list", "Search
+  messages", "Room info", "Insert emoji"). Add more surfaces (thread reply, poll,
+  forward, image caption, passcode, settings→Manage) as `VIEWS` entries — those
+  need multi-step flows to reach.
 - Not wired into `ci.yml` (that runner has no emulator). Run locally, or add an
   emulator CI job (e.g. `reactivecircus/android-emulator-runner`) that installs the
   APK and runs this.
