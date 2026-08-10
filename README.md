@@ -100,6 +100,10 @@ stores access tokens in the OS keychain.
 - **Notifications** honoring server push rules, with privacy modes (name +
   message preview, name only, or off) and twelve synthesized notification
   sounds (no audio assets shipped).
+- **Background push without Google** on de-Googled Android via
+  [UnifiedPush](https://unifiedpush.org) + [ntfy](https://ntfy.sh) — get woken
+  for new messages while the app is closed, no FCM required. Setup (public or
+  self-hosted ntfy) in [`docs/push-notifications.md`](docs/push-notifications.md).
 
 ### Look and feel
 - **Light / dark / system themes** with a neutral-slate palette, keyboard

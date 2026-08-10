@@ -1,9 +1,13 @@
 // Right column: room info, members, room actions.
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { accountManager } from "../core/manager";
 import { useRoomVersion, useRoomsVersion } from "./hooks";
 import type { Selection } from "./RoomList";
+import { getPrefs, roomSoundKey, setRoomSound } from "./prefs";
+import type { SoundId } from "./sounds";
+import { SoundPicker } from "./components/SoundPicker";
+import { ensureRoomChannel, isAndroid, removeRoomChannel } from "./notifyChannels";
 import { Avatar } from "./components/Avatar";
 import { ContextMenu, type MenuState } from "./components/ContextMenu";
 import { buildUserMenu, powerLevelMessage } from "./userMenu";
@@ -30,6 +34,12 @@ export function DetailsPane({
   const [tab, setTab] = useState<"info" | "media">("info");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const { show, showError } = useToast();
+  const [roomSound, setRoomSoundState] = useState<SoundId | undefined>(
+    () => getPrefs().roomSounds[roomSoundKey(selection.accountKey, selection.roomId)],
+  );
+  useEffect(() => {
+    setRoomSoundState(getPrefs().roomSounds[roomSoundKey(selection.accountKey, selection.roomId)]);
+  }, [selection.accountKey, selection.roomId]);
 
   if (!account) return null;
   let handle;
@@ -138,6 +148,33 @@ export function DetailsPane({
           >
             <IconLogout size={16} /> Leave room
           </button>
+        </div>
+
+        <div className="settings-section">
+          <h3>Notifications</h3>
+          <div className="switch-title" style={{ marginBottom: "var(--sp-1)" }}>
+            Sound for this room
+          </div>
+          <SoundPicker
+            label={`Notification sound for ${details.name}`}
+            inheritLabel="Account default"
+            value={roomSound}
+            onChange={(id) => {
+              setRoomSoundState(id);
+              setRoomSound(selection.accountKey, selection.roomId, id);
+              // Android: a room-specific sound means a dedicated notification
+              // channel; drop it again when the override is cleared.
+              if (id === undefined) void removeRoomChannel(selection.accountKey, selection.roomId);
+              else void ensureRoomChannel(selection.accountKey, selection.roomId, details.name);
+            }}
+          />
+          {isAndroid && (
+            <div className="field-hint">
+              Setting a sound gives this room its own Android notification channel ("Room ·{" "}
+              {details.name}") — assign it any system tone under Android Settings → Apps → Materix →
+              Notifications.
+            </div>
+          )}
         </div>
 
         {details.canInvite && (

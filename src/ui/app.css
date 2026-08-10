@@ -77,7 +77,10 @@ a {
 
 .app {
   display: flex;
-  height: 100%;
+  /* Driven by the visual viewport (see ui/viewport.ts) so the shell shrinks
+     when the soft keyboard opens and the composer stays visible. Falls back to
+     100% before the tracker runs / where visualViewport is unavailable. */
+  height: var(--app-h, 100%);
   min-width: 0;
 }
 
@@ -447,7 +450,7 @@ a {
 
 .drop-overlay {
   position: absolute;
-  inset: 0;
+  top: 0; right: 0; bottom: 0; left: 0; /* not `inset` shorthand — Chromium 87+; old WebViews need explicit sides */
   z-index: 40;
   display: flex;
   align-items: center;
@@ -797,7 +800,7 @@ button.msg-sender:hover {
 }
 .msg-video-play {
   position: absolute;
-  inset: 0;
+  top: 0; right: 0; bottom: 0; left: 0; /* not `inset` shorthand — Chromium 87+; old WebViews need explicit sides */
   margin: auto;
   width: 56px;
   height: 56px;
@@ -1421,7 +1424,7 @@ button.msg-sender:hover {
 
 .modal-backdrop {
   position: fixed;
-  inset: 0;
+  top: 0; right: 0; bottom: 0; left: 0; /* not `inset` shorthand — Chromium 87+; old WebViews need explicit sides */
   background: rgb(0 0 0 / 0.45);
   display: flex;
   align-items: center;
@@ -1562,7 +1565,7 @@ button.msg-sender:hover {
 
 .media-play {
   position: absolute;
-  inset: 0;
+  top: 0; right: 0; bottom: 0; left: 0; /* not `inset` shorthand — Chromium 87+; old WebViews need explicit sides */
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2467,7 +2470,7 @@ button.msg-sender:hover {
 
 .lightbox {
   position: fixed;
-  inset: 0;
+  top: 0; right: 0; bottom: 0; left: 0; /* not `inset` shorthand — Chromium 87+; old WebViews need explicit sides */
   background: rgb(0 0 0 / 0.85);
   display: flex;
   align-items: center;
@@ -2621,7 +2624,10 @@ button.msg-sender:hover {
     padding: 0 var(--sp-3);
   }
   .composer-wrap {
-    padding: 0 var(--sp-2) calc(var(--sp-2) + env(safe-area-inset-bottom));
+    /* Include left/right insets so the Send button clears the 3-button
+       navigation bar, which sits on the side in landscape. */
+    padding: 0 calc(var(--sp-2) + env(safe-area-inset-right)) calc(var(--sp-2) + env(safe-area-inset-bottom))
+      calc(var(--sp-2) + env(safe-area-inset-left));
   }
 
   /* Bigger touch targets on phones. */
@@ -3175,7 +3181,7 @@ button.msg-sender:hover {
 
 .call-overlay-active {
   position: fixed;
-  inset: 0;
+  top: 0; right: 0; bottom: 0; left: 0; /* not `inset` shorthand — Chromium 87+; old WebViews need explicit sides */
   z-index: 400;
   background: rgb(0 0 0 / 0.88);
   display: flex;

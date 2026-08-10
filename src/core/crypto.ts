@@ -31,7 +31,14 @@ export const cryptoCallbacks = {
     }
     if (pendingRecoveryKey) {
       const keyId = Object.keys(keys)[0];
-      if (keyId) return [keyId, pendingRecoveryKey];
+      if (keyId) {
+        // Cache the key so secret fetches that happen AFTER restoreWithRecoveryKey
+        // returns (Rust crypto imports cross-signing secrets via an async
+        // secret-request/gossip cycle) can still read 4S. Without this the device
+        // decrypts history but is never cross-signed → verification never completes.
+        ssKeyCache.set(keyId, pendingRecoveryKey);
+        return [keyId, pendingRecoveryKey];
+      }
     }
     return null;
   },
@@ -179,12 +186,23 @@ export class CryptoFacade {
       this.track(req);
     }) as never);
     this.client.on(CryptoEvent.KeysChanged as never, (() => this.events.emit("status")) as never);
+    // A successful verification imports the cross-signing + key-backup secrets via
+    // an async gossip cycle that finishes SECONDS AFTER the SAS flow reports
+    // "done". These fire when that trust / backup state actually flips, so the
+    // "Verify this session" banner (which recomputes securityState() on "status")
+    // clears on its own instead of lingering until the next app reload.
+    this.client.on(CryptoEvent.UserTrustStatusChanged as never, (() => this.events.emit("status")) as never);
+    this.client.on(CryptoEvent.KeyBackupStatus as never, (() => this.events.emit("status")) as never);
   }
 
   private track(req: VerificationRequest): SasFlowImpl {
     const flow = new SasFlowImpl(req, this.accountKey, () => {
       this.events.emit("flows");
       if (flow.phase === "done" || flow.phase === "cancelled") {
+        // A completed verification changes this session's security posture, so
+        // refresh derived UI (the security banner) at once rather than waiting
+        // for the trust-status gossip to arrive.
+        if (flow.phase === "done") this.events.emit("status");
         // Keep terminal flows visible briefly; UI dismisses them.
         setTimeout(() => {
           this.flows.delete(flow.flowId);
@@ -230,8 +248,49 @@ export class CryptoFacade {
   /** Verify this session against another of the user's own sessions. */
   async startOwnVerification(): Promise<SasFlow> {
     const crypto = this.client.getCrypto()!;
+    await this.awaitVerificationReady();
     const req = await crypto.requestOwnUserVerification();
     return this.track(req);
+  }
+
+  /**
+   * Block (bounded) until it's safe to start an outgoing own-user verification.
+   *
+   * On a freshly logged-in / data-wiped session the initial `/sync` delivers a
+   * backlog of to-device events. If `requestOwnUserVerification()` runs while
+   * that backlog is still being processed, a stale verification event from the
+   * backlog collides with the brand-new request and the crypto machine cancels
+   * it (`code: m.user`) about a second later — so the peer (e.g. Element) only
+   * ever sees a request that is immediately withdrawn and no prompt appears.
+   * This is timing-dependent, which is why it reproduces on the optimized
+   * release build but often not on slower debug runs.
+   *
+   * We wait until (a) the client is past the initial sync (state `SYNCING`, i.e.
+   * at least one incremental sync after `PREPARED`, so the to-device backlog has
+   * drained) and (b) another of our own devices is actually present in the
+   * crypto store (so the request has a real recipient). Bounded so a genuinely
+   * lone or still-catching-up device proceeds anyway; the SasFlow's own
+   * response timeout covers the no-peer case.
+   */
+  private async awaitVerificationReady(timeoutMs = 20_000): Promise<void> {
+    const crypto = this.client.getCrypto();
+    if (!crypto) return;
+    const me = this.client.getUserId()!;
+    const thisDevice = this.client.getDeviceId();
+    const deadline = Date.now() + timeoutMs;
+    for (;;) {
+      const pastInitialSync = this.client.getSyncState() === "SYNCING";
+      let hasOtherDevice = false;
+      try {
+        const devices = (await crypto.getUserDeviceInfo([me], true))?.get(me);
+        hasOtherDevice = !!devices && [...devices.keys()].some((d) => d !== thisDevice);
+      } catch {
+        /* device query not ready yet — keep waiting */
+      }
+      if (pastInitialSync && hasOtherDevice) return;
+      if (Date.now() >= deadline) return;
+      await new Promise((r) => setTimeout(r, 400));
+    }
   }
 
   async ownDevices(): Promise<DeviceSummary[]> {
@@ -344,9 +403,11 @@ export class CryptoFacade {
       throw toMaterixError(new Error("That doesn't look like a valid recovery key."));
     }
     try {
-      // Loads cross-signing + backup secrets from 4S using the pending key.
+      // Import cross-signing secrets from 4S and sign this device (the key is now
+      // cached by getSecretStorageKey, so any deferred secret fetch also succeeds).
+      // NB: no bootstrapSecretStorage here — that's a first-time-setup call and
+      // has no place on the restore path.
       await crypto.bootstrapCrossSigning({});
-      await crypto.bootstrapSecretStorage({});
       await crypto.loadSessionBackupPrivateKeyFromSecretStorage();
       const result = await crypto.restoreKeyBackup();
       this.events.emit("status");
@@ -412,7 +473,12 @@ class SasFlowImpl implements SasFlow {
   readonly flowId: string;
   private sasCallbacks: ShowSasCallbacks | null = null;
   private verifierAttached = false;
+  private confirmed = false;
+  private timeout?: ReturnType<typeof setTimeout>;
   cancelReason?: string;
+
+  /** How long to wait for a peer to respond before failing an initiated request. */
+  private static readonly RESPONSE_TIMEOUT_MS = 120_000;
 
   constructor(
     private req: VerificationRequest,
@@ -426,7 +492,25 @@ class SasFlowImpl implements SasFlow {
    * onChange closure (which reads the flow) is safe to invoke. */
   init(): void {
     this.req.on(VerificationRequestEvent.Change, () => this.step());
+    // If we initiated the request, don't spin forever when no other device
+    // responds — cancel with an actionable reason so the UI can recover.
+    if (this.req.initiatedByMe) {
+      this.timeout = setTimeout(() => {
+        const p = this.req.phase;
+        if (p === VerificationPhase.Unsent || p === VerificationPhase.Requested || p === VerificationPhase.Ready) {
+          this.cancelReason = "No other device responded. Make sure another of your sessions is signed in and online, or verify this session with your recovery key instead.";
+          void this.req.cancel().catch(() => undefined);
+        }
+      }, SasFlowImpl.RESPONSE_TIMEOUT_MS);
+    }
     this.step();
+  }
+
+  private clearTimer(): void {
+    if (this.timeout) {
+      clearTimeout(this.timeout);
+      this.timeout = undefined;
+    }
   }
 
   get peer(): SasFlow["peer"] {
@@ -449,6 +533,7 @@ class SasFlowImpl implements SasFlow {
       case VerificationPhase.Ready:
         return "ready";
       case VerificationPhase.Started:
+        if (this.confirmed) return "confirmed";
         return this.sasCallbacks ? "emojis" : "ready";
       case VerificationPhase.Done:
         return "done";
@@ -461,6 +546,11 @@ class SasFlowImpl implements SasFlow {
 
   /** Drive the state machine forward on every request change. */
   private step(): void {
+    // Any real progress (or a terminal state) means we're no longer waiting on
+    // an unanswered request, so drop the response timeout.
+    if (this.req.phase !== VerificationPhase.Requested && this.req.phase !== VerificationPhase.Unsent) {
+      this.clearTimer();
+    }
     if (this.req.phase === VerificationPhase.Ready && this.req.initiatedByMe) {
       void this.beginSas();
     }
@@ -468,7 +558,8 @@ class SasFlowImpl implements SasFlow {
       this.attachVerifier();
     }
     if (this.req.phase === VerificationPhase.Cancelled) {
-      this.cancelReason = this.req.cancellationCode ?? undefined;
+      // Keep a reason we set ourselves (e.g. the timeout) over the raw code.
+      this.cancelReason = this.cancelReason ?? this.req.cancellationCode ?? undefined;
     }
     this.onChange();
   }
@@ -506,10 +597,14 @@ class SasFlowImpl implements SasFlow {
   }
 
   async confirmMatch(): Promise<void> {
+    // Reflect "waiting for the other side to confirm" in the UI immediately.
+    this.confirmed = true;
+    this.onChange();
     await this.sasCallbacks?.confirm();
   }
 
   async cancel(): Promise<void> {
+    this.clearTimer();
     if (this.sasCallbacks) this.sasCallbacks.mismatch();
     else await this.req.cancel();
   }

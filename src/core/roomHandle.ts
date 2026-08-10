@@ -14,6 +14,7 @@ import {
   type MatrixEvent,
   type Room,
 } from "matrix-js-sdk";
+import { lastReceiptableEvent } from "./readReceipt";
 import { encryptAttachment } from "matrix-encrypt-attachment";
 import { parseBeaconContent } from "matrix-js-sdk/lib/content-helpers";
 import type {
@@ -993,7 +994,10 @@ export class RoomHandle {
    */
   async markRead(): Promise<void> {
     const events = this.room.getLiveTimeline().getEvents();
-    const last = [...events].reverse().find((e) => !!e.getId());
+    // Only receipt a fully-sent event — never a local echo / failed message,
+    // which would be rejected 400 and loop on every timeline update. See
+    // lastReceiptableEvent for the rationale + the regression test.
+    const last = lastReceiptableEvent(events);
     if (last) {
       await this.client.sendReadReceipt(last);
       await this.client.setRoomReadMarkers(this.roomId, last.getId()!, last);

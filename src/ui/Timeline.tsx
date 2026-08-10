@@ -33,6 +33,7 @@ import {
 import { ForwardDialog } from "./dialogs/ForwardDialog";
 import { formatDayDivider, formatDuration, formatSize, formatTime } from "./format";
 import { useToast } from "./components/Toast";
+import { isOfflineError } from "../core/errors";
 import { assessLink, isTrusted, openExternal, type LinkAssessment } from "./linkSafety";
 import { LinkWarning } from "./components/LinkWarning";
 import { InlineThread } from "./InlineThread";
@@ -132,7 +133,9 @@ export function Timeline({
       prevHeight.current = el.scrollHeight;
       handle
         .paginateBack()
-        .catch(showError)
+        // Automatic backfill: failing offline is expected and not user-actionable,
+        // so don't toast it (a real, non-offline error still surfaces).
+        .catch((e) => { if (!isOfflineError(e)) showError(e); })
         .finally(() => setLoadingOlder(false));
     }
   };
@@ -150,7 +153,9 @@ export function Timeline({
       prevHeight.current = el.scrollHeight;
       handle
         .paginateBack()
-        .catch(showError)
+        // Automatic backfill: failing offline is expected and not user-actionable,
+        // so don't toast it (a real, non-offline error still surfaces).
+        .catch((e) => { if (!isOfflineError(e)) showError(e); })
         .finally(() => setLoadingOlder(false));
     }
   });
