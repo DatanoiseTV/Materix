@@ -16,6 +16,7 @@ import { SettingsDialog } from "./ui/dialogs/SettingsDialog";
 import { SecurityDialog } from "./ui/dialogs/SecurityDialog";
 import { VerificationDialog } from "./ui/dialogs/VerificationDialog";
 import { wireNotifications } from "./ui/notifications";
+import { ensureAccountChannel } from "./ui/notifyChannels";
 import { NowPlaying } from "./ui/components/NowPlaying";
 import { CallOverlay } from "./ui/components/CallOverlay";
 import { PasscodeGate } from "./ui/passcodeGate";
@@ -73,6 +74,12 @@ export function App() {
   }, []);
 
   // Notifications for every account; re-wire when the account set changes.
+  // The selection lives in a ref so the notifier can ask "is this room open on
+  // screen right now?" without re-wiring on every navigation.
+  const selectionRef = useRef<Selection | null>(null);
+  useEffect(() => {
+    selectionRef.current = selection;
+  }, [selection]);
   const accountKeys = accountManager
     .list()
     .map((a) => a.key)
@@ -81,10 +88,16 @@ export function App() {
     const unsubs = accountManager.list().map((a) => {
       const account = accountManager.account(a.key);
       if (!account.client) return () => undefined;
+      // Android: give each account its own notification channel up front so
+      // the user can assign it a sound in the OS notification settings.
+      void ensureAccountChannel(a.key, a.userId);
       return wireNotifications(
         account.client,
+        a.key,
         (roomId) => setSelection({ accountKey: a.key, roomId }),
         (roomId) => account.isMuted(roomId),
+        (roomId) =>
+          selectionRef.current?.accountKey === a.key && selectionRef.current?.roomId === roomId,
       );
     });
     return () => unsubs.forEach((u) => u());

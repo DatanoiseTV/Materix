@@ -1,23 +1,21 @@
-// Desktop/web notifications for incoming messages, honoring push rules via
-// the SDK's client-side evaluation (getPushActionsForEvent).
+// Notifications for incoming messages, honoring push rules via the SDK's
+// client-side evaluation (getPushActionsForEvent).
+//
+// Platform reality (Android): everything here runs inside the WebView, so a
+// notification can only fire while the OS keeps the process + webview running
+// (app foreground or recently backgrounded). There is no push transport
+// (FCM/UnifiedPush): once Android pauses the webview or freezes the cached
+// app, sync stops and nothing can notify until the app is reopened. True
+// background delivery needs a UnifiedPush receiver registered as a Matrix
+// pusher — native/CI work, out of scope here.
 
 import { ClientEvent, RoomEvent, type MatrixClient, type MatrixEvent, type Room } from "matrix-js-sdk";
 import { SyncState } from "matrix-js-sdk";
-import { getPrefs } from "./prefs";
+import { getPrefs, resolveSound } from "./prefs";
 import { playSound } from "./sounds";
+import { channelFor, isAndroid, isTauri, loadTauriNotification } from "./notifyChannels";
 
 let requested = false;
-
-const isTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
-
-// Cache the dynamically-imported Tauri notification module so the web bundle
-// never hard-depends on it and desktop only loads it once.
-type TauriNotify = typeof import("@tauri-apps/plugin-notification");
-let tauriMod: Promise<TauriNotify> | null = null;
-function loadTauriNotification(): Promise<TauriNotify> {
-  if (!tauriMod) tauriMod = import("@tauri-apps/plugin-notification");
-  return tauriMod;
-}
 
 async function ensureWebPermission(): Promise<boolean> {
   if (!("Notification" in window)) return false;
@@ -47,8 +45,10 @@ async function ensurePermission(): Promise<boolean> {
 /** Wire notification dispatch for one client. Returns an unsubscribe. */
 export function wireNotifications(
   client: MatrixClient,
+  accountKey: string,
   onActivate: (roomId: string) => void,
   isMuted: (roomId: string) => boolean,
+  isRoomOpen: (roomId: string) => boolean,
 ): () => void {
   let ready = false;
   const onSync = (state: SyncState) => {
@@ -60,17 +60,32 @@ export function wireNotifications(
     if (mode === "off") return;
     if (!ready || !room) return;
     if (ev.getSender() === client.getUserId()) return;
-    if (document.hasFocus()) return;
+
+    // Don't notify while the user is actively looking at the app — except on
+    // Android, where the webview reports focus whenever the app is visible
+    // (and can keep reporting stale focus after backgrounding), which used to
+    // suppress every notification on the platform. There, only suppress when
+    // the event's room is the one open on screen right now.
+    const appActive = document.visibilityState === "visible" && document.hasFocus();
+    if (isAndroid ? appActive && isRoomOpen(room.roomId) : appActive) return;
+
     const ts = ev.getTs();
     if (Date.now() - ts > 60_000) return; // stale/backfill
     if (isMuted(room.roomId)) return;
     const actions = client.getPushActionsForEvent(ev);
     if (!actions?.notify) return;
 
-    // Sound plays even if OS notification permission is denied.
-    playSound(getPrefs().sound);
+    const soundId = resolveSound(accountKey, room.roomId);
+    // On desktop/web the in-app sound plays even if OS notification permission
+    // is denied. On Android the notification's channel plays the (per-channel,
+    // user-configurable) system tone, so the Web Audio sound is only a
+    // fallback when no OS notification gets posted.
+    if (!isAndroid) playSound(soundId);
 
-    if (!(await ensurePermission())) return;
+    if (!(await ensurePermission())) {
+      if (isAndroid) playSound(soundId);
+      return;
+    }
 
     // Privacy mode "name": never include content, only who wrote.
     let body = "New message";
@@ -84,10 +99,26 @@ export function wireNotifications(
     if (isTauri) {
       try {
         const { sendNotification } = await loadTauriNotification();
+        // Android: post through the per-room/per-account channel so the right
+        // sound plays; elsewhere channelFor resolves to undefined.
+        const channelId = await channelFor(
+          accountKey,
+          client.getUserId() ?? accountKey,
+          room.roomId,
+          room.name,
+        );
         // roomId travels in `extra` so the click listener can focus the room.
-        sendNotification({ title, body, group: room.roomId, extra: { roomId: room.roomId } });
-      } catch {
-        // Plugin unavailable; the sound above still fired.
+        sendNotification({
+          title,
+          body,
+          group: room.roomId,
+          extra: { roomId: room.roomId },
+          ...(channelId ? { channelId } : {}),
+        });
+      } catch (e) {
+        // Plugin unavailable or IPC failed; fall back to the in-app sound.
+        console.warn("materix: sending OS notification failed", e);
+        if (isAndroid) playSound(soundId);
       }
       return;
     }
