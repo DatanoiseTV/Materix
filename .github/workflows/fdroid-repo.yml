@@ -27,6 +27,10 @@ on:
         description: "Android build run id to reuse the APK from (blank = latest successful)"
         required: false
         default: ""
+      reset_repo:
+        description: "Start the repo fresh (skip restoring old APKs) — purges pre-existing versions"
+        required: false
+        default: "false"
   release:
     types: [published]
 
@@ -116,6 +120,7 @@ jobs:
           path: prebuilt
 
       - name: Restore already-published versions (enables downgrade)
+        if: ${{ inputs.reset_repo != 'true' }}
         run: |
           set -euo pipefail
           mkdir -p fdroidrepo/repo
