@@ -76,6 +76,8 @@ jobs:
           print(f"patched {path}: versionCode={vc} versionName={vn}")
           PY
           echo "Stamped versionName=$VN versionCode=$VC"
+          echo "BASE_VC=$VC" >> "$GITHUB_ENV"
+          echo "BASE_VN=$VN" >> "$GITHUB_ENV"
 
       - name: Patch MainActivity (keyboard inset for edge-to-edge)
         run: |
@@ -121,13 +123,46 @@ jobs:
           print(f"patched {path}: IME-inset padding listener added")
           PY
 
-      - name: Build APK
-        run: pnpm tauri android build --apk
+      - name: Build MODERN APK (stock crypto WASM)
+        run: |
+          set -euo pipefail
+          pnpm tauri android build --apk
+          mkdir -p dist-apks
+          cp "$(find src-tauri/gen/android/app/build/outputs/apk -name '*universal*release*.apk' | head -1)" dist-apks/materix-modern.apk
+          ls -l dist-apks
 
-      - name: Upload APK
+      - name: Build COMPAT APK (old-WebView crypto WASM, maxSdk 30)
+        run: |
+          set -euo pipefail
+          # Swap in the reference-types/multivalue-free crypto WASM so the crypto
+          # engine runs on old System WebViews (Chromium ~83 / Android 11).
+          bash scripts/apply-compat-wasm.sh
+          # Re-stamp for the compat variant: a distinct versionName (-compat), a
+          # higher versionCode (so on old devices F-Droid prefers it over the
+          # modern APK), and maxSdk=30 so F-Droid only offers it to Android <= 11
+          # (a proxy for "old WebView" — imperfect but the best F-Droid has).
+          GRADLE="src-tauri/gen/android/app/build.gradle.kts"
+          python3 - "$GRADLE" "$BASE_VC" "$BASE_VN" <<'PY'
+          import re, sys
+          path, base_vc, base_vn = sys.argv[1], int(sys.argv[2]), sys.argv[3]
+          s = open(path).read()
+          s, n1 = re.subn(r'versionCode\s*=\s*[^\n]+', f'versionCode = {base_vc + 100000000}', s)
+          s, n2 = re.subn(r'versionName\s*=\s*[^\n]+', f'versionName = "{base_vn}-compat"', s)
+          n3 = 1 if 'maxSdk' in s else re.subn(r'(minSdk\s*=\s*\d+)', r'\1\n        maxSdk = 30', s, count=1)[1]
+          if 'maxSdk' not in s:
+              s = re.sub(r'(minSdk\s*=\s*\d+)', r'\1\n        maxSdk = 30', s, count=1)
+          assert n1 >= 1 and n2 >= 1 and n3 >= 1, f"compat gradle patch failed: {n1} {n2} {n3}"
+          open(path, 'w').write(s)
+          print(f"compat stamp: versionCode={base_vc + 100000000} versionName={base_vn}-compat maxSdk=30")
+          PY
+          pnpm tauri android build --apk
+          cp "$(find src-tauri/gen/android/app/build/outputs/apk -name '*universal*release*.apk' | head -1)" dist-apks/materix-compat.apk
+          ls -l dist-apks
+
+      - name: Upload APKs (modern + compat)
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: materix-android-apk
-          path: src-tauri/gen/android/app/build/outputs/apk/**/*.apk
+          path: dist-apks/*.apk
           if-no-files-found: warn
