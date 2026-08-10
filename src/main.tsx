@@ -1,3 +1,4 @@
+import "./polyfills"; // must run first: shims for old Android WebViews (Chromium ~83)
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "./App";

@@ -9,7 +9,15 @@ export default defineConfig({
     exclude: ["@matrix-org/matrix-sdk-crypto-wasm"],
   },
   build: {
-    target: "es2022",
+    // Target an old Chromium so esbuild down-transpiles modern syntax
+    // (logical assignment `??=`, optional chaining, etc.) that the AOSP System
+    // WebView on older Android (e.g. LineageOS 18.1 / Android 11 ships
+    // Chromium ~83) cannot parse — otherwise the whole bundle is a SyntaxError
+    // and the app is a white screen. API-level gaps (Array.prototype.at,
+    // Object.hasOwn, crypto.randomUUID, structuredClone) are covered by
+    // src/polyfills.ts, imported first in main.tsx. See docs: crypto (WASM
+    // reference-types) still needs a newer WebView; this only fixes load+text.
+    target: ["chrome79"],
     chunkSizeWarningLimit: 4096,
   },
   server: {

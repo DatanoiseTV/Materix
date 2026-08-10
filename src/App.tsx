@@ -6,6 +6,7 @@ import type { SasFlow } from "./core/types";
 import { useAccounts, useMediaQuery } from "./ui/hooks";
 import { applyTheme } from "./ui/theme";
 import { ToastProvider } from "./ui/components/Toast";
+import { CryptoGate } from "./ui/CryptoGate";
 import { Onboarding } from "./ui/Onboarding";
 import { AccountRail, RoomListPane, type NewChatTab, type Selection } from "./ui/RoomList";
 import { ChatPane } from "./ui/ChatPane";
@@ -181,6 +182,7 @@ export function App() {
       <NowPlaying />
       <CallOverlay />
       <PasscodeGate />
+      <CryptoGate />
 
       {dialog.kind === "new-chat" && (
         <NewChatDialog

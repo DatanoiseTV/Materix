@@ -450,7 +450,7 @@ a {
 
 .drop-overlay {
   position: absolute;
-  inset: 0;
+  top: 0; right: 0; bottom: 0; left: 0; /* not `inset` shorthand — Chromium 87+; old WebViews need explicit sides */
   z-index: 40;
   display: flex;
   align-items: center;
@@ -800,7 +800,7 @@ button.msg-sender:hover {
 }
 .msg-video-play {
   position: absolute;
-  inset: 0;
+  top: 0; right: 0; bottom: 0; left: 0; /* not `inset` shorthand — Chromium 87+; old WebViews need explicit sides */
   margin: auto;
   width: 56px;
   height: 56px;
@@ -1424,7 +1424,7 @@ button.msg-sender:hover {
 
 .modal-backdrop {
   position: fixed;
-  inset: 0;
+  top: 0; right: 0; bottom: 0; left: 0; /* not `inset` shorthand — Chromium 87+; old WebViews need explicit sides */
   background: rgb(0 0 0 / 0.45);
   display: flex;
   align-items: center;
@@ -1565,7 +1565,7 @@ button.msg-sender:hover {
 
 .media-play {
   position: absolute;
-  inset: 0;
+  top: 0; right: 0; bottom: 0; left: 0; /* not `inset` shorthand — Chromium 87+; old WebViews need explicit sides */
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2470,7 +2470,7 @@ button.msg-sender:hover {
 
 .lightbox {
   position: fixed;
-  inset: 0;
+  top: 0; right: 0; bottom: 0; left: 0; /* not `inset` shorthand — Chromium 87+; old WebViews need explicit sides */
   background: rgb(0 0 0 / 0.85);
   display: flex;
   align-items: center;
@@ -3181,7 +3181,7 @@ button.msg-sender:hover {
 
 .call-overlay-active {
   position: fixed;
-  inset: 0;
+  top: 0; right: 0; bottom: 0; left: 0; /* not `inset` shorthand — Chromium 87+; old WebViews need explicit sides */
   z-index: 400;
   background: rgb(0 0 0 / 0.88);
   display: flex;
