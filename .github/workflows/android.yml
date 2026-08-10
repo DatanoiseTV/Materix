@@ -71,9 +71,15 @@ jobs:
           s = open(path).read()
           s, n1 = re.subn(r'versionCode\s*=\s*[^\n]+', f'versionCode = {vc}', s)
           s, n2 = re.subn(r'versionName\s*=\s*[^\n]+', f'versionName = "{vn}"', s)
-          assert n1 >= 1 and n2 >= 1, f"gradle patch failed: versionCode matches={n1} versionName matches={n2}"
+          # Modern variant: minSdk 31 (Android 12+). Below that, WebViews are old
+          # enough that this stock build's crypto WASM often won't run, so those
+          # devices should get the compat APK instead — raising minSdk makes
+          # F-Droid treat the modern APK as incompatible on Android <= 11 and hide
+          # it there (the compat step resets minSdk to 24 for its own build).
+          s, n3 = re.subn(r'minSdk\s*=\s*\d+', 'minSdk = 31', s)
+          assert n1 >= 1 and n2 >= 1 and n3 >= 1, f"gradle patch failed: vc={n1} vn={n2} minSdk={n3}"
           open(path, 'w').write(s)
-          print(f"patched {path}: versionCode={vc} versionName={vn}")
+          print(f"patched {path}: versionCode={vc} versionName={vn} minSdk=31 (modern)")
           PY
           echo "Stamped versionName=$VN versionCode=$VC"
           echo "BASE_VC=$VC" >> "$GITHUB_ENV"
@@ -148,12 +154,14 @@ jobs:
           s = open(path).read()
           s, n1 = re.subn(r'versionCode\s*=\s*[^\n]+', f'versionCode = {base_vc + 100000000}', s)
           s, n2 = re.subn(r'versionName\s*=\s*[^\n]+', f'versionName = "{base_vn}-compat"', s)
-          n3 = 1 if 'maxSdk' in s else re.subn(r'(minSdk\s*=\s*\d+)', r'\1\n        maxSdk = 30', s, count=1)[1]
+          # Compat variant covers old devices: minSdk back to 24 (the modern stamp
+          # set it to 31) and maxSdk=30 so F-Droid offers it only on Android <= 11.
+          s, n3 = re.subn(r'minSdk\s*=\s*\d+', 'minSdk = 24', s)
           if 'maxSdk' not in s:
-              s = re.sub(r'(minSdk\s*=\s*\d+)', r'\1\n        maxSdk = 30', s, count=1)
-          assert n1 >= 1 and n2 >= 1 and n3 >= 1, f"compat gradle patch failed: {n1} {n2} {n3}"
+              s = re.sub(r'(minSdk\s*=\s*24)', r'\1\n        maxSdk = 30', s, count=1)
+          assert n1 >= 1 and n2 >= 1 and n3 >= 1 and 'maxSdk = 30' in s, f"compat gradle patch failed: {n1} {n2} {n3}"
           open(path, 'w').write(s)
-          print(f"compat stamp: versionCode={base_vc + 100000000} versionName={base_vn}-compat maxSdk=30")
+          print(f"compat stamp: versionCode={base_vc + 100000000} versionName={base_vn}-compat minSdk=24 maxSdk=30")
           PY
           pnpm tauri android build --apk
           cp "$(find src-tauri/gen/android/app/build/outputs/apk -name '*universal*release*.apk' | head -1)" dist-apks/materix-compat.apk
