@@ -17,6 +17,7 @@ import { SecurityDialog } from "./ui/dialogs/SecurityDialog";
 import { VerificationDialog } from "./ui/dialogs/VerificationDialog";
 import { wireNotifications } from "./ui/notifications";
 import { ensureAccountChannel } from "./ui/notifyChannels";
+import { initPush } from "./ui/push";
 import { NowPlaying } from "./ui/components/NowPlaying";
 import { CallOverlay } from "./ui/components/CallOverlay";
 import { PasscodeGate } from "./ui/passcodeGate";
@@ -85,6 +86,9 @@ export function App() {
     .map((a) => a.key)
     .join(",");
   useEffect(() => {
+    // Background push (Android/UnifiedPush): (re)assert distributor registration
+    // and register the Matrix pusher for every account. No-op off Android.
+    initPush();
     const unsubs = accountManager.list().map((a) => {
       const account = accountManager.account(a.key);
       if (!account.client) return () => undefined;

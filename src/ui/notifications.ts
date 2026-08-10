@@ -1,13 +1,14 @@
 // Notifications for incoming messages, honoring push rules via the SDK's
 // client-side evaluation (getPushActionsForEvent).
 //
-// Platform reality (Android): everything here runs inside the WebView, so a
-// notification can only fire while the OS keeps the process + webview running
-// (app foreground or recently backgrounded). There is no push transport
-// (FCM/UnifiedPush): once Android pauses the webview or freezes the cached
-// app, sync stops and nothing can notify until the app is reopened. True
-// background delivery needs a UnifiedPush receiver registered as a Matrix
-// pusher — native/CI work, out of scope here.
+// Platform reality (Android): everything here runs inside the WebView, so this
+// in-app notifier only fires while the OS keeps the process + webview running
+// (app foreground or recently backgrounded). True *background* delivery (app
+// killed) is handled separately by the UnifiedPush layer — a native receiver
+// registered as a Matrix pusher (see ui/push.ts, core/push.ts, and
+// packaging/android/push/*.kt). When a push arrives with the app alive, that
+// layer nudges sync so this notifier posts the rich, decrypted notification;
+// when the app is dead it posts a plain "new message" itself.
 
 import { ClientEvent, RoomEvent, type MatrixClient, type MatrixEvent, type Room } from "matrix-js-sdk";
 import { SyncState } from "matrix-js-sdk";

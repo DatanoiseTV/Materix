@@ -12,6 +12,14 @@ interface Prefs {
   accountSounds: Record<string, SoundId>;
   /** Per-room sound overrides, keyed by `${accountKey}:${roomId}`. */
   roomSounds: Record<string, SoundId>;
+  /** Background push (UnifiedPush) — Android only; absent = never configured. */
+  push?: {
+    enabled: boolean;
+    /** Chosen UnifiedPush distributor package id (e.g. `io.heckel.ntfy`). */
+    distributorId?: string;
+    /** Advanced: override the derived Matrix push-gateway URL. */
+    gatewayOverride?: string;
+  };
 }
 
 const KEY = "materix.prefs";
