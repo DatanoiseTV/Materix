@@ -118,6 +118,20 @@ if (typeof (globalThis as { FinalizationRegistry?: unknown }).FinalizationRegist
   (globalThis as { FinalizationRegistry?: unknown }).FinalizationRegistry = FinalizationRegistryPolyfill;
 }
 
+// Promise.withResolvers (Chromium 119) — used throughout matrix-js-sdk's sync
+// loop; without it "Sync startup aborted" and nothing (incl. verification) works.
+if (typeof (Promise as { withResolvers?: unknown }).withResolvers !== "function") {
+  (Promise as { withResolvers?: unknown }).withResolvers = function withResolvers<T>() {
+    let resolve!: (v: T | PromiseLike<T>) => void;
+    let reject!: (r?: unknown) => void;
+    const promise = new Promise<T>((res, rej) => {
+      resolve = res;
+      reject = rej;
+    });
+    return { promise, resolve, reject };
+  };
+}
+
 // structuredClone (best-effort; JSON round-trip is enough for the plain data
 // the app clones — it does not clone Blobs/Maps through this path).
 if (typeof (globalThis as { structuredClone?: unknown }).structuredClone !== "function") {
