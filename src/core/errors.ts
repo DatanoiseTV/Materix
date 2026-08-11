@@ -24,6 +24,15 @@ export class MaterixError extends Error {
   }
 }
 
+/** True for "offline / can't reach the server" failures. Used to keep automatic
+ *  background work (e.g. history backfill) from toasting the user when offline —
+ *  a failed automatic backfill is expected offline and not user-actionable. */
+export function isOfflineError(err: unknown): boolean {
+  if (err instanceof MaterixError) return err.code === "SERVER_UNREACHABLE";
+  const e = err as { name?: string; message?: string } | null;
+  return e?.name === "TypeError" || e?.name === "ConnectionError" || !!e?.message?.includes("fetch");
+}
+
 interface MatrixHttpErrorLike {
   errcode?: string;
   httpStatus?: number;

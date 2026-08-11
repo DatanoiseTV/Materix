@@ -1,9 +1,20 @@
 name: F-Droid repo
 
-# Build a signed Android APK and publish a self-hosted F-Droid repository to
-# GitHub Pages (Threema-style). Users add
-#   https://datanoisetv.github.io/Materix/fdroid/repo/?fingerprint=<FP>
-# to their F-Droid client and get installs + auto-updates.
+# Publish a self-hosted F-Droid repository to GitHub Pages (Threema-style) by
+# REUSING an already-built Android APK instead of rebuilding it here. The APK is
+# pulled from the most recent successful "Android build" run (android.yml), so
+# this job does no Rust/NDK/Tauri compilation — it only signs, indexes, and
+# deploys. That keeps CI minutes/credits low.
+#
+# The repository accumulates every version it publishes (older APKs are restored
+# from the live repo and re-indexed), so F-Droid users can update AND downgrade.
+#
+# The repo URL is derived from whichever repo runs this workflow (its GitHub
+# Pages project site), so it works unmodified on upstream and on any fork. Users
+# add
+#   https://<owner>.github.io/<repo>/fdroid/repo/?fingerprint=<FP>
+# to their F-Droid client and get installs + auto-updates. Override the URL with
+# an Actions variable FDROID_REPO_URL if publishing under a custom domain.
 #
 # Requires three repo secrets (set them once — see packaging/fdroid/SELFHOSTED.md):
 #   FDROID_KEYSTORE_B64   base64 of the PKCS12 keystore
@@ -11,11 +22,21 @@ name: F-Droid repo
 #   FDROID_KEY_ALIAS      key alias (materix)
 on:
   workflow_dispatch:
+    inputs:
+      run_id:
+        description: "Android build run id to reuse the APK from (blank = latest successful)"
+        required: false
+        default: ""
+      reset_repo:
+        description: "Start the repo fresh (skip restoring old APKs) — purges pre-existing versions"
+        required: false
+        default: "false"
   release:
     types: [published]
 
 permissions:
   contents: read
+  actions: read      # read + download artifacts from the Android build run
   pages: write
   id-token: write
 
@@ -24,52 +45,107 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  build-and-publish:
+  publish:
+    name: Publish F-Droid repo (reuse prebuilt APK)
     runs-on: ubuntu-latest
     environment:
       name: github-pages
       url: ${{ steps.deploy.outputs.page_url }}
     env:
-      NDK_VERSION: "26.3.11579264"
-      REPO_URL: "https://k4n4lm00n.github.io/Materix/fdroid/repo"
+      # Workflow file + artifact name produced by the Android build.
+      ANDROID_WORKFLOW: android.yml
+      APK_ARTIFACT: materix-android-apk
     steps:
       - uses: actions/checkout@v4
 
+      - name: Resolve F-Droid repo URL (works on any fork)
+        env:
+          # Optional override: set an Actions variable FDROID_REPO_URL (repo or
+          # org level) to publish under a custom domain / path. Left unset, the
+          # URL is derived from this very repo's GitHub Pages project site, so
+          # the workflow works unmodified on upstream and on any fork.
+          OVERRIDE_URL: ${{ vars.FDROID_REPO_URL }}
+        run: |
+          set -euo pipefail
+          if [ -n "$OVERRIDE_URL" ]; then
+            URL="$OVERRIDE_URL"
+          else
+            # Pages hostnames are lowercase; the project path keeps the repo
+            # name's case (e.g. https://datanoisetv.github.io/Materix/...).
+            OWNER="$(printf '%s' "$GITHUB_REPOSITORY_OWNER" | tr '[:upper:]' '[:lower:]')"
+            NAME="${GITHUB_REPOSITORY#*/}"
+            URL="https://${OWNER}.github.io/${NAME}/fdroid/repo"
+          fi
+          URL="${URL%/}"
+          echo "REPO_URL=$URL" >> "$GITHUB_ENV"
+          echo "F-Droid repo URL: $URL"
+
+      # apksigner + fdroidserver need a JDK. No Node/Rust/NDK/Tauri toolchain.
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "17"
 
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 9
-      - uses: actions/setup-node@v4
-        with:
-          node-version: lts/*
-          cache: pnpm
-
-      - name: Install Rust + Android targets
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: aarch64-linux-android,armv7-linux-androideabi,i686-linux-android,x86_64-linux-android
-      - uses: swatinem/rust-cache@v2
-        with:
-          workspaces: src-tauri
-
-      - name: Install Android NDK
+      - name: Resolve Android build run to reuse
+        id: src
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          echo "y" | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;${NDK_VERSION}"
-          echo "NDK_HOME=$ANDROID_HOME/ndk/${NDK_VERSION}" >> "$GITHUB_ENV"
-          echo "ANDROID_NDK_ROOT=$ANDROID_HOME/ndk/${NDK_VERSION}" >> "$GITHUB_ENV"
+          set -euo pipefail
+          RID="${{ inputs.run_id }}"
+          if [ -z "$RID" ]; then
+            # Default to the latest successful Android build (this branch first,
+            # then repo-wide) so we always ship the most recently built APK.
+            RID=$(gh run list --workflow "$ANDROID_WORKFLOW" --status success \
+                    --branch "${{ github.ref_name }}" --limit 1 \
+                    --json databaseId --jq '.[0].databaseId' 2>/dev/null || true)
+            if [ -z "$RID" ]; then
+              RID=$(gh run list --workflow "$ANDROID_WORKFLOW" --status success \
+                      --limit 1 --json databaseId --jq '.[0].databaseId')
+            fi
+          fi
+          if [ -z "$RID" ]; then
+            echo "::error::No successful '$ANDROID_WORKFLOW' run found. Run the Android build first."
+            exit 1
+          fi
+          echo "run_id=$RID" >> "$GITHUB_OUTPUT"
+          echo "Reusing prebuilt APK from Android build run $RID"
 
-      - run: pnpm install --frozen-lockfile
+      - name: Download the prebuilt APK
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ env.APK_ARTIFACT }}
+          run-id: ${{ steps.src.outputs.run_id }}
+          github-token: ${{ github.token }}
+          path: prebuilt
 
-      - name: Build unsigned APK
+      - name: Restore already-published versions (enables downgrade)
+        if: ${{ inputs.reset_repo != 'true' }}
         run: |
-          pnpm tauri android init --ci || pnpm tauri android init
-          pnpm tauri android build --apk
+          set -euo pipefail
+          mkdir -p fdroidrepo/repo
+          BASE="${REPO_URL%/}"
+          # Pull every APK already served by the live repo so the index we build
+          # below contains the full version history — F-Droid can then offer
+          # older versions for downgrade, not just the newest one.
+          if curl -fsSL "$BASE/index-v2.json" -o /tmp/idx.json 2>/dev/null; then
+            jq -r '.packages[].versions[].file.name' /tmp/idx.json \
+              | sed 's#^/##' | sort -u | while read -r f; do
+              case "$f" in
+                *.apk)
+                  if curl -fsSL "$BASE/$f" -o "fdroidrepo/repo/$f"; then
+                    echo "restored $f"
+                  else
+                    echo "war: could not restore $f (skipping)"
+                  fi
+                  ;;
+              esac
+            done
+          else
+            echo "No existing repo index found (first publish) — starting fresh."
+          fi
 
-      - name: Sign the APK
+      - name: Sign the prebuilt APK(s)
         env:
           KS_PASS: ${{ secrets.FDROID_KEYSTORE_PASS }}
           KS_ALIAS: ${{ secrets.FDROID_KEY_ALIAS }}
@@ -77,14 +153,30 @@ jobs:
           set -euo pipefail
           echo "${{ secrets.FDROID_KEYSTORE_B64 }}" | base64 -d > "$RUNNER_TEMP/materix.p12"
           BT="$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)"
-          UNSIGNED="src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release-unsigned.apk"
-          "$BT/zipalign" -f -p 4 "$UNSIGNED" "$RUNNER_TEMP/aligned.apk"
+          AAPT="$BT/aapt"
           mkdir -p fdroidrepo/repo
-          "$BT/apksigner" sign \
-            --ks "$RUNNER_TEMP/materix.p12" --ks-type PKCS12 \
-            --ks-pass "pass:$KS_PASS" --ks-key-alias "$KS_ALIAS" --key-pass "pass:$KS_PASS" \
-            --out "fdroidrepo/repo/materix-${{ github.ref_name }}.apk" "$RUNNER_TEMP/aligned.apk"
-          "$BT/apksigner" verify --print-certs "fdroidrepo/repo/materix-${{ github.ref_name }}.apk"
+          # The Android build uploads one OR MORE APKs (a "modern" variant and,
+          # for old System WebViews, a "-compat" variant with a distinct
+          # versionName + versionCode + maxSdk). Sign EACH one. versionName is
+          # stamped as <yymmdd>_<commit>[-compat] by android.yml, giving a
+          # human-identifiable filename; each APK is distinct and never
+          # overwritten, so F-Droid can list, downgrade, and pick per device.
+          mapfile -t APKS < <(find prebuilt -name '*.apk' | sort)
+          [ "${#APKS[@]}" -gt 0 ] || { echo "::error::No APK in the reused artifact"; exit 1; }
+          echo "Found ${#APKS[@]} APK(s) to sign: ${APKS[*]}"
+          for UNSIGNED in "${APKS[@]}"; do
+            VN="$("$AAPT" dump badging "$UNSIGNED" | sed -n "s/.*versionName='\([^']*\)'.*/\1/p" | head -1)"
+            VC="$("$AAPT" dump badging "$UNSIGNED" | sed -n "s/.*versionCode='\([^']*\)'.*/\1/p" | head -1)"
+            if [ -z "$VC" ] || [ -z "$VN" ]; then echo "::error::Could not read version from $UNSIGNED"; exit 1; fi
+            OUT="fdroidrepo/repo/materix_${VN}.apk"
+            "$BT/zipalign" -f -p 4 "$UNSIGNED" "$RUNNER_TEMP/aligned.apk"
+            "$BT/apksigner" sign \
+              --ks "$RUNNER_TEMP/materix.p12" --ks-type PKCS12 \
+              --ks-pass "pass:$KS_PASS" --ks-key-alias "$KS_ALIAS" --key-pass "pass:$KS_PASS" \
+              --out "$OUT" "$RUNNER_TEMP/aligned.apk"
+            "$BT/apksigner" verify "$OUT" >/dev/null
+            echo "Signed $OUT (versionName=$VN versionCode=$VC)"
+          done
 
       - name: Build the F-Droid index
         env:
@@ -100,6 +192,8 @@ jobs:
           repo_description: >-
             Self-hosted F-Droid repository for Materix, a multi-account Matrix
             client with end-to-end encryption.
+          # 0 = keep every version in the main repo (no archiving) so users can
+          # install or downgrade to any previously published version.
           archive_older: 0
           keystore: $RUNNER_TEMP/materix.p12
           repo_keyalias: ${KS_ALIAS}
@@ -115,23 +209,48 @@ jobs:
             - Internet
           License: Apache-2.0
           AuthorName: The Materix Authors
-          WebSite: https://github.com/DatanoiseTV/Materix
-          SourceCode: https://github.com/DatanoiseTV/Materix
-          IssueTracker: https://github.com/DatanoiseTV/Materix/issues
+          WebSite: ${{ github.server_url }}/${{ github.repository }}
+          SourceCode: ${{ github.server_url }}/${{ github.repository }}
+          IssueTracker: ${{ github.server_url }}/${{ github.repository }}/issues
           Summary: Multi-account Matrix messenger with end-to-end encryption
           Description: |-
             Materix is a multi-account Matrix client that feels like a mainstream
             messenger while staying a full Matrix client. End-to-end encryption is
             on by default for direct messages and new private rooms.
           EOF
+          # Indexes every APK now present in repo/ (restored history + new one).
           fdroid update --create-metadata --verbose --pretty
 
       - name: Assemble the Pages site
+        env:
+          KS_PASS: ${{ secrets.FDROID_KEYSTORE_PASS }}
+          KS_ALIAS: ${{ secrets.FDROID_KEY_ALIAS }}
+          SOURCE_URL: ${{ github.server_url }}/${{ github.repository }}
         run: |
           set -euo pipefail
           mkdir -p _site/fdroid
           cp -r fdroidrepo/repo _site/fdroid/repo
-          cp packaging/fdroid/landing.html _site/index.html
+
+          # Repo signing-cert fingerprint (SHA-256 of the cert DER) — the value
+          # F-Droid pins the repo to. Derive it from the keystore so the landing
+          # page always advertises the correct URL + fingerprint for this repo.
+          echo "${{ secrets.FDROID_KEYSTORE_B64 }}" | base64 -d > "$RUNNER_TEMP/materix.p12"
+          FP="$(keytool -exportcert -keystore "$RUNNER_TEMP/materix.p12" -storetype PKCS12 \
+                  -storepass "$KS_PASS" -alias "$KS_ALIAS" 2>/dev/null \
+                | openssl dgst -sha256 | awk '{print $NF}')"
+          if [ -z "$FP" ]; then echo "::error::Could not compute repo fingerprint"; exit 1; fi
+          FP_SPACED="$(printf '%s' "$FP" | tr 'a-z' 'A-Z' | sed 's/..../& /g; s/ *$//')"
+          REPO_NOPROTO="${REPO_URL#https://}"
+
+          # Fill the templated landing page with this repo's real values.
+          sed -e "s#__REPO_URL__#${REPO_URL}#g" \
+              -e "s#__REPO_NOPROTO__#${REPO_NOPROTO}#g" \
+              -e "s#__FP_SPACED__#${FP_SPACED}#g" \
+              -e "s#__FP__#${FP}#g" \
+              -e "s#__SOURCE_URL__#${SOURCE_URL}#g" \
+              -e "s#__SOURCE_LABEL__#${SOURCE_URL#https://}#g" \
+              packaging/fdroid/landing.html > _site/index.html
+          echo "Landing page advertises: ${REPO_URL}/?fingerprint=${FP}"
 
       - uses: actions/upload-pages-artifact@v3
         with:

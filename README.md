@@ -100,6 +100,10 @@ stores access tokens in the OS keychain.
 - **Notifications** honoring server push rules, with privacy modes (name +
   message preview, name only, or off) and twelve synthesized notification
   sounds (no audio assets shipped).
+- **Background push without Google** on de-Googled Android via
+  [UnifiedPush](https://unifiedpush.org) + [ntfy](https://ntfy.sh) — get woken
+  for new messages while the app is closed, no FCM required. Setup (public or
+  self-hosted ntfy) in [`docs/push-notifications.md`](docs/push-notifications.md).
 
 ### Look and feel
 - **Light / dark / system themes** with a neutral-slate palette, keyboard
@@ -139,17 +143,19 @@ Materix is Apache-2.0 licensed and free to use.
 **Linux desktop (Flathub)** — planned; the flatpak manifest and submission
 steps live in [`packaging/flathub/`](packaging/flathub/).
 
-**Android** — two paths, both cert-free:
+**Android (F-Droid)** — **live**. Add the self-hosted repository to your
+[F-Droid](https://f-droid.org) client and install Materix with auto-updates:
 
-- **Self-hosted F-Droid repo** (Threema-style, fastest): a signed APK + repo
-  index published to GitHub Pages, added straight into the F-Droid client. The
-  pipeline (`fdroid-repo.yml`) is set up; one-time secret/Pages setup and the
-  add-repo URL are in [`packaging/fdroid/SELFHOSTED.md`](packaging/fdroid/SELFHOSTED.md).
-- **Official F-Droid catalog**: F-Droid builds and signs from source (no cert
-  needed); recipe and submission script in [`packaging/fdroid/`](packaging/fdroid/).
+```
+https://datanoisetv.github.io/Materix/fdroid/repo/?fingerprint=27c03fd5e8c4e36e7e372d2e54ef0f1be15f57fedcec9f41ea22be33fa97e749
+```
 
-The Android APK already builds in CI (the "Android build" workflow); what
-remains is on-device testing.
+The signed APK + repo index are built and published by `fdroid-repo.yml` (no
+Google cert needed — the repo is signed with the project's own key). Details in
+[`packaging/fdroid/SELFHOSTED.md`](packaging/fdroid/SELFHOSTED.md). A recipe for
+the official F-Droid catalog is also prepared in
+[`packaging/fdroid/`](packaging/fdroid/). The APK builds and installs; on-device
+testing is still pending.
 
 ## Getting started (from source)
 

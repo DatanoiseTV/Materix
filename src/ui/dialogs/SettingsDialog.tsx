@@ -11,8 +11,17 @@ import { IconLogout, IconMonitor, IconMoon, IconShield, IconSun } from "../compo
 import { useAccounts } from "../hooks";
 import { useToast } from "../components/Toast";
 import { getThemePref, setThemePref, type ThemePref } from "../theme";
-import { getPrefs, setPref, type NotificationMode } from "../prefs";
-import { SOUND_OPTIONS, playSound, type SoundId } from "../sounds";
+import { getPrefs, setAccountSound, setPref, type NotificationMode } from "../prefs";
+import type { SoundId } from "../sounds";
+import { SoundPicker } from "../components/SoundPicker";
+import { isAndroid } from "../notifyChannels";
+import {
+  pushStatus,
+  enablePush,
+  disablePush,
+  setPushGatewayOverride,
+  type PushStatus,
+} from "../push";
 import { hasPasscode, setPasscode, clearPasscode } from "../../core/cryptoStoreKey";
 import { SecurityDialog } from "./SecurityDialog";
 
@@ -91,25 +100,23 @@ export function SettingsDialog({
 
           <div style={{ marginTop: "var(--sp-2)" }}>
             <div className="switch-title" style={{ marginBottom: "var(--sp-1)" }}>Notification sound</div>
-            <div className="theme-picker" role="radiogroup" aria-label="Notification sound" style={{ flexWrap: "wrap" }}>
-              {SOUND_OPTIONS.map((opt) => (
-                <button
-                  key={opt.id}
-                  role="radio"
-                  aria-checked={sound === opt.id}
-                  className={`chip${sound === opt.id ? " selected" : ""}`}
-                  onClick={() => {
-                    setSound(opt.id);
-                    setPref("sound", opt.id);
-                    playSound(opt.id); // preview on pick
-                  }}
-                >
-                  {opt.label}
-                </button>
-              ))}
+            <SoundPicker
+              label="Notification sound"
+              value={sound}
+              onChange={(id) => {
+                if (!id) return; // no inherit chip on the global default
+                setSound(id);
+                setPref("sound", id);
+              }}
+            />
+            <div className="field-hint">
+              Click a sound to preview it. Plays when a new message notifies.
+              {isAndroid &&
+                " On Android, notifications play their channel's system tone — pick it per account under Android Settings → Apps → Materix → Notifications; this sound is used when the app itself plays the alert."}
             </div>
-            <div className="field-hint">Click a sound to preview it. Plays when a new message notifies.</div>
           </div>
+
+          {isAndroid && <PushSettings />}
         </div>
 
         <div className="settings-section">
@@ -150,6 +157,9 @@ function AccountSettings({
 }) {
   const info = account.info();
   const [expanded, setExpanded] = useState(false);
+  const [acctSound, setAcctSound] = useState<SoundId | undefined>(
+    getPrefs().accountSounds[account.key],
+  );
   const [devices, setDevices] = useState<DeviceSummary[]>([]);
   const [securityState, setSecurityState] = useState<string>("loading");
   const [displayName, setDisplayName] = useState(info.displayName);
@@ -229,6 +239,29 @@ function AccountSettings({
                 e.target.value = "";
               }}
             />
+          </div>
+
+          <div className="settings-section">
+            <h3>Notifications</h3>
+            <div className="switch-title" style={{ marginBottom: "var(--sp-1)" }}>
+              Notification sound for this account
+            </div>
+            <SoundPicker
+              label={`Notification sound for ${info.userId}`}
+              inheritLabel="App default"
+              value={acctSound}
+              onChange={(id) => {
+                setAcctSound(id);
+                setAccountSound(account.key, id);
+              }}
+            />
+            {isAndroid && (
+              <div className="field-hint">
+                The system tone for this account's notifications comes from its own Android
+                notification channel ("Messages · {info.userId}") — pick any system sound there
+                under Android Settings → Apps → Materix → Notifications.
+              </div>
+            )}
           </div>
 
           <div className="settings-section">
@@ -421,6 +454,161 @@ function PasscodeSetting({ account }: { account: MatrixAccount }) {
             Enable passcode
           </button>
         </form>
+      )}
+    </div>
+  );
+}
+
+/** Android background-push (UnifiedPush) controls, shown in the Notifications
+ *  section. Reads live state from ui/push.ts; no-ops if the native bridge is
+ *  absent (older APK or non-Android). */
+function PushSettings() {
+  const { show, showError } = useToast();
+  const [status, setStatus] = useState<PushStatus>(() => pushStatus());
+  const [busy, setBusy] = useState(false);
+  const [showGateway, setShowGateway] = useState(false);
+  const [gateway, setGateway] = useState(getPrefs().push?.gatewayOverride ?? "");
+
+  if (!status.available) return null; // native bridge absent
+
+  const distName = (): string => {
+    const d = status.distributors.find((x) => x.id === status.savedDistributor);
+    return d?.name ?? status.savedDistributor ?? "distributor";
+  };
+
+  const onEnable = async (distributorId?: string) => {
+    setBusy(true);
+    try {
+      const s = await enablePush(distributorId);
+      setStatus(s);
+      if (s.enabled) show("Background notifications on.");
+      else if (s.distributors.length === 0) show("Install a UnifiedPush app (e.g. ntfy) first.");
+    } catch (e) {
+      showError(e);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const onDisable = async () => {
+    setBusy(true);
+    try {
+      setStatus(await disablePush());
+      show("Background notifications off.");
+    } catch (e) {
+      showError(e);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const noDistributor = status.distributors.length === 0;
+  const mustChoose = status.distributors.length > 1 && !status.savedDistributor;
+
+  return (
+    <div style={{ marginTop: "var(--sp-2)" }}>
+      <div className="switch-row">
+        <div>
+          <div className="switch-title">Background delivery (UnifiedPush)</div>
+          <div className="switch-sub">
+            {status.enabled
+              ? status.endpoint
+                ? `Connected${status.savedDistributor ? ` via ${distName()}` : ""}`
+                : "Waiting for the distributor…"
+              : "Get notified when the app is closed — without Google services"}
+          </div>
+        </div>
+        {status.enabled ? (
+          <button className="btn secondary small" disabled={busy} onClick={onDisable}>
+            Turn off
+          </button>
+        ) : (
+          <button
+            className="btn primary small"
+            disabled={busy || noDistributor || mustChoose}
+            onClick={() => onEnable()}
+          >
+            Turn on
+          </button>
+        )}
+      </div>
+
+      {!status.enabled && noDistributor && (
+        <div className="field-hint">
+          Requires a UnifiedPush distributor app. Install <strong>ntfy</strong> from F-Droid, open
+          it once, then return here.{" "}
+          <a href="https://f-droid.org/packages/io.heckel.ntfy/" target="_blank" rel="noreferrer">
+            Get ntfy
+          </a>
+        </div>
+      )}
+
+      {!status.enabled && mustChoose && (
+        <div style={{ marginTop: "var(--sp-1)" }}>
+          <div className="field-hint">Choose a distributor:</div>
+          <div className="theme-picker" role="radiogroup" aria-label="UnifiedPush distributor">
+            {status.distributors.map((d) => (
+              <button
+                key={d.id}
+                role="radio"
+                aria-checked={false}
+                className="chip"
+                disabled={busy}
+                onClick={() => onEnable(d.id)}
+              >
+                {d.name}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {status.enabled && !status.hasNotificationPermission && (
+        <div className="field-hint">
+          Android is blocking notifications — allow them under Settings → Apps → Materix →
+          Notifications.
+        </div>
+      )}
+
+      {status.enabled && (
+        <div style={{ marginTop: "var(--sp-1)" }}>
+          <button className="btn secondary small" onClick={() => setShowGateway((v) => !v)}>
+            {showGateway ? "Hide advanced" : "Advanced: push gateway"}
+          </button>
+          {showGateway && (
+            <form
+              className="passcode-form"
+              onSubmit={async (e) => {
+                e.preventDefault();
+                setBusy(true);
+                try {
+                  await setPushGatewayOverride(gateway);
+                  setStatus(pushStatus());
+                  show("Gateway updated.");
+                } catch (err) {
+                  showError(err);
+                } finally {
+                  setBusy(false);
+                }
+              }}
+            >
+              <input
+                type="url"
+                value={gateway}
+                onChange={(e) => setGateway(e.target.value)}
+                placeholder="https://ntfy.example.org/_matrix/push/v1/notify"
+                aria-label="Push gateway URL"
+              />
+              <div className="field-hint">
+                Leave blank to derive the gateway from your distributor's server automatically. Set
+                this only if your Matrix push gateway is a separate host.
+              </div>
+              <button type="submit" className="btn secondary small" disabled={busy}>
+                Save gateway
+              </button>
+            </form>
+          )}
+        </div>
       )}
     </div>
   );

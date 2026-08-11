@@ -51,6 +51,13 @@ export class MatrixAccount {
   client!: MatrixClient;
   syncState: SyncStateName = "initial";
   startError?: string;
+  /** False if the E2EE crypto engine failed to initialise (most commonly the
+   *  device's System WebView is too old to run the crypto WASM — it needs
+   *  WebAssembly reference-types, i.e. Chromium 96+). Encryption, decryption of
+   *  E2EE rooms, and device verification are all unavailable; the UI warns
+   *  loudly and refuses to continue without explicit user acknowledgement. */
+  cryptoAvailable = true;
+  cryptoError?: string;
   /** The unlocked crypto-store key (if the account is encrypted), for passcode re-wrapping. */
   storageKey?: Uint8Array<ArrayBuffer>;
   private handles = new Map<string, RoomHandle>();
@@ -97,9 +104,17 @@ export class MatrixAccount {
         ...(storageKey ? { storageKey } : {}),
       });
       this.crypto.attach();
+      this.cryptoAvailable = true;
     } catch (e) {
-      // Crypto store corruption must not brick the account; run unencrypted-capable.
+      // Crypto init failed — most often the device's WebView is too old to run
+      // the crypto WASM (needs WebAssembly reference-types, Chromium 96+), but
+      // could also be store corruption. Either way E2EE + verification are off.
+      // Flag it so the UI can warn loudly and gate; keep running so unencrypted
+      // messaging still works, but never silently pretend crypto is present.
+      this.cryptoAvailable = false;
+      this.cryptoError = e instanceof Error ? e.message : String(e);
       console.error(`rust crypto init failed for ${this.session.userId}`, e);
+      this.events.emit("self");
     }
 
     this.wireListeners();
