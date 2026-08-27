@@ -23,10 +23,12 @@ import {
   IconPhone,
   IconPin,
   IconSearch,
+  IconSettings,
   IconThreads,
   IconVideo,
   IconX,
 } from "./components/Icons";
+import { RoomSettingsDialog } from "./dialogs/RoomSettingsDialog";
 import { formatListTime, formatTime, typingText } from "./format";
 import { useToast } from "./components/Toast";
 import { useEffect } from "react";
@@ -50,6 +52,7 @@ export function ChatPane({
   const [threadRoot, setThreadRoot] = useState<string | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
   const [threadsOpen, setThreadsOpen] = useState(false);
+  const [roomSettingsOpen, setRoomSettingsOpen] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const dragDepth = useRef(0);
   const dropFilesRef = useRef<((files: FileList | File[]) => void) | null>(null);
@@ -99,11 +102,12 @@ export function ChatPane({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [account, selection?.roomId]);
 
-  // Close the thread panel and search bar when switching rooms.
+  // Close the thread panel, search bar and room settings when switching rooms.
   useEffect(() => {
     setThreadRoot(null);
     setSearchOpen(false);
     setThreadsOpen(false);
+    setRoomSettingsOpen(false);
   }, [selection?.roomId]);
 
   // Mark read when the room is open and messages arrive.
@@ -223,6 +227,19 @@ export function ChatPane({
         >
           <IconThreads size={20} />
         </button>
+        {details.canEditRoom && details.memberCount !== 2 && (
+          // Direct room-settings access for editors. Two-person rooms show the
+          // call buttons instead (no header space on phones); they keep
+          // settings via Room info → Room settings.
+          <button
+            className="icon-btn"
+            onClick={() => setRoomSettingsOpen(true)}
+            title="Room settings"
+            aria-label="Room settings"
+          >
+            <IconSettings size={20} />
+          </button>
+        )}
         <button className="icon-btn" onClick={onToggleDetails} title="Room info" aria-label="Room info">
           <IconInfo size={20} />
         </button>
@@ -294,6 +311,9 @@ export function ChatPane({
       )}
       {threadRoot && (
         <ThreadView account={account} handle={handle} rootEventId={threadRoot} onClose={() => setThreadRoot(null)} />
+      )}
+      {roomSettingsOpen && (
+        <RoomSettingsDialog account={account} handle={handle} onClose={() => setRoomSettingsOpen(false)} />
       )}
     </main>
   );
