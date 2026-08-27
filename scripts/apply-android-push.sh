@@ -23,6 +23,7 @@ test -d "$app" || { echo "::error::gen/android not found — run 'tauri android 
 mkdir -p "$pkgdir"
 cp "$here/packaging/android/push/MaterixPush.kt" "$pkgdir/MaterixPush.kt"
 cp "$here/packaging/android/push/MaterixUnifiedPushReceiver.kt" "$pkgdir/MaterixUnifiedPushReceiver.kt"
+cp "$here/packaging/android/push/MaterixSyncService.kt" "$pkgdir/MaterixSyncService.kt"
 echo "apply-android-push: copied Kotlin sources -> $pkgdir"
 
 # 2. connector dependency + JitPack repo ------------------------------------
@@ -69,12 +70,27 @@ if 'POST_NOTIFICATIONS' not in s:
         '<uses-permission android:name="android.permission.INTERNET" />\n'
         '    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />\n'
         '    <uses-permission android:name="android.permission.WAKE_LOCK" />\n'
+        '    <!-- Opt-in foreground "keep sync alive" service (MaterixSyncService). -->\n'
+        '    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />\n'
+        '    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />\n'
+        '    <!-- Optional battery-optimization exemption (user-granted via system dialog). -->\n'
+        '    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />\n'
         '    <!-- Discover UnifiedPush distributors on Android 11+ (package visibility). -->\n'
         '    <queries>\n'
         '        <intent>\n'
         '            <action android:name="org.unifiedpush.android.distributor.REGISTER" />\n'
         '        </intent>\n'
         '    </queries>',
+        1)
+    changed = True
+if 'MaterixSyncService' not in s:
+    s = s.replace(
+        '</application>',
+        '        <service\n'
+        '            android:name=".MaterixSyncService"\n'
+        '            android:exported="false"\n'
+        '            android:foregroundServiceType="dataSync" />\n'
+        '    </application>',
         1)
     changed = True
 if 'MaterixUnifiedPushReceiver' not in s:

@@ -192,4 +192,76 @@ class MaterixPushBridge(activity: Activity) {
             }
         }
     }
+
+    // --- Foreground "keep sync alive" service (opt-in) ---------------------
+    // Prevents Android from reclaiming the backgrounded process (and its warm,
+    // already-decrypted state). See MaterixSyncService.kt.
+
+    /** Whether a foreground keep-alive service can run on this OS version. */
+    @JavascriptInterface
+    fun isForegroundSyncSupported(): Boolean = MaterixSyncService.isSupported()
+
+    @JavascriptInterface
+    fun isForegroundSyncRunning(): Boolean = MaterixSyncService.isRunning()
+
+    @JavascriptInterface
+    fun startForegroundSync() {
+        try {
+            MaterixSyncService.start(appContext)
+        } catch (_: Throwable) {
+        }
+    }
+
+    @JavascriptInterface
+    fun stopForegroundSync() {
+        try {
+            MaterixSyncService.stop(appContext)
+        } catch (_: Throwable) {
+        }
+    }
+
+    // --- Battery-optimization exemption -----------------------------------
+    // Complements the foreground service: lets the OS schedule the app's
+    // network more aggressively while the device is idle.
+
+    @JavascriptInterface
+    fun isIgnoringBatteryOptimizations(): Boolean {
+        if (Build.VERSION.SDK_INT < 23) return true
+        return try {
+            val pm = appContext.getSystemService(Context.POWER_SERVICE) as android.os.PowerManager
+            pm.isIgnoringBatteryOptimizations(appContext.packageName)
+        } catch (_: Throwable) {
+            false
+        }
+    }
+
+    /**
+     * Open the system dialog asking the user to exempt Materix from battery
+     * optimization. No-op below API 23 (always exempt) or if already exempt.
+     */
+    @SuppressLint("BatteryLife")
+    @JavascriptInterface
+    fun requestIgnoreBatteryOptimizations() {
+        if (Build.VERSION.SDK_INT < 23 || isIgnoringBatteryOptimizations()) return
+        val act = activityRef.get() ?: return
+        act.runOnUiThread {
+            try {
+                val intent = android.content.Intent(
+                    android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+                    android.net.Uri.parse("package:" + appContext.packageName),
+                )
+                act.startActivity(intent)
+            } catch (_: Throwable) {
+                // Some ROMs restrict this action — fall back to the settings screen.
+                try {
+                    act.startActivity(
+                        android.content.Intent(
+                            android.provider.Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS,
+                        ),
+                    )
+                } catch (_: Throwable) {
+                }
+            }
+        }
+    }
 }

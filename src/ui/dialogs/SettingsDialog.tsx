@@ -19,6 +19,8 @@ import {
   pushStatus,
   enablePush,
   disablePush,
+  enableForegroundSync,
+  disableForegroundSync,
   setPushGatewayOverride,
   type PushStatus,
 } from "../push";
@@ -502,6 +504,23 @@ function PushSettings() {
     }
   };
 
+  const onToggleKeepAlive = async () => {
+    setBusy(true);
+    try {
+      if (status.keepAlive) {
+        setStatus(await disableForegroundSync());
+        show("Background sync off.");
+      } else {
+        setStatus(await enableForegroundSync());
+        show("Materix will stay connected in the background.");
+      }
+    } catch (e) {
+      showError(e);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const noDistributor = status.distributors.length === 0;
   const mustChoose = status.distributors.length > 1 && !status.savedDistributor;
 
@@ -608,6 +627,28 @@ function PushSettings() {
               </button>
             </form>
           )}
+        </div>
+      )}
+
+      {status.foregroundSyncSupported && (
+        <div className="switch-row" style={{ marginTop: "var(--sp-2)" }}>
+          <div>
+            <div className="switch-title">Keep connected in background</div>
+            <div className="switch-sub">
+              {status.keepAlive
+                ? status.ignoringBatteryOptimizations
+                  ? "Running — Materix stays synced and won't re-decrypt on reopen"
+                  : "Running — allow battery-optimization exemption for best results"
+                : "Stops Android from closing Materix, avoiding a re-decrypt on every reopen"}
+            </div>
+          </div>
+          <button
+            className={`btn ${status.keepAlive ? "secondary" : "primary"} small`}
+            disabled={busy}
+            onClick={onToggleKeepAlive}
+          >
+            {status.keepAlive ? "Turn off" : "Turn on"}
+          </button>
         </div>
       )}
     </div>

@@ -19,6 +19,11 @@ interface Prefs {
     distributorId?: string;
     /** Advanced: override the derived Matrix push-gateway URL. */
     gatewayOverride?: string;
+    /**
+     * Keep a foreground service running so Android doesn't reclaim the
+     * backgrounded process (and its warm decrypted state). Android only.
+     */
+    keepAlive?: boolean;
   };
 }
 
