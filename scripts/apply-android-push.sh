@@ -83,7 +83,9 @@ if 'POST_NOTIFICATIONS' not in s:
         '    </queries>',
         1)
     changed = True
-if 'MaterixSyncService' not in s:
+# Guard on the unique service attribute, not the bare class name — the
+# permission comment above also mentions "MaterixSyncService".
+if 'android:name=".MaterixSyncService"' not in s:
     s = s.replace(
         '</application>',
         '        <service\n'
