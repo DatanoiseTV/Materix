@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { accountManager } from "../core/manager";
 import type { RoomSummary, SpaceSummary } from "../core/types";
-import { useAccounts, useClock, useRoomsVersion } from "./hooks";
+import { useAccounts, useClock, useMediaQuery, useRoomsVersion } from "./hooks";
 import { Avatar } from "./components/Avatar";
 import { ContextMenu, type MenuState } from "./components/ContextMenu";
 import { IconChat, IconGlobe, IconLock, IconMuted, IconPlus, IconSearch, IconSettings, IconShield } from "./components/Icons";
@@ -84,11 +84,13 @@ export function RoomListPane({
   onSelect,
   onNewChat,
   onOpenSecurity,
+  onSettings,
 }: {
   selection: Selection | null;
   onSelect: (sel: Selection) => void;
   onNewChat: (tab: NewChatTab) => void;
   onOpenSecurity: (accountKey: string) => void;
+  onSettings: () => void;
 }) {
   useRoomsVersion();
   useAccounts();
@@ -97,6 +99,10 @@ export function RoomListPane({
   const [space, setSpace] = useState<SpaceFilter>({ kind: "all" });
   const [menu, setMenu] = useState<MenuState | null>(null);
   const [showArchived, setShowArchived] = useState(false);
+  // Narrow screens replace the "Chats" heading with top-level Chats/Rooms tabs
+  // (the account rail that hosts Settings on wide layouts is collapsed there).
+  const narrow = useMediaQuery("(max-width: 760px)");
+  const [section, setSection] = useState<"chats" | "rooms">("chats");
   const { showError, show } = useToast();
 
   const accounts = accountManager.list();
@@ -158,8 +164,12 @@ export function RoomListPane({
 
   const q = filter.trim().toLowerCase();
   const visible = allRooms.filter((r) => !r.isSpace && (!q || r.name.toLowerCase().includes(q)));
-  // Invitations stay visible regardless of space; chats are space-filtered.
-  const inSpace = visible.filter((r) => r.isInvite || !spaceMembership || spaceMembership(r));
+  // Narrow layouts split the list into Chats (direct) / Rooms (everything else).
+  const inSection = (r: RoomSummary) => !narrow || (section === "chats" ? r.isDirect : !r.isDirect);
+  // Invitations stay visible regardless of space/section; chats are filtered.
+  const inSpace = visible.filter(
+    (r) => r.isInvite || ((!spaceMembership || spaceMembership(r)) && inSection(r)),
+  );
 
   const invites = inSpace.filter((r) => r.isInvite);
   const archived = inSpace
@@ -185,7 +195,28 @@ export function RoomListPane({
   return (
     <div className="rooms-pane">
       <div className="rooms-header">
-        <h1>Chats</h1>
+        {narrow ? (
+          <div className="section-tabs" role="tablist" aria-label="Sections">
+            <button
+              className={`section-tab${section === "chats" ? " active" : ""}`}
+              role="tab"
+              aria-selected={section === "chats"}
+              onClick={() => setSection("chats")}
+            >
+              Chats
+            </button>
+            <button
+              className={`section-tab${section === "rooms" ? " active" : ""}`}
+              role="tab"
+              aria-selected={section === "rooms"}
+              onClick={() => setSection("rooms")}
+            >
+              Rooms
+            </button>
+          </div>
+        ) : (
+          <h1>Chats</h1>
+        )}
         <button
           className="icon-btn"
           onClick={() => onNewChat("explore")}
@@ -215,6 +246,11 @@ export function RoomListPane({
         >
           <IconPlus size={20} />
         </button>
+        {narrow && (
+          <button className="icon-btn" onClick={onSettings} title="Settings" aria-label="Settings">
+            <IconSettings size={20} />
+          </button>
+        )}
       </div>
       <SecurityBanner onOpenSecurity={onOpenSecurity} />
       <div className="search-box">
@@ -378,6 +414,22 @@ export function RoomListPane({
               <p>No chats match "{filter}".</p>
             ) : space.kind !== "all" ? (
               <p>No chats in this space yet.</p>
+            ) : narrow && section === "rooms" ? (
+              <>
+                <h2 style={{ fontSize: "var(--fs-lg)" }}>No rooms yet</h2>
+                <p>Join or create a room to get going.</p>
+                <button className="btn primary" onClick={() => onNewChat("join")}>
+                  Join a room
+                </button>
+              </>
+            ) : narrow && section === "chats" && visible.some((r) => !r.isDirect && !r.isInvite) ? (
+              <>
+                <h2 style={{ fontSize: "var(--fs-lg)" }}>No direct chats yet</h2>
+                <p>Your group conversations are in the Rooms tab.</p>
+                <button className="btn primary" onClick={() => onNewChat("dm")}>
+                  Start a chat
+                </button>
+              </>
             ) : (
               <>
                 <h2 style={{ fontSize: "var(--fs-lg)" }}>No chats yet</h2>

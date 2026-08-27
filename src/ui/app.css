@@ -234,6 +234,40 @@ a {
   text-overflow: ellipsis;
 }
 
+/* Narrow-screen top-level nav: Chats / Rooms tabs replace the heading (the
+   account rail that hosts Settings on wide layouts is collapsed there). */
+.section-tabs {
+  display: flex;
+  gap: var(--sp-1);
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+}
+
+.section-tab {
+  height: 34px;
+  padding: 0 var(--sp-3);
+  border: 1px solid transparent;
+  border-radius: var(--r-full);
+  background: transparent;
+  color: var(--text-2);
+  font-size: var(--fs-md);
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+
+.section-tab:hover {
+  background: var(--bg-hover);
+  color: var(--text-1);
+}
+
+.section-tab.active {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent-strong);
+}
+
 .icon-btn {
   width: 34px;
   height: 34px;
@@ -2586,13 +2620,10 @@ button.msg-sender:hover {
     width: 20px;
     height: 3px;
   }
-  /* Hide the rail entirely for single-account users (rely on settings gear). */
-  .rail:not(.multi) .rail-accounts {
-    display: none;
-  }
+  /* Hide the rail entirely for single-account users — the room-list header
+     provides Settings (and the Chats/Rooms tabs) on phones. */
   .rail:not(.multi) {
-    justify-content: flex-end;
-    padding-top: calc(var(--sp-1) + env(safe-area-inset-top));
+    display: none;
   }
 
   .rooms-pane {

@@ -177,6 +177,7 @@ export function App() {
           }}
           onNewChat={(tab) => setDialog({ kind: "new-chat", tab })}
           onOpenSecurity={(accountKey) => setDialog({ kind: "security", accountKey })}
+          onSettings={() => setDialog({ kind: "settings" })}
         />
         <ChatPane
           selection={selection}
