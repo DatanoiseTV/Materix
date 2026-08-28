@@ -32,6 +32,7 @@ import {
 } from "./components/Icons";
 import { ForwardDialog } from "./dialogs/ForwardDialog";
 import { formatDayDivider, formatDuration, formatSize, formatTime } from "./format";
+import { copyText } from "./clipboard";
 import { useToast } from "./components/Toast";
 import { isOfflineError } from "../core/errors";
 import { assessLink, isTrusted, openExternal, type LinkAssessment } from "./linkSafety";
@@ -283,6 +284,46 @@ export function TimelineRow({
 
   const [showActions, setShowActions] = useState(false);
 
+  // Touch: only a deliberate long-press on the bubble reveals the action bar.
+  // A timer starts on pointerdown and is cancelled by movement past a small
+  // slop (that's a scroll) or by an early release (a plain tap), so taps and
+  // scroll momentum never open it. `fired` swallows the synthetic click that
+  // follows a completed long-press; `touch` routes long-press-generated
+  // contextmenu events (Android fires those) away from the desktop menu.
+  const press = useRef<{ timer: number | null; x: number; y: number; fired: boolean; touch: boolean }>({
+    timer: null,
+    x: 0,
+    y: 0,
+    fired: false,
+    touch: false,
+  });
+  const cancelPress = () => {
+    if (press.current.timer !== null) {
+      window.clearTimeout(press.current.timer);
+      press.current.timer = null;
+    }
+  };
+  useEffect(() => cancelPress, []);
+  const onPressStart = (e: React.PointerEvent) => {
+    press.current.touch = e.pointerType !== "mouse";
+    press.current.fired = false;
+    if (e.pointerType === "mouse") return; // desktop: hover + right-click as before
+    const target = e.target as HTMLElement;
+    if (!target.closest(".bubble") || target.closest("a")) return;
+    cancelPress();
+    press.current.x = e.clientX;
+    press.current.y = e.clientY;
+    press.current.timer = window.setTimeout(() => {
+      press.current.timer = null;
+      press.current.fired = true;
+      setShowActions((v) => !v);
+    }, 470);
+  };
+  const onPressMove = (e: React.PointerEvent) => {
+    if (press.current.timer === null) return;
+    if (Math.hypot(e.clientX - press.current.x, e.clientY - press.current.y) > 9) cancelPress();
+  };
+
   const openUserMenu = (e: React.MouseEvent) => {
     e.preventDefault();
     const userId = item.sender.userId;
@@ -357,7 +398,7 @@ export function TimelineRow({
     if (item.body?.text)
       items.push({
         label: "Copy text",
-        onClick: () => navigator.clipboard.writeText(item.body!.text ?? "").then(() => show("Copied.")),
+        onClick: () => copyText(item.body!.text ?? "").then(() => show("Copied."), showError),
       });
     if (mine && item.body?.msgtype === "m.text") items.push({ label: "Edit", onClick: () => onEdit(item) });
     const mx = e.clientX;
@@ -397,11 +438,31 @@ export function TimelineRow({
     <div
       className={`msg-row${mine ? " mine" : ""}${item.groupStart ? " group-start" : ""}${showActions ? " show-actions" : ""}`}
       data-event-id={item.eventId}
-      onContextMenu={openMsgMenu}
+      onContextMenu={(e) => {
+        // Android synthesizes contextmenu from a long-press; touch is handled
+        // by the long-press action bar, so only real right-clicks open the menu.
+        if (press.current.touch) {
+          e.preventDefault();
+          return;
+        }
+        openMsgMenu(e);
+      }}
+      onPointerDown={onPressStart}
+      onPointerMove={onPressMove}
+      onPointerUp={cancelPress}
+      onPointerCancel={cancelPress}
       onClick={(e) => {
-        // On touch (no hover), tap toggles the action bar.
-        if (window.matchMedia("(hover: none)").matches && (e.target as HTMLElement).closest(".bubble")) {
-          setShowActions((v) => !v);
+        if (press.current.fired) {
+          // Swallow the synthetic click that follows a long-press so it
+          // doesn't immediately toggle the bar back off.
+          press.current.fired = false;
+          e.preventDefault();
+          e.stopPropagation();
+          return;
+        }
+        // A plain tap never opens the bar, but does dismiss an open one.
+        if (showActions && press.current.touch && (e.target as HTMLElement).closest(".bubble")) {
+          setShowActions(false);
         }
       }}
     >

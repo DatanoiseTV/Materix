@@ -8,6 +8,7 @@ import { Avatar } from "./components/Avatar";
 import { ContextMenu, type MenuState } from "./components/ContextMenu";
 import { IconChat, IconCollapse, IconEnter, IconGlobe, IconHash, IconLock, IconMuted, IconPlus, IconSearch, IconSettings, IconShield } from "./components/Icons";
 import { formatListTime, typingText } from "./format";
+import { copyText } from "./clipboard";
 import { useToast } from "./components/Toast";
 
 export interface Selection {
@@ -236,6 +237,24 @@ export function RoomListPane({
                     onClick: onToggleAccountsBar,
                   },
                   { label: "Settings", onClick: onSettings },
+                  {
+                    label: "Logout",
+                    danger: true,
+                    onClick: async () => {
+                      if (
+                        !confirm(
+                          `Sign out ${activeMeta.userId}? Encrypted history on this device will be removed.`,
+                        )
+                      )
+                        return;
+                      try {
+                        await accountManager.logout(activeMeta.key);
+                        show("Signed out.");
+                      } catch (e) {
+                        showError(e);
+                      }
+                    },
+                  },
                 ],
               });
             }}
@@ -649,7 +668,7 @@ function RoomSection({
         },
         {
           label: "Copy room address",
-          onClick: () => navigator.clipboard.writeText(r.roomId).then(() => show("Copied.")),
+          onClick: () => copyText(r.roomId).then(() => show("Copied."), showError),
         },
         {
           label: "Leave",

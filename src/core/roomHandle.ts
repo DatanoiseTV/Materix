@@ -639,7 +639,44 @@ export class RoomHandle {
     }
   }
 
+  /**
+   * Resolve a possibly-local ("~"-prefixed) event id to its confirmed server
+   * id, waiting briefly for the remote echo when the message is still sending.
+   *
+   * An edit target is captured from a timeline item, which may have been
+   * rendered while the original message was still a local echo — its id is
+   * then "~<roomId>:<txnId>". Sending a relation to such an id makes the SDK
+   * call Room.getPendingEvents(), which throws under the default
+   * pendingEventOrdering=chronological. And once the echo arrives the id is
+   * swapped in place, so a stale "~" id can only be re-resolved via the
+   * transaction id embedded in it.
+   */
+  private async resolveEventId(eventId: string): Promise<string> {
+    if (!eventId.startsWith("~")) return eventId;
+    const txnId = eventId.slice(eventId.lastIndexOf(":") + 1);
+    const find = () =>
+      this.room.findEventById(eventId) ??
+      this.room
+        .getLiveTimeline()
+        .getEvents()
+        .find((e) => e.getTxnId() === txnId);
+    // Poll for the remote echo (encrypted rooms can take a few seconds).
+    for (let waited = 0; waited <= 10_000; waited += 250) {
+      const ev = find();
+      const id = ev?.getId();
+      if (id && !id.startsWith("~")) return id;
+      if (!ev || ev.status === EventStatus.NOT_SENT || ev.status === EventStatus.CANCELLED) break;
+      await new Promise((r) => setTimeout(r, 250));
+    }
+    throw new MaterixError(
+      "UNKNOWN",
+      "That message hasn't finished sending yet — try again in a moment.",
+      true,
+    );
+  }
+
   async edit(eventId: string, newText: string): Promise<void> {
+    const targetId = await this.resolveEventId(eventId);
     const html = markdownToMatrixHtml(newText);
     const newContent: IContent = { msgtype: "m.text", body: newText };
     if (html) {
@@ -650,9 +687,13 @@ export class RoomHandle {
       ...newContent,
       body: `* ${newText}`,
       "m.new_content": newContent,
-      "m.relates_to": { rel_type: "m.replace", event_id: eventId },
+      "m.relates_to": { rel_type: "m.replace", event_id: targetId },
     };
-    await this.client.sendMessage(this.roomId, content as never);
+    try {
+      await this.client.sendMessage(this.roomId, content as never);
+    } catch (e) {
+      throw toMaterixError(e, "send");
+    }
   }
 
   async redact(eventId: string): Promise<void> {

@@ -104,6 +104,9 @@ and the invite/archived/low-priority grouping is unchanged.
   targets (40px) via the existing media query; `.header-avatar-btn`; the
   header inherits the safe-area top inset when it's the first pane.
 
+Follow-up: the avatar menu later gained a fifth, visually separated (red)
+**Logout** item for the active account — see `docs/timeline-composer-fixes.md`.
+
 Verified with `tsc --noEmit`, `vite build`, and live headless-browser runs
 against a local Synapse fixture (alice + bob; DM and group room with unread
 messages), in both 412×915 and 915×412: single account renders exactly one
