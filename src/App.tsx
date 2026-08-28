@@ -23,6 +23,7 @@ import { CallOverlay } from "./ui/components/CallOverlay";
 import { PasscodeGate } from "./ui/passcodeGate";
 import { getPrefs, setPref } from "./ui/prefs";
 import { uiBus } from "./ui/bus";
+import { initAndroidBack, setAppBackHandler } from "./ui/androidBack";
 
 applyTheme();
 
@@ -75,6 +76,25 @@ export function App() {
     document.addEventListener("contextmenu", onCtx);
     return () => document.removeEventListener("contextmenu", onCtx);
   }, []);
+
+  // Android system Back: overlays are closed DOM-side (androidBack.ts); this
+  // fallback covers app-level state — close the details panel, then leave the
+  // open chat on the narrow layout. Returning false = nothing to go back
+  // from: Back is a no-op (the app never exits on Back).
+  useEffect(() => {
+    initAndroidBack();
+    return setAppBackHandler(() => {
+      if (detailsOpen) {
+        setDetailsOpen(false);
+        return true;
+      }
+      if (narrow && selection) {
+        setSelection(null);
+        return true;
+      }
+      return false;
+    });
+  }, [detailsOpen, narrow, selection]);
 
   // App-level command bus (open room / show verification flow from anywhere).
   useEffect(() => {

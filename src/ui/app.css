@@ -505,6 +505,12 @@ a {
 .chat-pane {
   flex: 1;
   min-width: 0;
+  /* The narrow layout flips .app to a column; without min-height the pane's
+   * implicit min-height:auto lets a long timeline blow it up to content
+   * height, so the DOCUMENT scrolled instead of .timeline — breaking
+   * stick-to-bottom, top-edge pagination and the long-press scroll-cancel on
+   * phones. */
+  min-height: 0;
   display: flex;
   flex-direction: column;
   background: var(--bg-chat);
@@ -593,6 +599,10 @@ a {
   display: flex;
   flex-direction: column;
   min-height: 0;
+  /* The browser owns vertical panning: once a touch scroll starts, pending
+   * pointer sequences get a pointercancel, which cancels the long-press
+   * detector (see TimelineRow). */
+  touch-action: pan-y;
 }
 
 .timeline-inner {
@@ -652,6 +662,7 @@ a {
   border-radius: var(--r-md);
   position: relative;
   margin-top: 2px;
+  touch-action: pan-y; /* vertical touch scroll beats the long-press timer */
 }
 
 .msg-row.group-start {
@@ -1554,6 +1565,17 @@ button.msg-sender:hover {
 }
 
 /* ---------- context menu ---------- */
+
+/* Full-viewport dismiss layer under an open menu: an outside press lands here
+ * (and is consumed) instead of on the UI beneath. Same z-index as the menu;
+ * DOM order keeps the menu itself on top. */
+.ctx-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  background: transparent;
+  touch-action: none;
+}
 
 .ctx-menu {
   position: fixed;

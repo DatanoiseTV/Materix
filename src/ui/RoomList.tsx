@@ -229,6 +229,9 @@ export function RoomListPane({
               setMenu({
                 x: r.left,
                 y: r.bottom + 4,
+                // No direct Logout here: a quick-menu one tap from the bar is
+                // too easy to hit by accident. Sign-out lives behind "Manage
+                // account" (Settings → Accounts, confirmed) only.
                 items: [
                   { label: "Manage account", onClick: onManageAccount },
                   { label: "Add account", onClick: onAddAccount },
@@ -237,24 +240,6 @@ export function RoomListPane({
                     onClick: onToggleAccountsBar,
                   },
                   { label: "Settings", onClick: onSettings },
-                  {
-                    label: "Logout",
-                    danger: true,
-                    onClick: async () => {
-                      if (
-                        !confirm(
-                          `Sign out ${activeMeta.userId}? Encrypted history on this device will be removed.`,
-                        )
-                      )
-                        return;
-                      try {
-                        await accountManager.logout(activeMeta.key);
-                        show("Signed out.");
-                      } catch (e) {
-                        showError(e);
-                      }
-                    },
-                  },
                 ],
               });
             }}
