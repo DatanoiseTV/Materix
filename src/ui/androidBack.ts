@@ -8,8 +8,10 @@
 //      modal dialog) — close the top-most one;
 //   2. the room-details panel — close it (App-level fallback);
 //   3. a chat open on the narrow layout — go back to the room list;
-//   4. nothing left to close — deliberate no-op. Never exit, never
-//      background the app.
+//   4. nothing left to close (the room list is the top level) — move the
+//      task to the BACKGROUND, Element-style: the home screen shows but the
+//      activity and WebView stay alive, so the next launcher tap resumes
+//      instantly. Never finish()/exit — only the app switcher closes Materix.
 //
 // Off Android nothing dispatches "android-back", so this is inert on desktop.
 
@@ -53,6 +55,20 @@ function closeTopOverlay(): boolean {
   return false;
 }
 
+/** Background the task via the native bridge (MaterixPush.kt), keeping the
+ * activity + WebView alive. Missing bridge/method (older native shell, or a
+ * non-Android build that somehow dispatched the event) degrades to the old
+ * stay-put behaviour — still never an exit. */
+function moveTaskToBack(): void {
+  const bridge = (window as unknown as { MaterixPushNative?: { moveTaskToBack?: () => void } })
+    .MaterixPushNative;
+  try {
+    bridge?.moveTaskToBack?.();
+  } catch {
+    // stay in the foreground
+  }
+}
+
 let wired = false;
 
 /** Idempotent; called once from App. */
@@ -61,8 +77,9 @@ export function initAndroidBack() {
   wired = true;
   window.addEventListener("android-back", () => {
     if (closeTopOverlay()) return;
-    // App-level fallback; returning false means there is nothing to go back
-    // from — stay exactly where we are (Back must never close Materix).
-    appHandler?.();
+    // App-level fallback; returning false means there is nothing left to go
+    // back from — background the app (never close it).
+    if (appHandler?.()) return;
+    moveTaskToBack();
   });
 }

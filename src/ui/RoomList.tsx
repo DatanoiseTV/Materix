@@ -6,7 +6,7 @@ import type { RoomSummary, SpaceSummary } from "../core/types";
 import { useAccounts, useClock, useRoomsVersion } from "./hooks";
 import { Avatar } from "./components/Avatar";
 import { ContextMenu, type MenuState } from "./components/ContextMenu";
-import { IconChat, IconCollapse, IconEnter, IconGlobe, IconHash, IconLock, IconMuted, IconPlus, IconSearch, IconSettings, IconShield } from "./components/Icons";
+import { IconChat, IconChevronLeft, IconChevronRight, IconGlobe, IconHash, IconLock, IconMuted, IconPlus, IconSearch, IconSettings, IconShield } from "./components/Icons";
 import { formatListTime, typingText } from "./format";
 import { copyText } from "./clipboard";
 import { useToast } from "./components/Toast";
@@ -49,8 +49,10 @@ export function AccountRail({
 
   return (
     <nav className={`rail${accounts.length > 1 ? " multi" : ""}`} aria-label="Accounts">
+      {/* « — collapses the bar; its » twin then appears in the room-list
+          header (see RoomListPane), so one chevron is always visible. */}
       <button className="rail-btn" onClick={onHide} title="Hide accounts bar" aria-label="Hide accounts bar">
-        <IconCollapse />
+        <IconChevronLeft />
       </button>
       <div className="rail-accounts">
         {accounts.map((a) => {
@@ -221,6 +223,18 @@ export function RoomListPane({
   return (
     <div className="rooms-pane">
       <div className="rooms-header">
+        {/* » — persistent affordance to bring the accounts bar back; while the
+            bar is shown its own « (AccountRail) hides it instead. */}
+        {!accountsBarShown && (
+          <button
+            className="icon-btn"
+            onClick={onToggleAccountsBar}
+            title="Show accounts bar"
+            aria-label="Show accounts bar"
+          >
+            <IconChevronRight size={20} />
+          </button>
+        )}
         {activeMeta && (
           <button
             className="header-avatar-btn"
@@ -229,9 +243,6 @@ export function RoomListPane({
               setMenu({
                 x: r.left,
                 y: r.bottom + 4,
-                // No direct Logout here: a quick-menu one tap from the bar is
-                // too easy to hit by accident. Sign-out lives behind "Manage
-                // account" (Settings → Accounts, confirmed) only.
                 items: [
                   { label: "Manage account", onClick: onManageAccount },
                   { label: "Add account", onClick: onAddAccount },
@@ -240,6 +251,24 @@ export function RoomListPane({
                     onClick: onToggleAccountsBar,
                   },
                   { label: "Settings", onClick: onSettings },
+                  {
+                    label: "Logout",
+                    danger: true,
+                    onClick: async () => {
+                      if (
+                        !confirm(
+                          `Sign out ${activeMeta.userId}? Encrypted history on this device will be removed.`,
+                        )
+                      )
+                        return;
+                      try {
+                        await accountManager.logout(activeMeta.key);
+                        show("Signed out.");
+                      } catch (e) {
+                        showError(e);
+                      }
+                    },
+                  },
                 ],
               });
             }}
@@ -307,14 +336,8 @@ export function RoomListPane({
         >
           <IconPlus size={20} />
         </button>
-        <button
-          className="icon-btn"
-          onClick={() => onNewChat("join")}
-          title="Join a room"
-          aria-label="Join a room"
-        >
-          <IconEnter size={20} />
-        </button>
+        {/* No standalone "Join a room" (IconEnter) button: its door-and-arrow
+            glyph reads as a logout icon in the bar. Join lives in the + menu. */}
         <button className="icon-btn" onClick={onSettings} title="Settings" aria-label="Settings">
           <IconSettings size={20} />
         </button>

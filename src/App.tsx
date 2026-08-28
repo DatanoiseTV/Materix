@@ -80,7 +80,7 @@ export function App() {
   // Android system Back: overlays are closed DOM-side (androidBack.ts); this
   // fallback covers app-level state — close the details panel, then leave the
   // open chat on the narrow layout. Returning false = nothing to go back
-  // from: Back is a no-op (the app never exits on Back).
+  // from: androidBack.ts backgrounds the app, Element-style (never exits).
   useEffect(() => {
     initAndroidBack();
     return setAppBackHandler(() => {
@@ -224,7 +224,6 @@ export function App() {
           selection={selection}
           onBack={() => setSelection(null)}
           onToggleDetails={() => setDetailsOpen((v) => !v)}
-          showBackButton={narrow}
         />
         {detailsOpen && selection && (
           <DetailsPane

@@ -105,7 +105,45 @@ and the invite/archived/low-priority grouping is unchanged.
   header inherits the safe-area top inset when it's the first pane.
 
 Follow-up: the avatar menu later gained a fifth, visually separated (red)
-**Logout** item for the active account — see `docs/timeline-composer-fixes.md`.
+**Logout** item for the active account — see `docs/timeline-composer-fixes.md`
+and "Round 3" below (removed in round 2, reinstated in round 3 as the *only*
+logout surface outside Settings).
+
+## Round 3: logout placement, Back backgrounds, room-header Back, bar chevrons
+
+Four device-feedback fixes on top of the above (all verified on a real
+Chromium-141 phone and the Chromium-83 compat emulator):
+
+1. **Logout lives in the avatar menu — never as a bar icon.** The avatar
+   dropdown regains a final red **Logout** item (confirm dialog →
+   `accountManager.logout(activeKey)`); Settings → Accounts keeps its
+   canonical Sign out. The standalone **Join a room** header button
+   (`IconEnter`) was removed: its door-and-arrow glyph reads as a *logout*
+   icon at bar size. Joining stays one tap away inside the "+" menu.
+2. **Top-level Back backgrounds the app (Element-style).** The
+   `androidBack.ts` ladder's step 4 is no longer a no-op: when nothing is
+   left to close (room list on screen), it calls the native bridge's new
+   `moveTaskToBack()` (`MaterixPush.kt`, `@JavascriptInterface`,
+   `activity.moveTaskToBack(true)` on the UI thread). The task retreats to
+   the home screen but the activity, process and warm WebView survive, so
+   the next launcher tap resumes instantly — no cold frontend reload, and
+   still never `finish()`. (A Rust/JNI Tauri command was considered, but
+   tao 0.35 no longer initializes `ndk-context`, so the injected Kotlin
+   bridge — already attached by `apply-android-push.sh` in every Android
+   build — is the reliable path.)
+3. **Element-style room header with an always-on Back.** `ChatPane`'s header
+   back button lost its `narrow`-only gating (the `showBackButton` prop is
+   gone): back arrow + room avatar + name + actions in every layout and
+   orientation. The on-screen arrow and hardware Back both return
+   chat → room list; only *at the list* does hardware Back background the
+   app.
+4. **Accounts-bar chevron that moves between bars.** Bar hidden → a **»**
+   (`IconChevronRight`, new) sits *before* the avatar in the room-list
+   header and shows the bar. Bar shown → the rail's leading hide button is a
+   **«** (`IconChevronLeft`, new; replaces the `IconCollapse` double
+   chevron) and the header » disappears. Exactly one chevron is visible at
+   a time, always pointing where the bar will go; the avatar-menu
+   "Show/Hide accounts bar" item remains as the labelled alternative.
 
 Verified with `tsc --noEmit`, `vite build`, and live headless-browser runs
 against a local Synapse fixture (alice + bob; DM and group room with unread

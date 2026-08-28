@@ -11,7 +11,9 @@
 #   4. adds the onWebViewCreate() hook to MainActivity so the JS bridge attaches,
 #   5. makes system Back NEVER close the app: disables wry's default Back
 #      handling and forwards every Back press to the WebView as a JS
-#      "android-back" event (handled by src/ui/androidBack.ts).
+#      "android-back" event (handled by src/ui/androidBack.ts, which closes
+#      UI or — at the top level — backgrounds the task via the bridge's
+#      moveTaskToBack, keeping the activity alive, Element-style).
 #
 # See packaging/android/push/*.kt and docs/push-notifications.md.
 set -euo pipefail
@@ -145,8 +147,9 @@ PY
 # wry's WryActivity installs its own OnBackPressedCallback (WebView
 # history.back, else finish()) unless `handleBackNavigation` is false. Disable
 # it and register an always-enabled callback that forwards Back into the page
-# as an "android-back" event; src/ui/androidBack.ts closes menus/panes or
-# no-ops. The only way to close Materix is the app switcher.
+# as an "android-back" event; src/ui/androidBack.ts closes menus/panes or, at
+# the top level, backgrounds the task (moveTaskToBack — activity stays alive).
+# The only way to actually close Materix is the app switcher.
 python3 - "$MA" <<'PY'
 import re, sys
 p = sys.argv[1]; s = open(p).read()
