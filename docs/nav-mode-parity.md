@@ -1,4 +1,4 @@
-# Nav mode parity: Chats/Rooms toggles, unread badges, always-on rail
+# Nav mode parity: Chats/Rooms toggles, unread badges, collapsible accounts bar
 
 ## Problem
 
@@ -37,14 +37,46 @@ Rotating the device made buttons appear and disappear.
 
 Both orientations render the same controls:
 
-- **Account rail** — avatar(s) with total-unread badge, add-account "+",
-  Settings gear. Vertical at the left in landscape; horizontal strip at the
-  top in portrait (the `.rail:not(.multi)` hiding rule is gone). Active
-  avatar click → Settings; other avatar click → switch account.
-- **Room-list header** — Chats toggle (bubble icon + unread badge), Rooms
-  toggle (hash icon + unread badge), explore globe, new-chat "+". The
-  header's narrow-only Settings gear was removed (the rail now provides
-  Settings everywhere), as was the wide-only `<h1>Chats</h1>` heading.
+- **Room-list header** (always present) — active-account avatar first, then
+  the Chats toggle (bubble icon + unread badge) and Rooms toggle (hash icon +
+  unread badge); on the opposite end explore globe, new-chat "+", Join, and a
+  Settings gear. The wide-only `<h1>Chats</h1>` heading is gone.
+- **Accounts bar** (`AccountRail`, collapsible — see below) — hide button
+  first, then avatar(s) with total-unread badge, add-account "+", Settings
+  gear. Vertical at the left in landscape; horizontal strip at the top in
+  portrait (the `.rail:not(.multi)` hiding rule is gone). Active avatar
+  click → Settings; other avatar click → switch account.
+
+## Single vs. multiple accounts: the accounts bar
+
+The always-on rail gave a single-account user **two** bars for no benefit, so
+the accounts bar is now driven by one shared `showAccountsBar` state (hoisted
+into `App`, persisted as `prefs.ui.accountsBar`):
+
+- **Default (pref unset):** shown iff more than one account is signed in.
+  One account → a single bar (the room-list header); several accounts → the
+  accounts bar appears on startup.
+- **Explicit toggles** write the pref, so the choice sticks across restarts
+  (a multi-account user can keep it hidden; a single-account user can pin it).
+
+Where it's toggled from:
+
+- The **header avatar** opens a dropdown (`ContextMenu`) with exactly:
+  1. *Manage account* — opens Settings scrolled to its **Accounts** section
+     (profile, sounds, passcode, devices, sign-out — the app's account
+     management surface; `SettingsDialog` gained `initialSection`).
+  2. *Add account* — the existing add-account onboarding modal.
+  3. *Show/Hide accounts bar* — flips `showAccountsBar` (label reflects the
+     current state).
+  4. *Settings* — same dialog as the gear (deliberate duplicate so it's one
+     tap from the avatar too).
+- The rail itself has a **hide button** (chevrons, before the accounts) that
+  sets `showAccountsBar = false`; the avatar-menu item brings it back.
+
+All of these — avatar menu, Chats/Rooms toggles, explore, New, Join,
+Settings, and the rail hide button — exist in **both** orientations; nothing
+is gated on `narrow`. With the rail hidden in portrait the room-list header
+is the topmost strip and takes over the status-bar safe-area inset.
 
 Toggle semantics: both on (default) shows everything; hiding one filters out
 that half of the list; hiding both shows an "Everything is hidden" empty
@@ -57,13 +89,25 @@ and the invite/archived/low-priority grouping is unchanged.
   `showChats`/`showRooms` booleans; header rendered unconditionally (no
   `narrow` media-query gating left in this component); per-section unread
   reducers mirror the rail's; empty-state branches keyed off the toggles.
-- `src/ui/components/Icons.tsx` — added `IconHash`.
+  Header gained the avatar menu button, Join, and Settings; `AccountRail`
+  gained the hide button.
+- `src/App.tsx` — hoists `showAccountsBar` (pref override ?? multi-account
+  default), renders the rail conditionally, threads the menu handlers.
+- `src/ui/prefs.ts` — `ui?: { accountsBar?: boolean }`.
+- `src/ui/dialogs/SettingsDialog.tsx` — optional `initialSection: "accounts"`
+  scrolls the Accounts section into view ("Manage account" target).
+- `src/ui/components/Icons.tsx` — added `IconHash`, `IconEnter` (join),
+  `IconCollapse` (hide bar).
 - `src/ui/app.css` — `.section-tab` restyled as an icon toggle with a
   `.section-badge` (mirrors `.rail-badge`); removed the portrait
   `.rail:not(.multi){display:none}` rule; portrait keeps its larger touch
-  targets (40px) via the existing media query.
+  targets (40px) via the existing media query; `.header-avatar-btn`; the
+  header inherits the safe-area top inset when it's the first pane.
 
-Verified with `tsc --noEmit`, `vite build`, and a live headless-browser run
-against a local Synapse fixture (DM with 3 unread + group room with 5
-unread): all controls present and working in both 412×915 and 915×412, badges
-"3"/"5" on the toggles, independent filtering, avatar→Settings in both modes.
+Verified with `tsc --noEmit`, `vite build`, and live headless-browser runs
+against a local Synapse fixture (alice + bob; DM and group room with unread
+messages), in both 412×915 and 915×412: single account renders exactly one
+bar with the full control set and a working 4-item avatar menu; the pref
+default flips to shown after adding a second account; the rail hide button /
+menu item toggle and persist across reloads; badges and independent
+Chats/Rooms filtering unchanged.

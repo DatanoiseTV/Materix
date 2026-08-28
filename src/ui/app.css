@@ -279,6 +279,24 @@ a {
   border: 2px solid var(--bg-pane);
 }
 
+/* Active-account avatar at the head of the room-list header; opens the
+   account menu (manage / add / accounts-bar toggle / settings). */
+.header-avatar-btn {
+  position: relative;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--r-full);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  transition: background 0.12s var(--ease);
+}
+
+.header-avatar-btn:hover {
+  background: var(--bg-hover);
+}
+
 .icon-btn {
   width: 34px;
   height: 34px;
@@ -2648,6 +2666,11 @@ button.msg-sender:hover {
   .rooms-header {
     padding-top: var(--sp-2);
   }
+  /* With the accounts bar hidden the room-list header is the topmost strip,
+     so it takes over the rail's status-bar inset. */
+  .app > .rooms-pane:first-child .rooms-header {
+    padding-top: calc(var(--sp-2) + env(safe-area-inset-top));
+  }
 
   .chat-header {
     padding: var(--sp-2) var(--sp-3);
@@ -2670,7 +2693,8 @@ button.msg-sender:hover {
 
   /* Bigger touch targets on phones. */
   .icon-btn,
-  .section-tab {
+  .section-tab,
+  .header-avatar-btn {
     width: 40px;
     height: 40px;
   }

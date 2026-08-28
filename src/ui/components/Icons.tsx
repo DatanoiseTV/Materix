@@ -134,6 +134,15 @@ export const IconLogout = icon(
   </>,
 );
 
+export const IconEnter = icon(
+  <>
+    <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" />
+    <path d="m10 17 5-5-5-5M15 12H3" />
+  </>,
+);
+
+export const IconCollapse = icon(<path d="m11 17-5-5 5-5M18 17l-5-5 5-5" />);
+
 export const IconChat = icon(
   <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />,
 );

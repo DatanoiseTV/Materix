@@ -21,6 +21,7 @@ import { initPush } from "./ui/push";
 import { NowPlaying } from "./ui/components/NowPlaying";
 import { CallOverlay } from "./ui/components/CallOverlay";
 import { PasscodeGate } from "./ui/passcodeGate";
+import { getPrefs, setPref } from "./ui/prefs";
 import { uiBus } from "./ui/bus";
 
 applyTheme();
@@ -28,7 +29,7 @@ applyTheme();
 type Dialog =
   | { kind: "none" }
   | { kind: "new-chat"; tab: NewChatTab }
-  | { kind: "settings" }
+  | { kind: "settings"; section?: "accounts" }
   | { kind: "add-account" }
   | { kind: "security"; accountKey: string };
 
@@ -40,6 +41,19 @@ export function App() {
   const [activeFlow, setActiveFlow] = useState<SasFlow | null>(null);
   const narrow = useMediaQuery("(max-width: 760px)");
   useAccounts();
+
+  // Accounts-bar visibility, shared by the rail and the room-list header.
+  // An explicit user toggle is persisted; while unset the bar defaults to
+  // "shown iff more than one account is signed in" (single-account users get
+  // one bar, multi-account users see their accounts on startup).
+  const [accountsBarPref, setAccountsBarPref] = useState<boolean | undefined>(
+    () => getPrefs().ui?.accountsBar,
+  );
+  const showAccountsBar = accountsBarPref ?? accountManager.list().length > 1;
+  const setShowAccountsBar = (shown: boolean) => {
+    setAccountsBarPref(shown);
+    setPref("ui", { ...getPrefs().ui, accountsBar: shown });
+  };
 
   useEffect(() => {
     accountManager
@@ -165,10 +179,13 @@ export function App() {
   return (
     <ToastProvider>
       <div className={`app${narrow && selection ? " mobile-chat" : ""}`}>
-        <AccountRail
-          onAddAccount={() => setDialog({ kind: "add-account" })}
-          onSettings={() => setDialog({ kind: "settings" })}
-        />
+        {showAccountsBar && (
+          <AccountRail
+            onAddAccount={() => setDialog({ kind: "add-account" })}
+            onSettings={() => setDialog({ kind: "settings" })}
+            onHide={() => setShowAccountsBar(false)}
+          />
+        )}
         <RoomListPane
           selection={selection}
           onSelect={(sel) => {
@@ -177,6 +194,11 @@ export function App() {
           }}
           onNewChat={(tab) => setDialog({ kind: "new-chat", tab })}
           onOpenSecurity={(accountKey) => setDialog({ kind: "security", accountKey })}
+          onAddAccount={() => setDialog({ kind: "add-account" })}
+          onSettings={() => setDialog({ kind: "settings" })}
+          onManageAccount={() => setDialog({ kind: "settings", section: "accounts" })}
+          accountsBarShown={showAccountsBar}
+          onToggleAccountsBar={() => setShowAccountsBar(!showAccountsBar)}
         />
         <ChatPane
           selection={selection}
@@ -219,6 +241,7 @@ export function App() {
           onClose={() => setDialog({ kind: "none" })}
           onAddAccount={() => setDialog({ kind: "add-account" })}
           onStartVerification={(flow) => setActiveFlow(flow)}
+          initialSection={dialog.section}
         />
       )}
       {dialog.kind === "add-account" && (

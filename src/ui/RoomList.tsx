@@ -6,7 +6,7 @@ import type { RoomSummary, SpaceSummary } from "../core/types";
 import { useAccounts, useClock, useRoomsVersion } from "./hooks";
 import { Avatar } from "./components/Avatar";
 import { ContextMenu, type MenuState } from "./components/ContextMenu";
-import { IconChat, IconGlobe, IconHash, IconLock, IconMuted, IconPlus, IconSearch, IconSettings, IconShield } from "./components/Icons";
+import { IconChat, IconCollapse, IconEnter, IconGlobe, IconHash, IconLock, IconMuted, IconPlus, IconSearch, IconSettings, IconShield } from "./components/Icons";
 import { formatListTime, typingText } from "./format";
 import { useToast } from "./components/Toast";
 
@@ -35,9 +35,11 @@ const MUTE_PRESETS: [string, number][] = [
 export function AccountRail({
   onAddAccount,
   onSettings,
+  onHide,
 }: {
   onAddAccount: () => void;
   onSettings: () => void;
+  onHide: () => void;
 }) {
   useAccounts();
   useRoomsVersion();
@@ -46,6 +48,9 @@ export function AccountRail({
 
   return (
     <nav className={`rail${accounts.length > 1 ? " multi" : ""}`} aria-label="Accounts">
+      <button className="rail-btn" onClick={onHide} title="Hide accounts bar" aria-label="Hide accounts bar">
+        <IconCollapse />
+      </button>
       <div className="rail-accounts">
         {accounts.map((a) => {
           const unread = accountManager
@@ -86,11 +91,21 @@ export function RoomListPane({
   onSelect,
   onNewChat,
   onOpenSecurity,
+  onAddAccount,
+  onSettings,
+  onManageAccount,
+  accountsBarShown,
+  onToggleAccountsBar,
 }: {
   selection: Selection | null;
   onSelect: (sel: Selection) => void;
   onNewChat: (tab: NewChatTab) => void;
   onOpenSecurity: (accountKey: string) => void;
+  onAddAccount: () => void;
+  onSettings: () => void;
+  onManageAccount: () => void;
+  accountsBarShown: boolean;
+  onToggleAccountsBar: () => void;
 }) {
   useRoomsVersion();
   useAccounts();
@@ -107,6 +122,7 @@ export function RoomListPane({
 
   const accounts = accountManager.list();
   const multiAccount = accounts.length > 1;
+  const activeMeta = accounts.find((a) => a.key === accountManager.active) ?? accounts[0];
 
   const allRooms = useMemo(() => {
     const rooms: RoomSummary[] = [];
@@ -204,6 +220,38 @@ export function RoomListPane({
   return (
     <div className="rooms-pane">
       <div className="rooms-header">
+        {activeMeta && (
+          <button
+            className="header-avatar-btn"
+            onClick={(e) => {
+              const r = e.currentTarget.getBoundingClientRect();
+              setMenu({
+                x: r.left,
+                y: r.bottom + 4,
+                items: [
+                  { label: "Manage account", onClick: onManageAccount },
+                  { label: "Add account", onClick: onAddAccount },
+                  {
+                    label: accountsBarShown ? "Hide accounts bar" : "Show accounts bar",
+                    onClick: onToggleAccountsBar,
+                  },
+                  { label: "Settings", onClick: onSettings },
+                ],
+              });
+            }}
+            title={`${activeMeta.userId} — account menu`}
+            aria-label={`Account menu for ${activeMeta.userId}`}
+            aria-haspopup="menu"
+          >
+            <Avatar
+              account={accountManager.tryAccount(activeMeta.key)}
+              mxc={activeMeta.avatarUrl}
+              name={activeMeta.displayName}
+              id={activeMeta.userId}
+              size={28}
+            />
+          </button>
+        )}
         <div className="section-tabs" aria-label="Sections">
           <button
             className={`section-tab${showChats ? " active" : ""}`}
@@ -254,6 +302,17 @@ export function RoomListPane({
           aria-haspopup="menu"
         >
           <IconPlus size={20} />
+        </button>
+        <button
+          className="icon-btn"
+          onClick={() => onNewChat("join")}
+          title="Join a room"
+          aria-label="Join a room"
+        >
+          <IconEnter size={20} />
+        </button>
+        <button className="icon-btn" onClick={onSettings} title="Settings" aria-label="Settings">
+          <IconSettings size={20} />
         </button>
       </div>
       <SecurityBanner onOpenSecurity={onOpenSecurity} />
