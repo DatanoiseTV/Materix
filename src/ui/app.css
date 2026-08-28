@@ -223,19 +223,8 @@ a {
   gap: var(--sp-2);
 }
 
-.rooms-header h1 {
-  font-size: var(--fs-xl);
-  font-weight: 700;
-  margin: 0;
-  flex: 1;
-  min-width: 0;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-/* Narrow-screen top-level nav: Chats / Rooms tabs replace the heading (the
-   account rail that hosts Settings on wide layouts is collapsed there). */
+/* Top-level nav: Chats / Rooms icon toggles. Independent show/hide filters,
+   rendered in the header in every orientation (never gated on layout). */
 .section-tabs {
   display: flex;
   gap: var(--sp-1);
@@ -245,14 +234,17 @@ a {
 }
 
 .section-tab {
+  position: relative;
+  width: 34px;
   height: 34px;
-  padding: 0 var(--sp-3);
   border: 1px solid transparent;
-  border-radius: var(--r-full);
+  border-radius: var(--r-md);
   background: transparent;
-  color: var(--text-2);
-  font-size: var(--fs-md);
-  font-weight: 700;
+  color: var(--text-3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
   cursor: pointer;
   transition: background 0.12s, color 0.12s, border-color 0.12s;
 }
@@ -266,6 +258,25 @@ a {
   background: var(--accent-soft);
   border-color: var(--accent);
   color: var(--accent-strong);
+}
+
+/* Per-toggle unread count, mirroring .rail-badge but anchored to the pane. */
+.section-badge {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: var(--r-full);
+  background: var(--danger);
+  color: #fff;
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid var(--bg-pane);
 }
 
 .icon-btn {
@@ -2590,8 +2601,9 @@ button.msg-sender:hover {
 }
 
 @media (max-width: 760px) {
-  /* On phones the account rail collapses to a horizontal strip only when
-     more than one account exists; otherwise it's hidden to maximize space. */
+  /* On phones the account rail collapses to a horizontal strip at the top.
+     It stays visible even with a single account so the avatar, add-account
+     and Settings controls exist in every orientation (mode parity). */
   .app {
     flex-direction: column;
   }
@@ -2619,11 +2631,6 @@ button.msg-sender:hover {
     transform: translateX(-50%);
     width: 20px;
     height: 3px;
-  }
-  /* Hide the rail entirely for single-account users — the room-list header
-     provides Settings (and the Chats/Rooms tabs) on phones. */
-  .rail:not(.multi) {
-    display: none;
   }
 
   .rooms-pane {
@@ -2662,7 +2669,8 @@ button.msg-sender:hover {
   }
 
   /* Bigger touch targets on phones. */
-  .icon-btn {
+  .icon-btn,
+  .section-tab {
     width: 40px;
     height: 40px;
   }

@@ -138,6 +138,8 @@ export const IconChat = icon(
   <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />,
 );
 
+export const IconHash = icon(<path d="M4 9h16M4 15h16M10 3 8 21M16 3l-2 18" />);
+
 export const IconThreads = icon(
   <>
     <path d="M14 9a2 2 0 0 1-2 2H6l-4 4V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2z" />
