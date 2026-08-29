@@ -58,6 +58,14 @@ jobs:
         # the MODERN and COMPAT builds below (same gen/android tree).
         run: bash scripts/apply-android-push.sh
 
+      - name: Inject call media permissions (mic + camera)
+        # Declares RECORD_AUDIO/MODIFY_AUDIO_SETTINGS/CAMERA in the regenerated
+        # manifest so wry's WebChromeClient.onPermissionRequest can actually
+        # grant getUserMedia() for 1:1 calls and voice messages (undeclared
+        # runtime permissions are auto-denied by Android). Idempotent; applies
+        # to both variants (see scripts/apply-android-av.sh).
+        run: bash scripts/apply-android-av.sh
+
       - name: Stamp version (date + commit filename, monotonic versionCode)
         run: |
           set -euo pipefail
