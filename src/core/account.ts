@@ -92,7 +92,8 @@ export class MatrixAccount {
       cryptoCallbacks,
     });
     this.crypto.bind(this.client);
-    this.calls.bind(this.client);
+    // The getter defers the read: crypto init only settles below, after bind.
+    this.calls.bind(this.client, () => this.cryptoAvailable);
     // Must run after the store is assigned to the client (SDK requirement).
     await store.startup();
 

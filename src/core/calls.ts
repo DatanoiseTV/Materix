@@ -82,6 +82,9 @@ export class CallManager {
   readonly events = new Emitter<"call">();
 
   private client!: MatrixClient;
+  /** Whether the E2EE crypto engine is up (see MatrixAccount.cryptoAvailable);
+   *  read at call time because crypto init finishes after bind(). */
+  private cryptoAvailable: () => boolean = () => true;
   private call: MatrixCall | null = null;
   private videoCall = false;
   private answered = false;
@@ -93,8 +96,9 @@ export class CallManager {
   private snap: CallSnapshot = IDLE;
 
   /** Wire the incoming-call listener. Call once, after the client exists. */
-  bind(client: MatrixClient): void {
+  bind(client: MatrixClient, cryptoAvailable?: () => boolean): void {
     this.client = client;
+    if (cryptoAvailable) this.cryptoAvailable = cryptoAvailable;
     client.on(CallEventHandlerEvent.Incoming, this.onIncoming);
   }
 
@@ -114,6 +118,20 @@ export class CallManager {
 
   private async place(roomId: string, video: boolean): Promise<void> {
     if (this.isBusy()) throw new Error("A call is already in progress.");
+    assertGetUserMedia();
+    // In an E2EE room the call signaling (m.call.* invite/answer/candidates,
+    // carrying the SDP and the DTLS fingerprints) rides Olm/Megolm like any
+    // other event. Without a working crypto engine (old-WebView WASM failure)
+    // the SDK can't encrypt the invite — and could never decrypt the peer's
+    // answer — so fail up front with an actionable message instead of the
+    // SDK's cryptic send error. Calls in unencrypted rooms still work.
+    if (!this.cryptoAvailable() && this.client.getRoom(roomId)?.hasEncryptionStateEvent()) {
+      throw new Error(
+        "This room is end-to-end encrypted, but encryption is unavailable on this device " +
+          "(its System WebView is too old to run the crypto engine), so the call can't be " +
+          "set up here. Calls in unencrypted rooms still work.",
+      );
+    }
     const call = this.client.createCall(roomId);
     if (!call) throw new Error("This device does not support calls.");
     this.adopt(call, video);
@@ -149,6 +167,7 @@ export class CallManager {
     this.answered = true;
     this.publish();
     try {
+      assertGetUserMedia();
       await this.call.answer(true, this.videoCall);
     } catch (e) {
       this.error = describeError(e);
@@ -373,6 +392,20 @@ function classifyMediaPath(stats: RTCStatsReport): "direct" | "relay" | null {
   if (!local && !remote) return null;
   const relayed = local?.candidateType === "relay" || remote?.candidateType === "relay";
   return relayed ? "relay" : "direct";
+}
+
+/**
+ * Throw a clear error when the WebView doesn't expose getUserMedia at all
+ * (insecure context / very old engine / missing native plumbing) — the SDK's
+ * MediaHandler would otherwise die deep inside with a bare TypeError.
+ */
+function assertGetUserMedia(): void {
+  if (!navigator.mediaDevices?.getUserMedia) {
+    throw new Error(
+      "Microphone/camera capture (getUserMedia) is not available in this WebView, " +
+        "so calls can't work on this device.",
+    );
+  }
 }
 
 /** Best-effort human message for a getUserMedia / placement failure. */
