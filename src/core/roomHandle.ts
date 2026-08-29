@@ -824,6 +824,20 @@ export class RoomHandle {
     await this.client.redactEvent(this.roomId, eventId);
   }
 
+  /** Whether I have the power level to redact (remove) other people's messages. */
+  canRedactOthers(): boolean {
+    const redactLevel = (this.powerLevels().redact as number) ?? 50;
+    return this.myPowerLevel() >= redactLevel;
+  }
+
+  /** Pretty-printed wire JSON for an event, or undefined if not in loaded
+   * history. Used by the "View source" message action. */
+  source(eventId: string): string | undefined {
+    const ev = this.room.findEventById(eventId);
+    if (!ev) return undefined;
+    return JSON.stringify(ev.getEffectiveEvent(), null, 2);
+  }
+
   // ---- pinned messages (m.room.pinned_events) ----
 
   /** Event ids currently pinned in the room, in pin order (latest last). */

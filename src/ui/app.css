@@ -1111,6 +1111,168 @@ button.msg-sender:hover {
   color: var(--text-1);
 }
 
+/* On touch devices the hover bar can't be reached (and sticky :hover would pop
+   it on a tap); the long-press action sheet fully replaces it there. */
+@media (hover: none) {
+  .msg-actions {
+    display: none !important;
+  }
+}
+
+/* ---------- long-press message action sheet ---------- */
+.msg-sheet {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: max(var(--sp-4), env(safe-area-inset-top)) var(--sp-4)
+    max(var(--sp-4), env(safe-area-inset-bottom));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  background: color-mix(in srgb, var(--bg-app) 45%, transparent);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  animation: msg-sheet-in 120ms ease-out;
+}
+
+@keyframes msg-sheet-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.msg-sheet-inner {
+  width: 100%;
+  max-width: 520px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  /* Keep the whole stack reachable in landscape / with the keyboard up. */
+  margin-top: auto;
+  margin-bottom: auto;
+}
+
+.msg-sheet-message {
+  align-self: stretch;
+  max-height: 42vh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  padding: var(--sp-3);
+  box-shadow: var(--shadow-2);
+}
+
+.msg-sheet-sender {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+  font-weight: 600;
+  font-size: var(--fs-sm);
+  margin-bottom: var(--sp-1);
+}
+
+.msg-sheet-sender .msg-time {
+  font-weight: 400;
+  color: var(--text-3);
+  font-size: var(--fs-xs);
+}
+
+.msg-sheet-reactions {
+  align-self: center;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--sp-1);
+  max-width: 100%;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: var(--sp-1) var(--sp-2);
+  box-shadow: var(--shadow-1);
+}
+
+.msg-sheet-react {
+  width: 42px;
+  height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  font-size: 22px;
+  line-height: 1;
+  color: var(--text-1);
+}
+
+.msg-sheet-react:hover,
+.msg-sheet-react:active {
+  background: var(--bg-hover);
+}
+
+.msg-sheet-more {
+  color: var(--text-2);
+}
+
+.msg-sheet-actions {
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  padding: var(--sp-1);
+  box-shadow: var(--shadow-1);
+}
+
+.msg-sheet-actions button {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  width: 100%;
+  padding: var(--sp-3);
+  border-radius: var(--r-md);
+  color: var(--text-1);
+  font-size: var(--fs-md);
+  text-align: left;
+}
+
+.msg-sheet-actions button:hover,
+.msg-sheet-actions button:active {
+  background: var(--bg-hover);
+}
+
+.msg-sheet-actions button.danger {
+  color: var(--danger);
+}
+
+.msg-sheet-action-icon {
+  display: flex;
+  color: var(--text-2);
+}
+
+.msg-sheet-actions button.danger .msg-sheet-action-icon {
+  color: inherit;
+}
+
+.msg-source {
+  margin: 0;
+  max-height: 60vh;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  color: var(--text-1);
+}
+
 .utd {
   font-style: italic;
   color: var(--text-3);

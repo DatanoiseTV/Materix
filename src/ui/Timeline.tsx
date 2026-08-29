@@ -18,18 +18,23 @@ import {
   IconCheck,
   IconChevronDown,
   IconClock,
+  IconCopy,
   IconDownload,
   IconEdit,
   IconFile,
   IconForward,
+  IconInfo,
   IconLocation,
   IconLock,
   IconPin,
   IconPlay,
+  IconPlus,
   IconReply,
   IconSmile,
+  IconThreads,
   IconTrash,
 } from "./components/Icons";
+import { Modal } from "./components/Modal";
 import { ForwardDialog } from "./dialogs/ForwardDialog";
 import { formatDayDivider, formatDuration, formatSize, formatTime } from "./format";
 import { copyText } from "./clipboard";
@@ -39,7 +44,9 @@ import { assessLink, isTrusted, openExternal, type LinkAssessment } from "./link
 import { LinkWarning } from "./components/LinkWarning";
 import { InlineThread } from "./InlineThread";
 
-const QUICK_REACTIONS = ["👍", "❤️", "😂", "😮", "😢", "🎉"];
+// Element-Classic-style quick reactions shown in the long-press action sheet's
+// top row; the first few also back the desktop hover bar.
+const QUICK_REACTIONS = ["👍", "👎", "😄", "🎉", "😕", "❤️", "🚀", "👀"];
 
 export function Timeline({
   account,
@@ -64,6 +71,8 @@ export function Timeline({
   const [lightbox, setLightbox] = useState<string | null>(null);
   const [menu, setMenu] = useState<MenuState | null>(null);
   const [picker, setPicker] = useState<{ x: number; y: number; eventId: string } | null>(null);
+  const [sheet, setSheet] = useState<SheetState | null>(null);
+  const [sourceView, setSourceView] = useState<string | null>(null);
   const [forwardId, setForwardId] = useState<string | null>(null);
   const [linkPrompt, setLinkPrompt] = useState<LinkAssessment | null>(null);
   const [openThreads, setOpenThreads] = useState<ReadonlySet<string>>(() => new Set());
@@ -209,6 +218,8 @@ export function Timeline({
                   onZoom={setLightbox}
                   onUserMenu={setMenu}
                   onEmojiPicker={setPicker}
+                  onActionSheet={setSheet}
+                  onViewSource={(src) => setSourceView(src ?? "Source unavailable — event not in loaded history.")}
                   onForward={setForwardId}
                   onOpenThread={toggleThread}
                   threadOpen={threadOpen}
@@ -241,6 +252,12 @@ export function Timeline({
         </div>
       )}
       {menu && <ContextMenu menu={menu} onClose={() => setMenu(null)} />}
+      {sheet && <MessageActionSheet sheet={sheet} account={account} onClose={() => setSheet(null)} />}
+      {sourceView !== null && (
+        <Modal title="Message source" onClose={() => setSourceView(null)} wide>
+          <pre className="msg-source">{sourceView}</pre>
+        </Modal>
+      )}
       {picker && (
         <EmojiPicker
           anchor={picker}
@@ -263,6 +280,8 @@ export function TimelineRow({
   onZoom,
   onUserMenu,
   onEmojiPicker,
+  onActionSheet,
+  onViewSource,
   onForward,
   onOpenThread,
   threadOpen,
@@ -275,6 +294,10 @@ export function TimelineRow({
   onZoom: (url: string) => void;
   onUserMenu: (menu: MenuState) => void;
   onEmojiPicker: (p: { x: number; y: number; eventId: string }) => void;
+  /** Open the full-screen long-press action sheet for this message (touch). */
+  onActionSheet?: (sheet: SheetState) => void;
+  /** Show an event's raw wire JSON (the "View source" action). */
+  onViewSource?: (src: string | undefined) => void;
   onForward?: (eventId: string) => void;
   onOpenThread?: (rootEventId: string) => void;
   /** Whether this root's inline thread is currently expanded (chip reflects it). */
@@ -282,9 +305,13 @@ export function TimelineRow({
 }) {
   const { show, showError } = useToast();
 
-  const [showActions, setShowActions] = useState(false);
+  // A deliberate long-press opens the full-screen action sheet. `openSheet` is
+  // defined further down (it needs `mine`/`canEdit`/`react`, computed after the
+  // early kind-returns), so the press timer reaches it through this ref — which
+  // is refreshed every render and therefore never holds a stale closure.
+  const openSheetRef = useRef<() => void>(() => {});
 
-  // Touch: only a deliberate long-press on the bubble reveals the action bar.
+  // Touch: only a deliberate long-press on the bubble opens the action sheet.
   // A timer starts on pointerdown and is cancelled by ANY sign of a scroll or
   // gesture: movement past a small slop on either axis, pointerup (a tap),
   // pointercancel (the browser took the gesture over — `touch-action: pan-y`
@@ -345,7 +372,7 @@ export function TimelineRow({
       p.detachScroll?.();
       p.detachScroll = null;
       p.fired = true;
-      setShowActions((v) => !v);
+      openSheetRef.current();
     }, 470);
   };
   const onPressMove = (e: React.PointerEvent) => {
@@ -416,6 +443,76 @@ export function TimelineRow({
     if (item.eventId) handle.react(item.eventId, key).catch(showError);
   };
 
+  // Build and open the full-screen long-press action sheet: the pressed message
+  // pinned at the top, a quick-reaction row (with a "+" that opens the full
+  // picker), and the vertical action list — the reworked replacement for the
+  // context menu that the long-press icon bar had displaced. Same actions and
+  // handlers as the desktop right-click menu / hover bar.
+  const openSheet = () => {
+    if (item.kind !== "message" || !item.eventId) return;
+    const eventId = item.eventId;
+    const actions: MenuItem[] = [{ label: "Reply", icon: <IconReply size={18} />, onClick: () => onReply(item) }];
+    if (onOpenThread)
+      actions.push({ label: "Reply in thread", icon: <IconThreads size={18} />, onClick: () => onOpenThread(eventId) });
+    if (onForward) actions.push({ label: "Forward", icon: <IconForward size={18} />, onClick: () => onForward(eventId) });
+    if (item.body?.text)
+      actions.push({
+        label: "Copy text",
+        icon: <IconCopy size={18} />,
+        onClick: () => copyText(item.body!.text ?? "").then(() => show("Copied."), showError),
+      });
+    if (handle.canPin()) {
+      const pinned = handle.isPinned(eventId);
+      actions.push({
+        label: pinned ? "Unpin" : "Pin",
+        icon: <IconPin size={18} />,
+        onClick: () => (pinned ? handle.unpin(eventId) : handle.pin(eventId)).catch(showError),
+      });
+    }
+    if (canEdit) actions.push({ label: "Edit", icon: <IconEdit size={18} />, onClick: () => onEdit(item) });
+    actions.push({ label: "View source", icon: <IconInfo size={18} />, onClick: () => onViewSource?.(handle.source(eventId)) });
+    if (!mine)
+      actions.push({
+        label: "Report message",
+        danger: true,
+        icon: <IconAlert size={18} />,
+        onClick: () => {
+          const reasons = ["Spam", "Inappropriate content", "Harassment", "Illegal content", "Other"];
+          onUserMenu({
+            x: Math.round(window.innerWidth / 2),
+            y: Math.round(window.innerHeight / 2),
+            items: reasons.map((reason) => ({
+              label: reason,
+              onClick: () =>
+                handle
+                  .report(eventId, reason)
+                  .then(() => show("Message reported."))
+                  .catch(showError),
+            })),
+          });
+        },
+      });
+    if (mine || handle.canRedactOthers())
+      actions.push({
+        label: mine ? "Remove" : "Remove (moderator)",
+        danger: true,
+        icon: <IconTrash size={18} />,
+        onClick: () => {
+          if (confirm("Delete this message for everyone?")) handle.redact(eventId).catch(showError);
+        },
+      });
+
+    onActionSheet?.({
+      item,
+      quickReactions: QUICK_REACTIONS,
+      onReact: react,
+      onAddReaction: () =>
+        onEmojiPicker({ x: Math.round(window.innerWidth / 2) - 150, y: Math.round(window.innerHeight / 2) - 160, eventId }),
+      actions,
+    });
+  };
+  openSheetRef.current = openSheet;
+
   // Right-click a message → native-style context menu with the same actions as
   // the hover bar. Defers to the sender/avatar menu when those were targeted.
   const openMsgMenu = (e: React.MouseEvent) => {
@@ -477,7 +574,7 @@ export function TimelineRow({
 
   return (
     <div
-      className={`msg-row${mine ? " mine" : ""}${item.groupStart ? " group-start" : ""}${showActions ? " show-actions" : ""}`}
+      className={`msg-row${mine ? " mine" : ""}${item.groupStart ? " group-start" : ""}`}
       data-event-id={item.eventId}
       onContextMenu={(e) => {
         // Android synthesizes contextmenu from a long-press; touch is handled
@@ -494,16 +591,11 @@ export function TimelineRow({
       onPointerCancel={cancelPress}
       onClick={(e) => {
         if (press.current.fired) {
-          // Swallow the synthetic click that follows a long-press so it
-          // doesn't immediately toggle the bar back off.
+          // Swallow the synthetic click that follows a long-press so it doesn't
+          // fall through to the timeline (e.g. link-open) after the sheet opens.
           press.current.fired = false;
           e.preventDefault();
           e.stopPropagation();
-          return;
-        }
-        // A plain tap never opens the bar, but does dismiss an open one.
-        if (showActions && press.current.touch && (e.target as HTMLElement).closest(".bubble")) {
-          setShowActions(false);
         }
       }}
     >
@@ -650,6 +742,120 @@ export function TimelineRow({
           </button>
         </div>
         )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export interface SheetState {
+  /** The long-pressed message, rendered pinned at the top of the sheet. */
+  item: TimelineItem;
+  /** Quick-reaction emoji shown as the top row. */
+  quickReactions: string[];
+  /** Apply a quick reaction to the message. */
+  onReact: (emoji: string) => void;
+  /** Open the full emoji/reaction picker (the row's "+" button). */
+  onAddReaction: () => void;
+  /** Vertical list of menu actions (Reply, Forward, Pin, Edit, Remove, …). */
+  actions: MenuItem[];
+}
+
+// Full-screen long-press overlay, modelled on how Element (Classic) presents a
+// long-pressed message: a dimmed/blurred backdrop, the pressed message pinned
+// at the top, a horizontal quick-reaction row (with a "+" to the full picker),
+// then the vertical action list. Replaces the standalone reaction/action icon
+// bar on touch — the reaction bar is folded into the top row here.
+function MessageActionSheet({
+  sheet,
+  account,
+  onClose,
+}: {
+  sheet: SheetState;
+  account: MatrixAccount;
+  onClose: () => void;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const { item } = sheet;
+
+  useEffect(() => {
+    ref.current?.querySelector<HTMLElement>("button")?.focus();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  return (
+    <div
+      className="msg-sheet"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Message actions"
+      // A press on the backdrop (anywhere outside the inner card) dismisses.
+      onPointerDown={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div className="msg-sheet-inner" ref={ref} onPointerDown={(e) => e.stopPropagation()}>
+        <div className={`msg-sheet-message${item.isMine ? " mine" : ""}`}>
+          <div className="msg-sheet-sender" style={{ color: `hsl(${hashHue(item.sender.userId)} 55% 55%)` }}>
+            {item.sender.name}
+            <span className="msg-time">{formatTime(item.ts)}</span>
+          </div>
+          <div className="msg-bubble-row">
+            {item.kind === "redacted" ? (
+              <div className="bubble utd">Message deleted</div>
+            ) : item.body ? (
+              <MessageBubble item={item} account={account} onZoom={() => undefined} />
+            ) : null}
+          </div>
+        </div>
+
+        <div className="msg-sheet-reactions" role="toolbar" aria-label="Quick reactions">
+          {sheet.quickReactions.map((emoji) => (
+            <button
+              key={emoji}
+              className="msg-sheet-react"
+              onClick={() => {
+                onClose();
+                sheet.onReact(emoji);
+              }}
+              aria-label={`React ${emoji}`}
+            >
+              {emoji}
+            </button>
+          ))}
+          <button
+            className="msg-sheet-react msg-sheet-more"
+            onClick={() => {
+              onClose();
+              sheet.onAddReaction();
+            }}
+            title="More reactions"
+            aria-label="More reactions"
+            aria-haspopup="dialog"
+          >
+            <IconPlus size={20} />
+          </button>
+        </div>
+
+        <div className="msg-sheet-actions" role="menu">
+          {sheet.actions.map((a, i) => (
+            <button
+              key={i}
+              role="menuitem"
+              className={a.danger ? "danger" : undefined}
+              onClick={() => {
+                onClose();
+                a.onClick();
+              }}
+            >
+              <span className="msg-sheet-action-icon">{a.icon}</span>
+              <span>{a.label}</span>
+            </button>
+          ))}
         </div>
       </div>
     </div>
