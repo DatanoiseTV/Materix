@@ -138,3 +138,18 @@ if (typeof (globalThis as { structuredClone?: unknown }).structuredClone !== "fu
   (globalThis as { structuredClone?: unknown }).structuredClone = (v: unknown) =>
     v === undefined ? undefined : JSON.parse(JSON.stringify(v));
 }
+
+// AbortSignal.timeout (Chromium 103) — discovery.ts uses it for the homeserver
+// /versions check; without it "Can't reach <server>" on every login attempt,
+// so sign-in is impossible on old WebViews.
+if (
+  typeof AbortSignal !== "undefined" &&
+  typeof (AbortSignal as unknown as { timeout?: unknown }).timeout !== "function"
+) {
+  (AbortSignal as unknown as { timeout?: unknown }).timeout = (ms: number) => {
+    const c = new AbortController();
+    // abort(reason) is ignored by engines too old to take a reason — harmless.
+    setTimeout(() => c.abort(new DOMException("The operation timed out.", "TimeoutError")), ms);
+    return c.signal;
+  };
+}
