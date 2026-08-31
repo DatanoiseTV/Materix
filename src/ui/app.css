@@ -223,15 +223,78 @@ a {
   gap: var(--sp-2);
 }
 
-.rooms-header h1 {
-  font-size: var(--fs-xl);
-  font-weight: 700;
-  margin: 0;
+/* Top-level nav: Chats / Rooms icon toggles. Independent show/hide filters,
+   rendered in the header in every orientation (never gated on layout). */
+.section-tabs {
+  display: flex;
+  gap: var(--sp-1);
+  align-items: center;
   flex: 1;
   min-width: 0;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+}
+
+.section-tab {
+  position: relative;
+  width: 34px;
+  height: 34px;
+  border: 1px solid transparent;
+  border-radius: var(--r-md);
+  background: transparent;
+  color: var(--text-3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+
+.section-tab:hover {
+  background: var(--bg-hover);
+  color: var(--text-1);
+}
+
+.section-tab.active {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent-strong);
+}
+
+/* Per-toggle unread count, mirroring .rail-badge but anchored to the pane. */
+.section-badge {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: var(--r-full);
+  background: var(--danger);
+  color: #fff;
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid var(--bg-pane);
+}
+
+/* Active-account avatar at the head of the room-list header; opens the
+   account menu (manage / add / accounts-bar toggle / settings). */
+.header-avatar-btn {
+  position: relative;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--r-full);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  transition: background 0.12s var(--ease);
+}
+
+.header-avatar-btn:hover {
+  background: var(--bg-hover);
 }
 
 .icon-btn {
@@ -442,6 +505,12 @@ a {
 .chat-pane {
   flex: 1;
   min-width: 0;
+  /* The narrow layout flips .app to a column; without min-height the pane's
+   * implicit min-height:auto lets a long timeline blow it up to content
+   * height, so the DOCUMENT scrolled instead of .timeline — breaking
+   * stick-to-bottom, top-edge pagination and the long-press scroll-cancel on
+   * phones. */
+  min-height: 0;
   display: flex;
   flex-direction: column;
   background: var(--bg-chat);
@@ -530,6 +599,10 @@ a {
   display: flex;
   flex-direction: column;
   min-height: 0;
+  /* The browser owns vertical panning: once a touch scroll starts, pending
+   * pointer sequences get a pointercancel, which cancels the long-press
+   * detector (see TimelineRow). */
+  touch-action: pan-y;
 }
 
 .timeline-inner {
@@ -589,6 +662,7 @@ a {
   border-radius: var(--r-md);
   position: relative;
   margin-top: 2px;
+  touch-action: pan-y; /* vertical touch scroll beats the long-press timer */
 }
 
 .msg-row.group-start {
@@ -1034,6 +1108,168 @@ button.msg-sender:hover {
 
 .msg-actions button:hover {
   background: var(--bg-hover);
+  color: var(--text-1);
+}
+
+/* On touch devices the hover bar can't be reached (and sticky :hover would pop
+   it on a tap); the long-press action sheet fully replaces it there. */
+@media (hover: none) {
+  .msg-actions {
+    display: none !important;
+  }
+}
+
+/* ---------- long-press message action sheet ---------- */
+.msg-sheet {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: max(var(--sp-4), env(safe-area-inset-top)) var(--sp-4)
+    max(var(--sp-4), env(safe-area-inset-bottom));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  background: color-mix(in srgb, var(--bg-app) 45%, transparent);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  animation: msg-sheet-in 120ms ease-out;
+}
+
+@keyframes msg-sheet-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.msg-sheet-inner {
+  width: 100%;
+  max-width: 520px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  /* Keep the whole stack reachable in landscape / with the keyboard up. */
+  margin-top: auto;
+  margin-bottom: auto;
+}
+
+.msg-sheet-message {
+  align-self: stretch;
+  max-height: 42vh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  padding: var(--sp-3);
+  box-shadow: var(--shadow-2);
+}
+
+.msg-sheet-sender {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+  font-weight: 600;
+  font-size: var(--fs-sm);
+  margin-bottom: var(--sp-1);
+}
+
+.msg-sheet-sender .msg-time {
+  font-weight: 400;
+  color: var(--text-3);
+  font-size: var(--fs-xs);
+}
+
+.msg-sheet-reactions {
+  align-self: center;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--sp-1);
+  max-width: 100%;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: var(--sp-1) var(--sp-2);
+  box-shadow: var(--shadow-1);
+}
+
+.msg-sheet-react {
+  width: 42px;
+  height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  font-size: 22px;
+  line-height: 1;
+  color: var(--text-1);
+}
+
+.msg-sheet-react:hover,
+.msg-sheet-react:active {
+  background: var(--bg-hover);
+}
+
+.msg-sheet-more {
+  color: var(--text-2);
+}
+
+.msg-sheet-actions {
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  padding: var(--sp-1);
+  box-shadow: var(--shadow-1);
+}
+
+.msg-sheet-actions button {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  width: 100%;
+  padding: var(--sp-3);
+  border-radius: var(--r-md);
+  color: var(--text-1);
+  font-size: var(--fs-md);
+  text-align: left;
+}
+
+.msg-sheet-actions button:hover,
+.msg-sheet-actions button:active {
+  background: var(--bg-hover);
+}
+
+.msg-sheet-actions button.danger {
+  color: var(--danger);
+}
+
+.msg-sheet-action-icon {
+  display: flex;
+  color: var(--text-2);
+}
+
+.msg-sheet-actions button.danger .msg-sheet-action-icon {
+  color: inherit;
+}
+
+.msg-source {
+  margin: 0;
+  max-height: 60vh;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
   color: var(--text-1);
 }
 
@@ -1491,6 +1727,17 @@ button.msg-sender:hover {
 }
 
 /* ---------- context menu ---------- */
+
+/* Full-viewport dismiss layer under an open menu: an outside press lands here
+ * (and is consumed) instead of on the UI beneath. Same z-index as the menu;
+ * DOM order keeps the menu itself on top. */
+.ctx-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  background: transparent;
+  touch-action: none;
+}
 
 .ctx-menu {
   position: fixed;
@@ -2556,8 +2803,9 @@ button.msg-sender:hover {
 }
 
 @media (max-width: 760px) {
-  /* On phones the account rail collapses to a horizontal strip only when
-     more than one account exists; otherwise it's hidden to maximize space. */
+  /* On phones the account rail collapses to a horizontal strip at the top.
+     It stays visible even with a single account so the avatar, add-account
+     and Settings controls exist in every orientation (mode parity). */
   .app {
     flex-direction: column;
   }
@@ -2586,14 +2834,6 @@ button.msg-sender:hover {
     width: 20px;
     height: 3px;
   }
-  /* Hide the rail entirely for single-account users (rely on settings gear). */
-  .rail:not(.multi) .rail-accounts {
-    display: none;
-  }
-  .rail:not(.multi) {
-    justify-content: flex-end;
-    padding-top: calc(var(--sp-1) + env(safe-area-inset-top));
-  }
 
   .rooms-pane {
     width: 100%;
@@ -2609,6 +2849,11 @@ button.msg-sender:hover {
 
   .rooms-header {
     padding-top: var(--sp-2);
+  }
+  /* With the accounts bar hidden the room-list header is the topmost strip,
+     so it takes over the rail's status-bar inset. */
+  .app > .rooms-pane:first-child .rooms-header {
+    padding-top: calc(var(--sp-2) + env(safe-area-inset-top));
   }
 
   .chat-header {
@@ -2631,7 +2876,9 @@ button.msg-sender:hover {
   }
 
   /* Bigger touch targets on phones. */
-  .icon-btn {
+  .icon-btn,
+  .section-tab,
+  .header-avatar-btn {
     width: 40px;
     height: 40px;
   }

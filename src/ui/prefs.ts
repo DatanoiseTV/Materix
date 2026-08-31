@@ -12,6 +12,14 @@ interface Prefs {
   accountSounds: Record<string, SoundId>;
   /** Per-room sound overrides, keyed by `${accountKey}:${roomId}`. */
   roomSounds: Record<string, SoundId>;
+  /** Left-nav layout. */
+  ui?: {
+    /**
+     * Accounts-bar visibility. Absent = never toggled explicitly; the app then
+     * defaults to "shown iff more than one account is signed in".
+     */
+    accountsBar?: boolean;
+  };
   /** Background push (UnifiedPush) — Android only; absent = never configured. */
   push?: {
     enabled: boolean;
@@ -19,6 +27,11 @@ interface Prefs {
     distributorId?: string;
     /** Advanced: override the derived Matrix push-gateway URL. */
     gatewayOverride?: string;
+    /**
+     * Keep a foreground service running so Android doesn't reclaim the
+     * backgrounded process (and its warm decrypted state). Android only.
+     */
+    keepAlive?: boolean;
   };
 }
 

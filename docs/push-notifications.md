@@ -163,3 +163,28 @@ UnifiedPush endpoint URL, and `data.url` is the ntfy Matrix gateway.
   through the push server by design.)
 - **Turn it off** → *Background delivery → Turn off* removes the Matrix pushers
   from every account and unregisters from the distributor.
+
+---
+
+## Keep connected in background (foreground service)
+
+UnifiedPush wakes Materix *after* the OS has already killed it, so the reopened
+app still cold-starts (and matrix-js-sdk re-decrypts the restored timeline
+in-memory — see the "re-decrypt on cold launch" issue). If you'd rather Materix
+simply **stay resident**, enable *Notifications → Keep connected in background*.
+
+This starts an opt-in **foreground service** (`MaterixSyncService`) that holds
+the whole process — WebView and live Matrix sync — at foreground-service
+priority so Android's low-memory killer leaves it alone. Because it keeps the
+already-decrypted state warm, reopening is instant and there's no re-decrypt.
+
+- Android requires a permanent low-priority "Staying connected in the
+  background" notification while the service runs — that's expected.
+- Enabling it also offers the **battery-optimization exemption**
+  (`REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`) so the OS schedules the app's network
+  more aggressively while idle. It deliberately does **not** hold a wakelock, so
+  it won't fight Doze.
+- It's independent of UnifiedPush: you can run either, both, or neither. Both is
+  the most reliable (resident sync + a push to wake it if the OS ever wins).
+- Trade-off: a resident process uses more battery than push-only delivery. Leave
+  it off if you prefer minimal battery use and are fine with a cold reopen.

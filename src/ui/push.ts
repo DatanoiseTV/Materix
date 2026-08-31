@@ -30,6 +30,16 @@ interface MaterixPushNative {
   getEndpoint(): string;
   hasNotificationPermission(): boolean;
   requestNotificationPermission(): void;
+  /** Top-level Back: background the task, activity kept alive (androidBack.ts). */
+  moveTaskToBack(): void;
+  // Foreground "keep sync alive" service (see MaterixSyncService.kt).
+  isForegroundSyncSupported(): boolean;
+  isForegroundSyncRunning(): boolean;
+  startForegroundSync(): void;
+  stopForegroundSync(): void;
+  // Battery-optimization exemption.
+  isIgnoringBatteryOptimizations(): boolean;
+  requestIgnoreBatteryOptimizations(): void;
 }
 
 function native(): MaterixPushNative | null {
@@ -59,6 +69,14 @@ export interface PushStatus {
   endpoint: string | null;
   /** Whether Android will let us post notifications (POST_NOTIFICATIONS). */
   hasNotificationPermission: boolean;
+  /** OS supports the foreground keep-alive service (API 26+). */
+  foregroundSyncSupported: boolean;
+  /** User has enabled the foreground keep-alive service. */
+  keepAlive: boolean;
+  /** The foreground keep-alive service is currently running. */
+  foregroundSyncRunning: boolean;
+  /** Materix is exempt from battery optimization. */
+  ignoringBatteryOptimizations: boolean;
 }
 
 function deviceLabel(): string {
@@ -138,6 +156,10 @@ export function pushStatus(): PushStatus {
       savedDistributor: null,
       endpoint: null,
       hasNotificationPermission: false,
+      foregroundSyncSupported: false,
+      keepAlive: false,
+      foregroundSyncRunning: false,
+      ignoringBatteryOptimizations: false,
     };
   }
   const saved = n.getSavedDistributor();
@@ -149,7 +171,57 @@ export function pushStatus(): PushStatus {
     savedDistributor: saved || null,
     endpoint: ep || null,
     hasNotificationPermission: n.hasNotificationPermission(),
+    foregroundSyncSupported: safeBool(() => n.isForegroundSyncSupported()),
+    keepAlive: !!getPrefs().push?.keepAlive,
+    foregroundSyncRunning: safeBool(() => n.isForegroundSyncRunning()),
+    ignoringBatteryOptimizations: safeBool(() => n.isIgnoringBatteryOptimizations()),
   };
+}
+
+/** Call a native bool method that may be absent on an older bridge build. */
+function safeBool(fn: () => boolean): boolean {
+  try {
+    return !!fn();
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Turn on the foreground "keep sync alive" service so Android stops reclaiming
+ * the backgrounded process (and its warm, already-decrypted state). Also offers
+ * the battery-optimization exemption. Persists the choice; no-op off Android.
+ */
+export async function enableForegroundSync(): Promise<PushStatus> {
+  const n = native();
+  if (!n) return pushStatus();
+  // A foreground service needs POST_NOTIFICATIONS for its ongoing notification.
+  n.requestNotificationPermission();
+  setPref("push", { ...getPrefs().push, enabled: getPrefs().push?.enabled ?? false, keepAlive: true });
+  try {
+    n.startForegroundSync();
+  } catch {
+    // absent on an older bridge — pref is set; a rebuilt app will honor it
+  }
+  if (!safeBool(() => n.isIgnoringBatteryOptimizations())) {
+    try {
+      n.requestIgnoreBatteryOptimizations();
+    } catch {
+      // ignore — the service still helps without the exemption
+    }
+  }
+  return pushStatus();
+}
+
+/** Turn off the foreground keep-alive service. Persists the choice. */
+export async function disableForegroundSync(): Promise<PushStatus> {
+  setPref("push", { ...getPrefs().push, enabled: getPrefs().push?.enabled ?? false, keepAlive: false });
+  try {
+    native()?.stopForegroundSync();
+  } catch {
+    // ignore
+  }
+  return pushStatus();
 }
 
 /**
@@ -212,6 +284,15 @@ export function initPush(): void {
   const n = native();
   if (!n) return;
   wireListeners();
+  // Keep-alive is independent of UnifiedPush: re-assert it before the push
+  // early-return so it survives cold starts / app updates.
+  if (getPrefs().push?.keepAlive) {
+    try {
+      n.startForegroundSync();
+    } catch {
+      // absent on an older bridge — ignore
+    }
+  }
   if (!getPrefs().push?.enabled) return;
   // Re-assert registration (endpoints can rotate; the distributor re-emits one).
   n.register();

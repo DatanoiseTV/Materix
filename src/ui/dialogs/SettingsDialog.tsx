@@ -1,7 +1,7 @@
 // Settings: appearance, accounts (profile, sign out), security per account
 // (verification, devices, key backup).
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { accountManager } from "../../core/manager";
 import type { MatrixAccount } from "../../core/account";
 import type { DeviceSummary, SasFlow } from "../../core/types";
@@ -19,6 +19,8 @@ import {
   pushStatus,
   enablePush,
   disablePush,
+  enableForegroundSync,
+  disableForegroundSync,
   setPushGatewayOverride,
   type PushStatus,
 } from "../push";
@@ -29,10 +31,13 @@ export function SettingsDialog({
   onClose,
   onAddAccount,
   onStartVerification,
+  initialSection,
 }: {
   onClose: () => void;
   onAddAccount: () => void;
   onStartVerification: (flow: SasFlow) => void;
+  /** Scroll this section into view on open (e.g. header avatar → "Manage account"). */
+  initialSection?: "accounts";
 }) {
   useAccounts();
   const accounts = accountManager.list();
@@ -40,6 +45,11 @@ export function SettingsDialog({
   const [notifMode, setNotifMode] = useState<NotificationMode>(getPrefs().notifications);
   const [sound, setSound] = useState<SoundId>(getPrefs().sound);
   const { show, showError } = useToast();
+
+  const accountsRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (initialSection === "accounts") accountsRef.current?.scrollIntoView({ block: "start" });
+  }, [initialSection]);
 
   return (
     <Modal title="Settings" onClose={onClose} wide>
@@ -119,7 +129,7 @@ export function SettingsDialog({
           {isAndroid && <PushSettings />}
         </div>
 
-        <div className="settings-section">
+        <div className="settings-section" ref={accountsRef}>
           <h3>Accounts</h3>
           {accounts.map((a) => (
             <AccountSettings
@@ -502,6 +512,23 @@ function PushSettings() {
     }
   };
 
+  const onToggleKeepAlive = async () => {
+    setBusy(true);
+    try {
+      if (status.keepAlive) {
+        setStatus(await disableForegroundSync());
+        show("Background sync off.");
+      } else {
+        setStatus(await enableForegroundSync());
+        show("Materix will stay connected in the background.");
+      }
+    } catch (e) {
+      showError(e);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const noDistributor = status.distributors.length === 0;
   const mustChoose = status.distributors.length > 1 && !status.savedDistributor;
 
@@ -608,6 +635,28 @@ function PushSettings() {
               </button>
             </form>
           )}
+        </div>
+      )}
+
+      {status.foregroundSyncSupported && (
+        <div className="switch-row" style={{ marginTop: "var(--sp-2)" }}>
+          <div>
+            <div className="switch-title">Keep connected in background</div>
+            <div className="switch-sub">
+              {status.keepAlive
+                ? status.ignoringBatteryOptimizations
+                  ? "Running — Materix stays synced and won't re-decrypt on reopen"
+                  : "Running — allow battery-optimization exemption for best results"
+                : "Stops Android from closing Materix, avoiding a re-decrypt on every reopen"}
+            </div>
+          </div>
+          <button
+            className={`btn ${status.keepAlive ? "secondary" : "primary"} small`}
+            disabled={busy}
+            onClick={onToggleKeepAlive}
+          >
+            {status.keepAlive ? "Turn off" : "Turn on"}
+          </button>
         </div>
       )}
     </div>
