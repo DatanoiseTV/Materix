@@ -18,6 +18,7 @@ export function VoiceRecorder({
   const chunksRef = useRef<Blob[]>([]);
   const waveformRef = useRef<number[]>([]);
   const streamRef = useRef<MediaStream | null>(null);
+  const audioCtxRef = useRef<AudioContext | null>(null);
   const startRef = useRef(0);
   const stateRef = useRef<"recording" | "cancelled" | "sending">("recording");
   // Callbacks change identity on every parent (Composer) re-render; keep them
@@ -30,7 +31,12 @@ export function VoiceRecorder({
 
   useEffect(() => {
     let raf = 0;
-    let audioCtx: AudioContext | null = null;
+    // Close the AudioContext at most once (a second close() rejects).
+    const closeAudioCtx = () => {
+      const ctx = audioCtxRef.current;
+      if (ctx && ctx.state !== "closed") void ctx.close();
+      audioCtxRef.current = null;
+    };
     (async () => {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -45,7 +51,7 @@ export function VoiceRecorder({
         rec.ondataavailable = (e) => e.data.size && chunksRef.current.push(e.data);
         rec.onstop = () => {
           streamRef.current?.getTracks().forEach((t) => t.stop());
-          audioCtx?.close();
+          closeAudioCtx();
           if (stateRef.current !== "sending") return;
           const type = rec.mimeType || "audio/ogg";
           const blob = new Blob(chunksRef.current, { type });
@@ -62,7 +68,8 @@ export function VoiceRecorder({
         };
 
         // Waveform sampling from live analyser.
-        audioCtx = new AudioContext();
+        const audioCtx = new AudioContext();
+        audioCtxRef.current = audioCtx;
         const src = audioCtx.createMediaStreamSource(stream);
         const analyser = audioCtx.createAnalyser();
         analyser.fftSize = 512;
@@ -94,7 +101,18 @@ export function VoiceRecorder({
     return () => {
       clearInterval(timer);
       cancelAnimationFrame(raf);
+      // Unmount while still recording (e.g. Android Back) never runs the
+      // send/cancel onstop path, so tear the recorder and audio context down
+      // here — otherwise the AudioContext leaks (browsers cap ~6 live ones).
+      if (stateRef.current === "recording") {
+        try {
+          recorderRef.current?.stop();
+        } catch {
+          // already inactive; ignore
+        }
+      }
       streamRef.current?.getTracks().forEach((t) => t.stop());
+      closeAudioCtx();
     };
     // Run once; callbacks are read via refs.
     // eslint-disable-next-line react-hooks/exhaustive-deps

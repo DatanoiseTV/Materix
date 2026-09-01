@@ -30,6 +30,11 @@ export interface ComposeMode {
   item: TimelineItem;
 }
 
+// On touch devices Enter should insert a newline (send via the button) so the
+// soft keyboard's return key never fires off a half-written message.
+const isCoarsePointer =
+  typeof window !== "undefined" && window.matchMedia("(pointer: coarse)").matches;
+
 export function Composer({
   handle,
   accountKey,
@@ -74,7 +79,10 @@ export function Composer({
     const ta = taRef.current;
     if (!ta) return;
     ta.style.height = "auto";
-    ta.style.height = `${Math.min(ta.scrollHeight, window.innerHeight * 0.4)}px`;
+    // Cap against the visual viewport: with a soft keyboard up only that
+    // shrinks, so window.innerHeight would let the field grow behind the keyboard.
+    const viewportHeight = window.visualViewport?.height ?? window.innerHeight;
+    ta.style.height = `${Math.min(ta.scrollHeight, viewportHeight * 0.4)}px`;
   };
 
   const setTyping = (active: boolean) => {
@@ -245,13 +253,15 @@ export function Composer({
               placeholder="Message"
               value={text}
               aria-label="Message"
+              enterKeyHint={isCoarsePointer ? "enter" : "send"}
               onChange={(e) => {
                 setText(e.target.value);
                 autoGrow();
                 setTyping(!!e.target.value);
               }}
               onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+                // On touch, let Enter insert a newline and send via the button.
+                if (!isCoarsePointer && e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
                   e.preventDefault();
                   void send();
                 }

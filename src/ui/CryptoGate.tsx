@@ -7,9 +7,16 @@ import { useEffect, useState } from "react";
 import { accountManager } from "../core/manager";
 
 export function CryptoGate() {
-  const [acked, setAcked] = useState(false);
+  // Acknowledge per broken user-id, not once for the whole session: an account
+  // added later whose crypto fails is a NEWLY-broken id, so it must re-raise the
+  // warning even after an earlier ack.
+  const [acked, setAcked] = useState<string[]>([]);
   const [broken, setBroken] = useState<string[]>([]);
 
+  const accountKeys = accountManager
+    .list()
+    .map((a) => a.key)
+    .join(",");
   useEffect(() => {
     const check = () => {
       setBroken(
@@ -28,9 +35,12 @@ export function CryptoGate() {
       unsubs.forEach((u) => u());
       clearTimeout(t);
     };
-  }, []);
+    // Re-subscribe when the account set changes so a late account is covered.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [accountKeys]);
 
-  if (acked || broken.length === 0) return null;
+  const unacked = broken.filter((id) => !acked.includes(id));
+  if (unacked.length === 0) return null;
 
   return (
     <div
@@ -85,7 +95,7 @@ export function CryptoGate() {
           Materix.
         </p>
         <button
-          onClick={() => setAcked(true)}
+          onClick={() => setAcked((prev) => Array.from(new Set([...prev, ...broken])))}
           style={{
             marginTop: 14,
             padding: "11px 18px",
