@@ -28,9 +28,27 @@ export interface LinkAssessment {
   reasons: string[];
 }
 
-/** Registrable-ish domain: the last two labels (good enough for trust grouping). */
+// Two-label public suffixes where the registrable domain needs THREE labels
+// (e.g. paypal.co.uk, not co.uk) — otherwise the same-site check treats every
+// *.co.uk as one site and misses look-alikes. Not exhaustive (a full fix would
+// use the Public Suffix List), but covers the common cases the check needs.
+const MULTI_LABEL_SUFFIXES = new Set([
+  "co.uk", "org.uk", "gov.uk", "ac.uk", "me.uk", "net.uk", "sch.uk", "ltd.uk", "plc.uk",
+  "com.au", "net.au", "org.au", "edu.au", "gov.au", "id.au",
+  "co.jp", "or.jp", "ne.jp", "ac.jp", "go.jp",
+  "co.nz", "org.nz", "govt.nz", "ac.nz",
+  "co.za", "org.za", "co.in", "co.kr", "co.il",
+  "com.br", "com.cn", "com.mx", "com.tr", "com.sg", "com.hk", "com.tw",
+  "github.io", "gitlab.io", "pages.dev", "web.app", "firebaseapp.com",
+]);
+
+/** Registrable-ish domain used for same-site grouping. Returns the last three
+ * labels when the last two form a known multi-label public suffix, else two. */
 function registrable(host: string): string {
-  return host.split(".").slice(-2).join(".");
+  const parts = host.split(".");
+  if (parts.length <= 2) return parts.join(".");
+  const lastTwo = parts.slice(-2).join(".");
+  return MULTI_LABEL_SUFFIXES.has(lastTwo) ? parts.slice(-3).join(".") : lastTwo;
 }
 
 function trustedSet(): Set<string> {
