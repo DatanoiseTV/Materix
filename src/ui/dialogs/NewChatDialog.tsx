@@ -33,6 +33,7 @@ export function NewChatDialog({
   const debouncedQuery = useDebounced(query, 300);
   const [results, setResults] = useState<UserSearchResult[]>([]);
   const [searching, setSearching] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
 
   // group state
   const [groupName, setGroupName] = useState("");
@@ -87,14 +88,21 @@ export function NewChatDialog({
   useEffect(() => {
     if (!account || debouncedQuery.trim().length < 2) {
       setResults([]);
+      setSearchError(null);
       return;
     }
     let alive = true;
     setSearching(true);
+    setSearchError(null);
     account
       .searchUsers(debouncedQuery.trim())
       .then((r) => {
         if (alive) setResults(r.filter((u) => u.userId !== account.info().userId));
+      })
+      .catch((e) => {
+        // Match the Explore tab: surface the failure instead of silently showing
+        // "No one found." and logging an unhandled rejection.
+        if (alive) setSearchError(e?.userMessage ?? "Couldn't search users right now.");
       })
       .finally(() => {
         if (alive) setSearching(false);
@@ -218,7 +226,12 @@ export function NewChatDialog({
                 </span>
               </button>
             ))}
-            {!searching && query.trim().length >= 2 && results.length === 0 && (
+            {searchError && (
+              <p className="field-hint" role="alert" style={{ color: "var(--danger)" }}>
+                {searchError}
+              </p>
+            )}
+            {!searching && !searchError && query.trim().length >= 2 && results.length === 0 && (
               <p className="field-hint">
                 No one found. Type a full user ID like <code>@alice:matrix.org</code> to message them directly.
               </p>
@@ -285,8 +298,10 @@ export function NewChatDialog({
             {publicRooms.map((r) => (
               <div key={r.roomId} className="member-row" style={{ padding: "var(--sp-2)", gap: "var(--sp-3)" }}>
                 <Avatar account={account} mxc={r.avatarMxc} name={r.name} id={r.roomId} size={40} />
-                <span className="member-name" style={{ display: "flex", flexDirection: "column" }}>
-                  <span style={{ fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis" }}>{r.name}</span>
+                <span className="member-name" style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
+                  <span style={{ fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {r.name}
+                  </span>
                   <span className="field-hint" style={{ display: "flex", gap: 6, alignItems: "center" }}>
                     <IconUsers size={12} /> {r.memberCount}
                     {r.topic ? ` · ${r.topic.slice(0, 60)}` : ""}

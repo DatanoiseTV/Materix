@@ -548,9 +548,16 @@ function SecurityBanner({ onOpenSecurity }: { onOpenSecurity: (accountKey: strin
   const activeKey = accountManager.active;
   const account = accountManager.tryAccount(activeKey);
   const [state, setState] = useState<"needs-setup" | "needs-verify" | "ok" | "unavailable" | "loading">("loading");
-  const [dismissed, setDismissed] = useState<string[]>(() =>
-    JSON.parse(localStorage.getItem("materix.securityDismissed") ?? "[]"),
-  );
+  const [dismissed, setDismissed] = useState<string[]>(() => {
+    // A malformed value (older build, manual edit, truncated write) must not
+    // throw inside render and blank the whole room list.
+    try {
+      const v = JSON.parse(localStorage.getItem("materix.securityDismissed") ?? "[]");
+      return Array.isArray(v) ? (v as string[]) : [];
+    } catch {
+      return [];
+    }
+  });
 
   useEffect(() => {
     if (!account) return;
