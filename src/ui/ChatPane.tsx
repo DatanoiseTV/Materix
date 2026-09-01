@@ -90,15 +90,25 @@ export function ChatPane({
   const handle = useMemo(() => {
     if (!account || !selection) return null;
     try {
-      const h = account.room(selection.roomId);
-      // Freeze the unread marker at open, so it survives the read receipt.
-      h.snapshotReadMarker();
-      return h;
+      return account.room(selection.roomId);
     } catch {
       return null;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [account, selection?.roomId]);
+
+  // Freeze the unread marker exactly once per room-open, so it survives the
+  // read receipt. This must NOT live in the memo above: React may discard and
+  // re-run a memo even with unchanged deps (StrictMode, memory pressure), which
+  // would re-snapshot at the already-advanced position and drop the unread
+  // divider. Guard by handle identity — account.room() returns a stable handle
+  // per (account, roomId), so this fires once per distinct room-open.
+  const snapshottedHandle = useRef<RoomHandle | null>(null);
+  useEffect(() => {
+    if (!handle || snapshottedHandle.current === handle) return;
+    snapshottedHandle.current = handle;
+    handle.snapshotReadMarker();
+  }, [handle]);
 
   // Close the thread panel, search bar and room settings when switching rooms.
   useEffect(() => {
