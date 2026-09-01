@@ -10,12 +10,22 @@ Three workflows let Claude help triage and review, with conservative, opt-in mer
 
 ## One-time setup (required)
 
-The workflows need an Anthropic API key as a repo secret. Either:
+The workflows authenticate with a **Claude Code OAuth token** (subscription auth),
+set as the repo secret `CLAUDE_CODE_OAUTH_TOKEN`. Generating it needs a one-time
+interactive browser login that only the account owner can complete:
 
-- Run `/install-github-app` from Claude Code (installs the GitHub App and sets the secret), **or**
-- Add it manually: `gh secret set ANTHROPIC_API_KEY --repo <owner>/<repo>` (billed to that key).
+```bash
+claude setup-token                 # opens a browser; prints a long-lived token
+gh secret set CLAUDE_CODE_OAUTH_TOKEN --repo <owner>/<repo>   # paste the token
+```
 
-Without the secret the review/triage jobs no-op; the fork-labeler and the auto-merge gate still run.
+Or run `/install-github-app` from Claude Code, which walks through the GitHub App
+install and sets the token for you.
+
+Prefer an API key instead? Set `gh secret set ANTHROPIC_API_KEY ...` and change the
+two workflows' auth input to `anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}`.
+
+Without a token the review/triage jobs no-op; the fork-labeler and the auto-merge gate still run.
 
 ## Security model — read before enabling auto-merge
 
