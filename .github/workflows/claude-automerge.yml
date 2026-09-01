@@ -1,0 +1,111 @@
+name: Claude gated auto-merge
+
+# Opt-in, conservative auto-merge. DISABLED unless the repo variable
+# CLAUDE_AUTOMERGE is set to "on". Even then it merges ONLY when every non-LLM
+# gate passes. The Claude "claude-safe" verdict is defense-in-depth, NOT the
+# security boundary — the boundary is: author already has write access + CI is
+# green + no sensitive paths touched. Read .github/CLAUDE_AUTOMATION.md before
+# enabling.
+on:
+  pull_request:
+    types: [labeled, synchronize]
+  check_suite:
+    types: [completed]
+
+permissions:
+  contents: write
+  pull-requests: write
+  checks: read
+
+concurrency:
+  group: claude-automerge-${{ github.event.pull_request.number || github.event.check_suite.id }}
+  cancel-in-progress: false
+
+jobs:
+  gate-and-merge:
+    # Global kill-switch: off unless the repo owner sets vars.CLAUDE_AUTOMERGE = on.
+    if: vars.CLAUDE_AUTOMERGE == 'on'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Resolve candidate PR
+        id: pr
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          EVENT: ${{ github.event_name }}
+          PR_FROM_PR: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.check_suite.head_sha }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT" = "check_suite" ]; then
+            # Find an open PR whose head is this check_suite's commit.
+            PR=$(gh pr list --repo "$REPO" --state open --json number,headRefOid \
+                   --jq "[.[] | select(.headRefOid==\"$HEAD_SHA\")][0].number" 2>/dev/null || true)
+          else
+            PR="$PR_FROM_PR"
+          fi
+          if [ -z "${PR:-}" ] || [ "$PR" = "null" ]; then
+            echo "no candidate PR"; echo "skip=1" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          echo "pr=$PR" >> "$GITHUB_OUTPUT"
+
+      - name: Gate checks, then merge
+        if: steps.pr.outputs.skip != '1'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ steps.pr.outputs.pr }}
+        run: |
+          set -euo pipefail
+          echo "Evaluating PR #$PR for auto-merge"
+
+          # Pull PR facts as JSON (no untrusted value is ever interpolated into a command).
+          META=$(gh pr view "$PR" --repo "$REPO" \
+            --json author,isCrossRepository,labels,mergeable,state,isDraft)
+          STATE=$(jq -r '.state' <<<"$META")
+          DRAFT=$(jq -r '.isDraft' <<<"$META")
+          FORK=$(jq -r '.isCrossRepository' <<<"$META")
+          AUTHOR=$(jq -r '.author.login' <<<"$META")
+          MERGEABLE=$(jq -r '.mergeable' <<<"$META")
+          LABELS=$(jq -r '[.labels[].name] | join(",")' <<<"$META")
+
+          # 1) Must be an open, non-draft, same-repo PR.
+          [ "$STATE" = "OPEN" ] || { echo "not open ($STATE) — skip"; exit 0; }
+          [ "$DRAFT" = "false" ] || { echo "draft — skip"; exit 0; }
+          [ "$FORK" = "false" ] || { echo "fork PR — human review required — skip"; exit 0; }
+
+          # 2) Author must ALREADY have write/admin/maintain access (the real boundary).
+          PERM=$(gh api "repos/$REPO/collaborators/$AUTHOR/permission" --jq '.permission' 2>/dev/null || echo none)
+          case "$PERM" in
+            admin|maintain|write) echo "author $AUTHOR permission: $PERM" ;;
+            *) echo "author $AUTHOR lacks write access ($PERM) — skip"; exit 0 ;;
+          esac
+
+          # 3) Label gate: needs claude-safe, must not carry a blocking label.
+          case ",$LABELS," in *,claude-safe,*) ;; *) echo "no claude-safe label — skip"; exit 0 ;; esac
+          case ",$LABELS," in
+            *,claude-flagged,*|*,needs-human-review,*|*,do-not-merge,*|*,wip,*)
+              echo "blocking label present — skip"; exit 0 ;;
+          esac
+
+          # 4) Sensitive-path gate: never auto-merge changes to CI, the desktop/native
+          #    shell, packaging/signing, scripts, or dependency manifests.
+          FILES=$(gh pr diff "$PR" --repo "$REPO" --name-only)
+          if printf '%s\n' "$FILES" | grep -Eiq '^(\.github/|src-tauri/|packaging/|scripts/|.*(crypto|sign|keystore|secret).*|package\.json$|pnpm-lock\.yaml$|Cargo\.(toml|lock)$)'; then
+            echo "touches sensitive/build/dependency paths — human merge required — skip"
+            printf '%s\n' "$FILES" | grep -Ei '^(\.github/|src-tauri/|packaging/|scripts/|.*(crypto|sign|keystore|secret).*|package\.json$|pnpm-lock\.yaml$|Cargo\.(toml|lock)$)' || true
+            exit 0
+          fi
+
+          # 5) CI gate: every check must have concluded successfully (none pending/failing).
+          CHECKS=$(gh pr checks "$PR" --repo "$REPO" --json state --jq '[.[].state]' 2>/dev/null || echo '[]')
+          BAD=$(jq -r '[.[] | select(. != "SUCCESS" and . != "NEUTRAL" and . != "SKIPPED")] | length' <<<"$CHECKS")
+          TOTAL=$(jq -r 'length' <<<"$CHECKS")
+          if [ "$TOTAL" -eq 0 ]; then echo "no checks reported yet — skip"; exit 0; fi
+          if [ "$BAD" -ne 0 ]; then echo "checks not all green ($BAD not-passing) — skip"; exit 0; fi
+
+          # 6) GitHub must consider it mergeable (no conflicts).
+          [ "$MERGEABLE" = "MERGEABLE" ] || { echo "not mergeable ($MERGEABLE) — skip"; exit 0; }
+
+          echo "All gates passed — squash-merging PR #$PR"
+          gh pr merge "$PR" --repo "$REPO" --squash --delete-branch
