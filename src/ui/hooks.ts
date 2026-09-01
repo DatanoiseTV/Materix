@@ -49,12 +49,18 @@ export function useActiveCall(): { account: MatrixAccount; snap: CallSnapshot } 
     );
     return () => offs.forEach((o) => o());
   }, [accountsVersion]);
+  // An incoming ring is transient and needs an immediate accept/decline, so it
+  // takes precedence over a call that is merely active (outgoing/connected): if
+  // account A is on a call and B rings, B's ring must surface rather than stay
+  // hidden behind A. Otherwise fall back to the first non-idle call.
+  let active: { account: MatrixAccount; snap: CallSnapshot } | null = null;
   for (const info of accountManager.list()) {
     const account = accountManager.account(info.key);
     const snap = account.calls.snapshot();
-    if (snap.status !== "idle") return { account, snap };
+    if (snap.status === "incoming") return { account, snap };
+    if (snap.status !== "idle" && !active) active = { account, snap };
   }
-  return null;
+  return active;
 }
 
 /** Resolve a promise-producing loader to state, cancelling on dep change. */
