@@ -65,8 +65,34 @@ export function EmojiPicker({
   const q = query.trim().toLowerCase();
   const list = q ? EMOJIS.filter(([, name]) => name.includes(q)) : EMOJIS;
 
+  // Keep Tab within the popover so keyboard focus can't wander behind it.
+  const onKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key !== "Tab") return;
+    const el = ref.current;
+    if (!el) return;
+    const items = [...el.querySelectorAll<HTMLElement>("input, button")].filter((f) => !f.hasAttribute("disabled"));
+    if (!items.length) return;
+    const first = items[0];
+    const last = items[items.length - 1];
+    if (e.shiftKey && document.activeElement === first) {
+      e.preventDefault();
+      last.focus();
+    } else if (!e.shiftKey && document.activeElement === last) {
+      e.preventDefault();
+      first.focus();
+    }
+  };
+
   return (
-    <div className="emoji-picker" ref={ref} style={{ left: pos.x, top: pos.y }} role="dialog" aria-label="Pick emoji">
+    <div
+      className="emoji-picker"
+      ref={ref}
+      style={{ left: pos.x, top: pos.y }}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Pick emoji"
+      onKeyDown={onKeyDown}
+    >
       <input
         autoFocus
         placeholder="Search emoji"

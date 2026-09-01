@@ -6,7 +6,7 @@ import { useLayoutEffect, useRef, useState } from "react";
 import type { MatrixAccount } from "../core/account";
 import type { RoomHandle } from "../core/roomHandle";
 import { useRoomVersion } from "./hooks";
-import { TimelineRow } from "./Timeline";
+import { Lightbox, TimelineRow } from "./Timeline";
 import { ThreadComposer, type ThreadMode } from "./ThreadView";
 import { ContextMenu, type MenuState } from "./components/ContextMenu";
 import { EmojiPicker } from "./components/EmojiPicker";
@@ -72,11 +72,7 @@ export function InlineThread({
         {replies.length === 0 && <div className="state-line">No replies yet — start the thread.</div>}
       </div>
       <ThreadComposer handle={handle} rootEventId={rootEventId} mode={mode} onClearMode={() => setMode(null)} />
-      {lightbox && (
-        <div className="lightbox" onClick={() => setLightbox(null)} role="dialog" aria-label="Image preview">
-          <img src={lightbox} alt="" />
-        </div>
-      )}
+      {lightbox && <Lightbox src={lightbox} onClose={() => setLightbox(null)} />}
       {menu && <ContextMenu menu={menu} onClose={() => setMenu(null)} />}
       {picker && (
         <EmojiPicker

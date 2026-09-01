@@ -67,6 +67,36 @@ export function AudioPlayer({
     else audioBus.play(track()); // start this track (from the beginning)
   };
 
+  // Keyboard seeking: arrows nudge by ~5s (fraction of the known duration),
+  // Home/End jump to the ends. Seeking a track that isn't loaded yet has no
+  // position to move, so start it first.
+  const onSeekKey = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (!src) return;
+    const stepFrac = duration > 0 ? 5 / duration : 0.05;
+    let next: number;
+    switch (e.key) {
+      case "ArrowRight":
+      case "ArrowUp":
+        next = Math.min(1, pct + stepFrac);
+        break;
+      case "ArrowLeft":
+      case "ArrowDown":
+        next = Math.max(0, pct - stepFrac);
+        break;
+      case "Home":
+        next = 0;
+        break;
+      case "End":
+        next = 1;
+        break;
+      default:
+        return;
+    }
+    e.preventDefault();
+    if (active) audioBus.seekFrac(next);
+    else audioBus.play(track());
+  };
+
   return (
     <div className={`audio-player${voice ? " voice" : ""}`}>
       <button className="audio-play" onClick={toggle} aria-label={playing ? "Pause" : "Play"} disabled={!src}>
@@ -75,7 +105,17 @@ export function AudioPlayer({
 
       <div className="audio-body">
         {!voice && <div className="audio-name">{name}</div>}
-        <div className="audio-track" onClick={seek} role="slider" aria-label="Seek" aria-valuenow={Math.round(pct * 100)}>
+        <div
+          className="audio-track"
+          onClick={seek}
+          onKeyDown={onSeekKey}
+          role="slider"
+          tabIndex={src ? 0 : undefined}
+          aria-label="Seek"
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={Math.round(pct * 100)}
+        >
           {bars ? (
             <div className="audio-wave">
               {bars.map((h, i) => (
