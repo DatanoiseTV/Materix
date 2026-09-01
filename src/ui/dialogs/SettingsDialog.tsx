@@ -179,7 +179,9 @@ function AccountSettings({
 
   const refresh = () => {
     account.crypto.ownDevices().then(setDevices).catch(() => undefined);
-    account.crypto.securityState().then(setSecurityState).catch(() => undefined);
+    // A read error must not read as a clean "unavailable" — surface it as a
+    // distinct state so a failed keystore/crypto probe isn't a false all-clear.
+    account.crypto.securityState().then(setSecurityState).catch(() => setSecurityState("error"));
   };
 
   useEffect(() => {
@@ -291,7 +293,9 @@ function AccountSettings({
                         ? "Secure backup not set up"
                         : securityState === "needs-verify"
                           ? "This session is not verified"
-                          : "Unavailable"}
+                          : securityState === "error"
+                            ? "Couldn't read security status"
+                            : "Unavailable"}
                 </div>
               </div>
               {(securityState === "needs-setup" || securityState === "needs-verify" || securityState === "ok") && (
@@ -366,7 +370,9 @@ function AccountSettings({
 // store is encrypted (i.e. account.storageKey is present). Enabling/disabling
 // re-wraps the same key, so it never invalidates the crypto store.
 function PasscodeSetting({ account }: { account: MatrixAccount }) {
-  const [enabled, setEnabled] = useState<boolean | null>(null);
+  // null = still loading, "error" = read failed (status unknown, do NOT show
+  // as a plain "off" toggle — that would be a misleading security signal).
+  const [enabled, setEnabled] = useState<boolean | "error" | null>(null);
   const [editing, setEditing] = useState(false);
   const [p1, setP1] = useState("");
   const [p2, setP2] = useState("");
@@ -376,7 +382,7 @@ function PasscodeSetting({ account }: { account: MatrixAccount }) {
   useEffect(() => {
     hasPasscode(account.key)
       .then(setEnabled)
-      .catch(() => setEnabled(false));
+      .catch(() => setEnabled("error"));
   }, [account]);
 
   const ready = !!account.storageKey; // crypto store is encrypted + unlocked
@@ -414,6 +420,19 @@ function PasscodeSetting({ account }: { account: MatrixAccount }) {
   };
 
   if (enabled === null || !ready) return null;
+
+  if (enabled === "error") {
+    return (
+      <div style={{ marginTop: "var(--sp-2)" }}>
+        <div className="switch-row">
+          <div>
+            <div className="switch-title">App passcode</div>
+            <div className="switch-sub">Couldn't read passcode state — status unknown</div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{ marginTop: "var(--sp-2)" }}>
