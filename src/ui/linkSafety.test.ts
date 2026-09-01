@@ -52,6 +52,17 @@ describe("assessLink", () => {
     expect(a.suspicious).toBe(false);
   });
 
+  it("flags a look-alike on a multi-label public suffix (co.uk)", () => {
+    const a = assessLink("https://evil.co.uk/login", "paypal.co.uk");
+    expect(a.suspicious).toBe(true);
+    expect(a.reasons.join(" ")).toMatch(/link text/i);
+  });
+
+  it("does not flag a genuine multi-label-suffix site against its own text", () => {
+    const a = assessLink("https://example.co.uk/help", "example.co.uk");
+    expect(a.suspicious).toBe(false);
+  });
+
   it("flags a malformed URL", () => {
     const a = assessLink("not a url");
     expect(a.suspicious).toBe(true);
