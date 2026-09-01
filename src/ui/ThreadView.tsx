@@ -137,7 +137,11 @@ export function ThreadComposer({
     const current = mode;
     onClearMode();
     try {
-      if (current?.kind === "edit" && current.item.eventId) {
+      if (current?.kind === "edit") {
+        // Mirror Composer.send(): never silently fall through to a new reply if
+        // the edit target lost its event id — that would re-post the edit as a
+        // fresh message.
+        if (!current.item.eventId) throw new Error("original message has no event id");
         await handle.edit(current.item.eventId, value);
       } else {
         await handle.sendThreadReply(rootEventId, value);
