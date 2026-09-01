@@ -7,7 +7,35 @@ import type { MatrixClient } from "matrix-js-sdk";
 import { decryptAttachment } from "matrix-encrypt-attachment";
 import type { EncryptedFileInfo } from "./types";
 
+// Bounded LRU of resolved object URLs, keyed by (account, mxc, size). Decrypted
+// blobs stay in memory for the life of their object URL, so an unbounded cache
+// leaks; on eviction the URL is revoked to release the blob. Revoking a URL an
+// <img>/<video> has already loaded is safe (the element keeps the decoded
+// resource); a remount re-fetches through the normal path.
+const MAX_ENTRIES = 200;
 const cache = new Map<string, Promise<string>>();
+
+// Access-order bump: re-inserting moves the key to the newest position so the
+// first key is always the least-recently-used one to evict.
+function cacheGet(key: string): Promise<string> | undefined {
+  const p = cache.get(key);
+  if (p) {
+    cache.delete(key);
+    cache.set(key, p);
+  }
+  return p;
+}
+
+function cacheSet(key: string, p: Promise<string>): void {
+  cache.set(key, p);
+  while (cache.size > MAX_ENTRIES) {
+    const oldest = cache.keys().next().value as string | undefined;
+    if (oldest === undefined) break;
+    const evicted = cache.get(oldest);
+    cache.delete(oldest);
+    evicted?.then((url) => URL.revokeObjectURL(url)).catch(() => undefined);
+  }
+}
 
 function cacheKey(userId: string, mxc: string, thumb?: { w: number; h: number }): string {
   return `${userId}|${mxc}|${thumb ? `${thumb.w}x${thumb.h}` : "full"}`;
@@ -31,7 +59,7 @@ export function mediaUrl(
   thumb?: { w: number; h: number },
 ): Promise<string> {
   const key = cacheKey(client.getUserId()!, mxc, thumb);
-  let p = cache.get(key);
+  let p = cacheGet(key);
   if (!p) {
     p = (async () => {
       const http = thumb
@@ -42,7 +70,7 @@ export function mediaUrl(
       return URL.createObjectURL(await res.blob());
     })();
     p.catch(() => cache.delete(key));
-    cache.set(key, p);
+    cacheSet(key, p);
   }
   return p;
 }
@@ -54,7 +82,7 @@ export function encryptedMediaUrl(
   mime?: string,
 ): Promise<string> {
   const key = cacheKey(client.getUserId()!, file.url + "#enc");
-  let p = cache.get(key);
+  let p = cacheGet(key);
   if (!p) {
     p = (async () => {
       const http = client.mxcUrlToHttp(file.url, undefined, undefined, undefined, false, true, true);
@@ -64,7 +92,7 @@ export function encryptedMediaUrl(
       return URL.createObjectURL(new Blob([decrypted], { type: mime ?? "application/octet-stream" }));
     })();
     p.catch(() => cache.delete(key));
-    cache.set(key, p);
+    cacheSet(key, p);
   }
   return p;
 }
@@ -73,7 +101,7 @@ export function encryptedMediaUrl(
 export function avatarUrl(client: MatrixClient, mxc: string | null | undefined, size = 96): Promise<string> | undefined {
   if (!mxc) return undefined;
   const key = cacheKey(client.getUserId()!, mxc, { w: size, h: size });
-  let p = cache.get(key);
+  let p = cacheGet(key);
   if (!p) {
     p = (async () => {
       const http = client.mxcUrlToHttp(mxc, size, size, "crop", false, true, true);
@@ -82,7 +110,7 @@ export function avatarUrl(client: MatrixClient, mxc: string | null | undefined, 
       return URL.createObjectURL(await res.blob());
     })();
     p.catch(() => cache.delete(key));
-    cache.set(key, p);
+    cacheSet(key, p);
   }
   return p;
 }

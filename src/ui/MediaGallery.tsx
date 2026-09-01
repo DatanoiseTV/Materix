@@ -4,13 +4,13 @@
 // bottom — so nothing "disappears" after a reload restores only the recent
 // sync window. Opens a lightbox on click.
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { MatrixAccount } from "../core/account";
 import type { MediaItem } from "../core/types";
 import { encryptedMediaUrl, mediaUrl } from "../core/media";
 import { useRoomVersion } from "./hooks";
 import { formatSize } from "./format";
-import { IconChat, IconFile, IconDownload } from "./components/Icons";
+import { IconAlert, IconChat, IconFile, IconDownload, IconX } from "./components/Icons";
 
 // Cap how many pages we back-paginate automatically per room/tab, so a room
 // with little media doesn't scan its entire history unprompted. Beyond this,
@@ -141,11 +141,24 @@ export function MediaGallery({ account, roomId }: { account: MatrixAccount; room
   );
 }
 
-function useThumb(account: MatrixAccount, item: MediaItem): string | undefined {
+interface MediaSrc {
+  src?: string;
+  error: boolean;
+  retry: () => void;
+}
+
+function useThumb(account: MatrixAccount, item: MediaItem): MediaSrc {
   const [src, setSrc] = useState<string>();
+  const [error, setError] = useState(false);
+  const [attempt, setAttempt] = useState(0);
+  const retry = useCallback(() => {
+    setError(false);
+    setAttempt((n) => n + 1);
+  }, []);
   useEffect(() => {
     let alive = true;
     setSrc(undefined);
+    setError(false);
     if (!account.client) return;
     const thumbFile = item.thumbFile ?? (item.kind === "image" ? item.file : undefined);
     const thumbMxc = item.thumbMxc ?? (item.kind === "image" ? item.mxc : undefined);
@@ -154,16 +167,32 @@ function useThumb(account: MatrixAccount, item: MediaItem): string | undefined {
       : thumbMxc
         ? mediaUrl(account.client, thumbMxc, { w: 300, h: 300 })
         : undefined;
-    p?.then((u) => alive && setSrc(u)).catch(() => undefined);
+    if (!p) return;
+    p.then((u) => alive && setSrc(u)).catch(() => alive && setError(true));
     return () => {
       alive = false;
     };
-  }, [account, item]);
-  return src;
+  }, [account, item, attempt]);
+  return { src, error, retry };
 }
 
 function MediaThumb({ item, account, onOpen }: { item: MediaItem; account: MatrixAccount; onOpen: () => void }) {
-  const src = useThumb(account, item);
+  const { src, error, retry } = useThumb(account, item);
+  if (error) {
+    return (
+      <button
+        className="media-cell media-error"
+        onClick={(e) => {
+          e.stopPropagation();
+          retry();
+        }}
+        aria-label="Couldn't load media — tap to retry"
+      >
+        <IconAlert size={18} />
+        <span>Retry</span>
+      </button>
+    );
+  }
   return (
     <button className="media-cell" onClick={onOpen} aria-label={item.text || item.kind} title={`${item.senderName} · ${new Date(item.ts).toLocaleDateString()}`}>
       {src ? <img src={src} alt={item.text} loading="lazy" /> : <span className="skeleton" style={{ width: "100%", height: "100%" }} />}
@@ -174,15 +203,35 @@ function MediaThumb({ item, account, onOpen }: { item: MediaItem; account: Matri
 
 function FileRow({ item, account }: { item: MediaItem; account: MatrixAccount }) {
   const [src, setSrc] = useState<string>();
+  const [error, setError] = useState(false);
+  const [attempt, setAttempt] = useState(0);
   useEffect(() => {
     let alive = true;
+    setSrc(undefined);
+    setError(false);
     if (!account.client) return;
     const p = item.file ? encryptedMediaUrl(account.client, item.file, item.mime) : mediaUrl(account.client, item.mxc);
-    p?.then((u) => alive && setSrc(u)).catch(() => undefined);
+    p?.then((u) => alive && setSrc(u)).catch(() => alive && setError(true));
     return () => {
       alive = false;
     };
-  }, [account, item]);
+  }, [account, item, attempt]);
+  if (error) {
+    return (
+      <button
+        className="media-error"
+        onClick={() => {
+          setError(false);
+          setAttempt((n) => n + 1);
+        }}
+        style={{ borderBottom: "1px solid var(--border)" }}
+        aria-label={`Couldn't load ${item.text || "file"} — tap to retry`}
+      >
+        <IconAlert size={18} />
+        <span>Couldn't load {item.text || "file"} — tap to retry</span>
+      </button>
+    );
+  }
   return (
     <a className="msg-file" href={src} download={item.text} aria-disabled={!src} style={{ borderBottom: "1px solid var(--border)" }}>
       <span className="msg-file-icon">
@@ -201,21 +250,90 @@ function FileRow({ item, account }: { item: MediaItem; account: MatrixAccount })
 
 function MediaLightbox({ item, account, onClose }: { item: MediaItem; account: MatrixAccount; onClose: () => void }) {
   const [src, setSrc] = useState<string>();
+  const [error, setError] = useState(false);
+  const [attempt, setAttempt] = useState(0);
+  const ref = useRef<HTMLDivElement>(null);
+  const closeRef = useRef<HTMLButtonElement>(null);
+  const restoreRef = useRef<HTMLElement | null>(null);
+  // onClose churns as the room syncs; read it via ref so the focus effect runs
+  // once and doesn't re-grab focus mid-view.
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+
   useEffect(() => {
     let alive = true;
+    setSrc(undefined);
+    setError(false);
     if (!account.client) return;
     const p = item.file ? encryptedMediaUrl(account.client, item.file, item.mime) : mediaUrl(account.client, item.mxc);
-    p?.then((u) => alive && setSrc(u)).catch(() => undefined);
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    window.addEventListener("keydown", onKey);
+    p?.then((u) => alive && setSrc(u)).catch(() => alive && setError(true));
     return () => {
       alive = false;
-      window.removeEventListener("keydown", onKey);
     };
-  }, [account, item, onClose]);
+  }, [account, item, attempt]);
+
+  useEffect(() => {
+    restoreRef.current = document.activeElement as HTMLElement;
+    closeRef.current?.focus();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.stopPropagation();
+        onCloseRef.current();
+      }
+      if (e.key === "Tab") {
+        const el = ref.current;
+        if (!el) return;
+        const items = [...el.querySelectorAll<HTMLElement>("button, video, a[href], [tabindex]")].filter(
+          (f) => !f.hasAttribute("disabled"),
+        );
+        if (!items.length) return;
+        const first = items[0];
+        const last = items[items.length - 1];
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      restoreRef.current?.focus();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   return (
-    <div className="lightbox" onClick={onClose} role="dialog" aria-label={item.text || "Media"}>
-      {!src ? (
+    <div className="lightbox" onClick={onClose} role="dialog" aria-modal="true" aria-label={item.text || "Media"} ref={ref}>
+      <button
+        ref={closeRef}
+        type="button"
+        className="lightbox-close"
+        onClick={(e) => {
+          e.stopPropagation();
+          onClose();
+        }}
+        aria-label="Close preview"
+      >
+        <IconX size={22} />
+      </button>
+      {error ? (
+        <button
+          type="button"
+          className="media-error lightbox-error"
+          onClick={(e) => {
+            e.stopPropagation();
+            setError(false);
+            setAttempt((n) => n + 1);
+          }}
+        >
+          <IconAlert size={20} />
+          <span>Couldn't load — tap to retry</span>
+        </button>
+      ) : !src ? (
         <span className="spinner" />
       ) : item.kind === "video" ? (
         <video src={src} controls autoPlay onClick={(e) => e.stopPropagation()} />

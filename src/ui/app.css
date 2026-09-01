@@ -847,6 +847,18 @@ button.msg-sender:hover {
   background: var(--bg-hover);
 }
 
+/* Keyboard-operable wrapper around an image thumbnail (opens the lightbox);
+   a bare button that keeps the image's own layout. */
+.msg-img-btn {
+  display: block;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: zoom-in;
+  max-width: 100%;
+  border-radius: calc(var(--r-bubble) - 4px);
+}
+
 .msg-video {
   display: block;
   max-width: 100%;
@@ -1049,7 +1061,14 @@ button.msg-sender:hover {
   top: 0;
   left: calc(100% + var(--sp-2));
   right: auto;
-  display: none;
+  /* Stay in the DOM as a flex row but visually hidden, so :focus-within works
+     (a display:none child can't receive keyboard focus). Revealed on hover, on
+     keyboard focus of the row or the bar itself, or via .show-actions. */
+  display: flex;
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.12s var(--ease);
   background: var(--bg-elevated);
   border: 1px solid var(--border);
   border-radius: var(--r-md);
@@ -1060,8 +1079,11 @@ button.msg-sender:hover {
 
 .msg-row:hover .msg-actions,
 .msg-row.show-actions .msg-actions,
+.msg-row:focus-within .msg-actions,
 .msg-actions:focus-within {
-  display: flex;
+  visibility: visible;
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .msg-row.mine .msg-actions {
@@ -2730,6 +2752,54 @@ button.msg-sender:hover {
   max-width: 92vw;
   max-height: 92vh;
   border-radius: var(--r-md);
+}
+
+.lightbox-close {
+  position: absolute;
+  top: max(var(--sp-3), env(safe-area-inset-top));
+  right: max(var(--sp-3), env(safe-area-inset-right));
+  width: 40px;
+  height: 40px;
+  border-radius: var(--r-full);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  background: rgb(0 0 0 / 0.5);
+  backdrop-filter: blur(4px);
+  cursor: pointer;
+  z-index: 1;
+}
+
+.lightbox-close:hover {
+  background: rgb(0 0 0 / 0.7);
+}
+
+.lightbox-error {
+  cursor: pointer;
+}
+
+/* "Couldn't load — tap to retry" affordance shown in place of an eternal
+   skeleton/spinner when a media fetch or decrypt fails. */
+.media-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-1);
+  padding: var(--sp-3);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--r-md);
+  background: var(--bg-hover);
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+  text-align: center;
+  cursor: pointer;
+}
+
+.media-error:hover {
+  color: var(--text-1);
+  background: var(--bg-active);
 }
 
 /* ---------- settings ---------- */

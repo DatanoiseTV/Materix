@@ -6,7 +6,7 @@ import type { MatrixAccount } from "../core/account";
 import type { RoomHandle } from "../core/roomHandle";
 import type { TimelineItem } from "../core/types";
 import { useRoomVersion } from "./hooks";
-import { TimelineRow } from "./Timeline";
+import { Lightbox, TimelineRow } from "./Timeline";
 import { ContextMenu, type MenuState } from "./components/ContextMenu";
 import { EmojiPicker } from "./components/EmojiPicker";
 import { IconEdit, IconReply, IconSend, IconX } from "./components/Icons";
@@ -74,11 +74,7 @@ export function ThreadView({
         mode={mode}
         onClearMode={() => setMode(null)}
       />
-      {lightbox && (
-        <div className="lightbox" onClick={() => setLightbox(null)} role="dialog" aria-label="Image preview">
-          <img src={lightbox} alt="" />
-        </div>
-      )}
+      {lightbox && <Lightbox src={lightbox} onClose={() => setLightbox(null)} />}
       {menu && <ContextMenu menu={menu} onClose={() => setMenu(null)} />}
       {picker && (
         <EmojiPicker

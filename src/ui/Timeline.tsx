@@ -1,7 +1,7 @@
 // Message timeline: scroll management (stick to bottom, load older on top),
 // message bubbles, media, reactions, hover actions.
 
-import { Fragment, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import type { MatrixAccount } from "../core/account";
 import type { RoomHandle } from "../core/roomHandle";
 import type { MessageBody, TimelineItem } from "../core/types";
@@ -33,6 +33,7 @@ import {
   IconSmile,
   IconThreads,
   IconTrash,
+  IconX,
 } from "./components/Icons";
 import { Modal } from "./components/Modal";
 import { ForwardDialog } from "./dialogs/ForwardDialog";
@@ -235,22 +236,35 @@ export function Timeline({
               </Fragment>
             );
           })}
-          {items.length === 0 && (
-            <div className="empty-state">
-              <div className="empty-glyph">
-                <IconLock size={30} />
+          {items.length === 0 &&
+            // While history is still resolving (back-paginating or the recent
+            // sync window not yet filled), show a loading state rather than
+            // asserting the room is empty; the copy also depends on whether the
+            // room is actually encrypted.
+            (loadingOlder || handle.canPaginateBack() ? (
+              <div className="empty-state">
+                <span className="spinner" />
+                <p>Loading messages…</p>
               </div>
-              <h2>No messages yet</h2>
-              <p>Say hello — messages in encrypted rooms are only readable by members.</p>
-            </div>
-          )}
+            ) : (
+              (() => {
+                const encrypted = handle.details().isEncrypted;
+                return (
+                  <div className="empty-state">
+                    <div className="empty-glyph">{encrypted ? <IconLock size={30} /> : <IconChat size={30} />}</div>
+                    <h2>No messages yet</h2>
+                    <p>
+                      {encrypted
+                        ? "Say hello — messages in this encrypted room are only readable by members."
+                        : "Say hello — this is the beginning of the conversation."}
+                    </p>
+                  </div>
+                );
+              })()
+            ))}
         </div>
       </div>
-      {lightbox && (
-        <div className="lightbox" onClick={() => setLightbox(null)} role="dialog" aria-label="Image preview">
-          <img src={lightbox} alt="" />
-        </div>
-      )}
+      {lightbox && <Lightbox src={lightbox} onClose={() => setLightbox(null)} />}
       {menu && <ContextMenu menu={menu} onClose={() => setMenu(null)} />}
       {sheet && <MessageActionSheet sheet={sheet} account={account} onClose={() => setSheet(null)} />}
       {sourceView !== null && (
@@ -268,6 +282,59 @@ export function Timeline({
       {linkPrompt && <LinkWarning assessment={linkPrompt} onClose={() => setLinkPrompt(null)} />}
       {forwardId && <ForwardDialog source={handle} eventId={forwardId} onClose={() => setForwardId(null)} />}
     </>
+  );
+}
+
+// Accessible full-screen image preview: Escape to close, focus moves to the
+// close control on open and is restored on close, and a single-element focus
+// trap keeps Tab on the close button. Clicking the backdrop (or the image)
+// still dismisses, as before.
+export function Lightbox({ src, onClose }: { src: string; onClose: () => void }) {
+  const closeRef = useRef<HTMLButtonElement>(null);
+  const restoreRef = useRef<HTMLElement | null>(null);
+  // onClose identity churns as the parent re-renders on sync; read it via ref
+  // so the setup effect runs once and doesn't refocus mid-view.
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+
+  useEffect(() => {
+    restoreRef.current = document.activeElement as HTMLElement;
+    closeRef.current?.focus();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.stopPropagation();
+        onCloseRef.current();
+      }
+      if (e.key === "Tab") {
+        // Only the close button is focusable; keep focus pinned to it.
+        e.preventDefault();
+        closeRef.current?.focus();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      restoreRef.current?.focus();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  return (
+    <div className="lightbox" onClick={onClose} role="dialog" aria-modal="true" aria-label="Image preview">
+      <button
+        ref={closeRef}
+        type="button"
+        className="lightbox-close"
+        onClick={(e) => {
+          e.stopPropagation();
+          onClose();
+        }}
+        aria-label="Close preview"
+      >
+        <IconX size={22} />
+      </button>
+      <img src={src} alt="" />
+    </div>
   );
 }
 
@@ -513,16 +580,15 @@ export function TimelineRow({
   };
   openSheetRef.current = openSheet;
 
-  // Right-click a message → native-style context menu with the same actions as
-  // the hover bar. Defers to the sender/avatar menu when those were targeted.
-  const openMsgMenu = (e: React.MouseEvent) => {
+  // Build and open the message context menu at a viewport position — shared by
+  // the desktop right-click and the keyboard path so both offer identical
+  // actions.
+  const openMenuAt = (x: number, y: number) => {
     if (item.kind !== "message" || !item.eventId) return;
-    if ((e.target as HTMLElement).closest(".msg-sender, .avatar-btn")) return;
-    e.preventDefault();
     const eventId = item.eventId;
     const items: MenuItem[] = [
       { label: "Reply", onClick: () => onReply(item) },
-      { label: "Add reaction", onClick: () => onEmojiPicker({ x: e.clientX - 300, y: e.clientY + 6, eventId }) },
+      { label: "Add reaction", onClick: () => onEmojiPicker({ x: x - 300, y: y + 6, eventId }) },
     ];
     if (onForward) items.push({ label: "Forward", onClick: () => onForward(eventId) });
     if (onOpenThread) items.push({ label: "Reply in thread", onClick: () => onOpenThread(eventId) });
@@ -539,8 +605,6 @@ export function TimelineRow({
         onClick: () => copyText(item.body!.text ?? "").then(() => show("Copied."), showError),
       });
     if (canEdit) items.push({ label: "Edit", onClick: () => onEdit(item) });
-    const mx = e.clientX;
-    const my = e.clientY;
     if (!mine)
       items.push({
         label: "Report message",
@@ -549,8 +613,8 @@ export function TimelineRow({
           // Second-level menu of preset reasons; picking one reports immediately.
           const reasons = ["Spam", "Inappropriate content", "Harassment", "Illegal content", "Other"];
           onUserMenu({
-            x: mx,
-            y: my,
+            x,
+            y,
             items: reasons.map((reason) => ({
               label: reason,
               onClick: () =>
@@ -562,20 +626,48 @@ export function TimelineRow({
           });
         },
       });
-    items.push({
-      label: "Delete",
-      danger: true,
-      onClick: () => {
-        if (confirm("Delete this message for everyone?")) handle.redact(eventId).catch(showError);
-      },
-    });
-    onUserMenu({ x: e.clientX, y: e.clientY, items });
+    // Only offer removal when it can actually succeed: own messages always, or
+    // others' with moderator power (labelled so, mirroring the action sheet).
+    if (mine || handle.canRedactOthers())
+      items.push({
+        label: mine ? "Remove" : "Remove (moderator)",
+        danger: true,
+        onClick: () => {
+          if (confirm("Delete this message for everyone?")) handle.redact(eventId).catch(showError);
+        },
+      });
+    onUserMenu({ x, y, items });
+  };
+
+  // Right-click a message → native-style context menu with the same actions as
+  // the hover bar. Defers to the sender/avatar menu when those were targeted.
+  const openMsgMenu = (e: React.MouseEvent) => {
+    if (item.kind !== "message" || !item.eventId) return;
+    if ((e.target as HTMLElement).closest(".msg-sender, .avatar-btn")) return;
+    e.preventDefault();
+    openMenuAt(e.clientX, e.clientY);
+  };
+
+  // Keyboard path (issue #5 a11y): a focused message row opens the same action
+  // menu with Enter or the dedicated ContextMenu key, anchored to the row's
+  // centre. The menu itself handles Escape/arrow navigation and closing.
+  const onRowKeyDown = (e: React.KeyboardEvent) => {
+    if (item.kind !== "message" || !item.eventId) return;
+    if (e.target !== e.currentTarget) return; // let child controls keep their keys
+    if (e.key === "Enter" || e.key === "ContextMenu") {
+      e.preventDefault();
+      const r = e.currentTarget.getBoundingClientRect();
+      openMenuAt(Math.round(r.left + r.width / 2), Math.round(r.top + r.height / 2));
+    }
   };
 
   return (
     <div
       className={`msg-row${mine ? " mine" : ""}${item.groupStart ? " group-start" : ""}`}
       data-event-id={item.eventId}
+      tabIndex={item.kind === "message" && item.eventId ? 0 : undefined}
+      aria-haspopup={item.kind === "message" && item.eventId ? "menu" : undefined}
+      onKeyDown={onRowKeyDown}
       onContextMenu={(e) => {
         // Android synthesizes contextmenu from a long-press; touch is handled
         // by the long-press action bar, so only real right-clicks open the menu.
@@ -1052,32 +1144,50 @@ function MessageContent({
   return null;
 }
 
+interface MediaSrc {
+  src?: string;
+  /** The fetch/decrypt failed — show a retry affordance instead of a skeleton. */
+  error: boolean;
+  /** Re-run the fetch (the cache dropped the rejected entry, so this refetches). */
+  retry: () => void;
+}
+
 function useMediaSrc(
   account: MatrixAccount,
   mxc: string | undefined,
   enc: Parameters<typeof encryptedMediaUrl>[1] | undefined,
   mime?: string,
   thumb?: { w: number; h: number },
-): string | undefined {
+): MediaSrc {
   const [src, setSrc] = useState<string>();
+  const [error, setError] = useState(false);
+  const [attempt, setAttempt] = useState(0);
+  const retry = useCallback(() => {
+    setError(false);
+    setAttempt((n) => n + 1);
+  }, []);
   useEffect(() => {
     let alive = true;
     setSrc(undefined);
+    setError(false);
     if (!account.client) return;
     const p = enc
       ? encryptedMediaUrl(account.client, enc, mime)
       : mxc
         ? mediaUrl(account.client, mxc, thumb)
         : undefined;
-    p?.then((u) => {
+    if (!p) return;
+    p.then((u) => {
       if (alive) setSrc(u);
-    }).catch(() => undefined);
+    }).catch(() => {
+      if (alive) setError(true);
+    });
     return () => {
       alive = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [account, mxc, enc?.url]);
-  return src;
+  }, [account, mxc, enc?.url, attempt]);
+  return { src, error, retry };
 }
 
 function ImageContent({
@@ -1090,27 +1200,61 @@ function ImageContent({
   onZoom: (url: string) => void;
 }) {
   // Prefer the thumbnail for the timeline; fall back to full image.
-  const thumbSrc = useMediaSrc(
+  const thumb = useMediaSrc(
     account,
     body.thumbMxc ?? body.mxc,
     body.thumbFile ?? body.file,
     body.thumbFile ? undefined : body.mime,
     body.thumbMxc && !body.thumbFile ? { w: 640, h: 480 } : undefined,
   );
-  const fullSrc = useMediaSrc(account, body.mxc, body.file, body.mime);
+  const full = useMediaSrc(account, body.mxc, body.file, body.mime);
   const ratio = body.w && body.h ? Math.min(3, Math.max(0.4, body.w / body.h)) : undefined;
-  if (!thumbSrc) {
+  if (thumb.error) {
+    return (
+      <MediaError
+        className="msg-img-error"
+        style={{ width: 280, aspectRatio: ratio ?? 1.4, maxWidth: "100%" }}
+        onRetry={thumb.retry}
+      />
+    );
+  }
+  if (!thumb.src) {
     return <div className="skeleton" style={{ width: 280, aspectRatio: ratio ?? 1.4, maxWidth: "100%" }} />;
   }
   return (
-    <img
-      className="msg-img"
-      src={thumbSrc}
-      alt={body.text}
-      style={ratio ? { aspectRatio: ratio } : undefined}
-      onClick={() => onZoom(fullSrc ?? thumbSrc)}
-      loading="lazy"
-    />
+    <button
+      type="button"
+      className="msg-img-btn"
+      onClick={() => onZoom(full.src ?? thumb.src!)}
+      aria-label={body.text ? `Open image: ${body.text}` : "Open image"}
+    >
+      <img
+        className="msg-img"
+        src={thumb.src}
+        alt={body.text}
+        style={ratio ? { aspectRatio: ratio } : undefined}
+        loading="lazy"
+      />
+    </button>
+  );
+}
+
+// Shared "couldn't load — tap to retry" affordance for media that failed to
+// fetch or decrypt, in place of an eternal skeleton/spinner.
+function MediaError({
+  onRetry,
+  className,
+  style,
+}: {
+  onRetry: () => void;
+  className?: string;
+  style?: React.CSSProperties;
+}) {
+  return (
+    <button type="button" className={`media-error${className ? ` ${className}` : ""}`} style={style} onClick={onRetry}>
+      <IconAlert size={20} />
+      <span>Couldn't load — tap to retry</span>
+    </button>
   );
 }
 
@@ -1145,7 +1289,7 @@ function VideoContent({
         onClick={() => setPlay(true)}
         aria-label="Play video"
       >
-        {poster && <img src={poster} alt={body.text} />}
+        {poster.src && <img src={poster.src} alt={body.text} />}
         <span className="msg-video-play">
           <IconPlay size={26} />
         </span>
@@ -1153,10 +1297,13 @@ function VideoContent({
       </button>
     );
   }
-  if (!src) {
+  if (src.error) {
+    return <MediaError className="msg-video-error" style={{ aspectRatio: ratio, width: 320, maxWidth: "100%" }} onRetry={src.retry} />;
+  }
+  if (!src.src) {
     return (
       <div className="msg-video msg-video-poster loading" style={{ aspectRatio: ratio }}>
-        {poster && <img src={poster} alt={body.text} />}
+        {poster.src && <img src={poster.src} alt={body.text} />}
         <span className="msg-video-play">
           <IconPlay size={26} />
         </span>
@@ -1166,8 +1313,8 @@ function VideoContent({
   return (
     <video
       className="msg-video"
-      src={src}
-      poster={poster}
+      src={src.src}
+      poster={poster.src}
       controls
       autoPlay={isEncrypted}
       preload="metadata"
@@ -1183,7 +1330,10 @@ function FileContent({
   body: Extract<MessageBody, { msgtype: "m.file" }>;
   account: MatrixAccount;
 }) {
-  const src = useMediaSrc(account, body.mxc, body.file, body.mime);
+  const { src, error, retry } = useMediaSrc(account, body.mxc, body.file, body.mime);
+  if (error) {
+    return <MediaError className="msg-file-error" onRetry={retry} />;
+  }
   return (
     <a className="msg-file" href={src} download={body.text} aria-disabled={!src}>
       <span className="msg-file-icon">
@@ -1234,7 +1384,7 @@ function AudioContent({
   account: MatrixAccount;
   trackId: string;
 }) {
-  const src = useMediaSrc(account, body.mxc, body.file, body.mime);
+  const { src } = useMediaSrc(account, body.mxc, body.file, body.mime);
   return (
     <AudioPlayer
       trackId={trackId}
