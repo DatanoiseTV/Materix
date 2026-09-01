@@ -4124,6 +4124,12 @@ button.msg-sender:hover {
   .img-editor-caption {
     font-size: 16px;
   }
+  /* Belt-and-braces: no field should ever trigger the WebView auto-zoom. */
+  input,
+  textarea,
+  select {
+    font-size: 16px;
+  }
 }
 
 @media (max-width: 480px) {
