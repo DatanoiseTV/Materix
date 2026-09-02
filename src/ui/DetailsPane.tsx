@@ -15,6 +15,7 @@ import { MediaGallery } from "./MediaGallery";
 import { RoomSettingsDialog } from "./dialogs/RoomSettingsDialog";
 import { IconLock, IconLogout, IconSettings, IconStar, IconX } from "./components/Icons";
 import { useToast } from "./components/Toast";
+import { useConfirm, usePrompt } from "./components/Confirm";
 
 export function DetailsPane({
   selection,
@@ -34,6 +35,8 @@ export function DetailsPane({
   const [tab, setTab] = useState<"info" | "media">("info");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const { show, showError } = useToast();
+  const confirm = useConfirm();
+  const prompt = usePrompt();
   const [roomSound, setRoomSoundState] = useState<SoundId | undefined>(
     () => getPrefs().roomSounds[roomSoundKey(selection.accountKey, selection.roomId)],
   );
@@ -137,7 +140,8 @@ export function DetailsPane({
           <button
             className="btn danger-ghost"
             onClick={async () => {
-              if (!confirm(`Leave "${details.name}"?`)) return;
+              if (!(await confirm({ title: `Leave "${details.name}"?`, danger: true, confirmLabel: "Leave" })))
+                return;
               try {
                 await handle!.leave();
                 onLeft();
@@ -216,16 +220,28 @@ export function DetailsPane({
                       roomId: selection.roomId,
                       canKick: details.canKick,
                       onKick: () => {
-                        if (confirm(`Remove ${m.name} from the room?`)) handle!.kick(m.userId).catch(showError);
+                        confirm({
+                          title: `Remove ${m.name} from the room?`,
+                          danger: true,
+                          confirmLabel: "Remove",
+                        }).then((ok) => {
+                          if (ok) handle!.kick(m.userId).catch(showError);
+                        });
                       },
                       canBan: handle?.canBan() ?? false,
                       onBan: () => {
-                        const reason = prompt(`Ban ${m.name} from this room? Optionally add a reason:`);
-                        if (reason === null) return;
-                        handle!
-                          .ban(m.userId, reason || undefined)
-                          .then(() => show("User banned."))
-                          .catch(showError);
+                        prompt({
+                          title: `Ban ${m.name} from this room?`,
+                          label: "Reason (optional)",
+                          danger: true,
+                          confirmLabel: "Ban",
+                        }).then((reason) => {
+                          if (reason === null) return;
+                          handle!
+                            .ban(m.userId, reason || undefined)
+                            .then(() => show("User banned."))
+                            .catch(showError);
+                        });
                       },
                       canChangePower: handle?.canChangePower() ?? false,
                       myLevel: details.myPowerLevel,

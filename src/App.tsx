@@ -6,6 +6,7 @@ import type { SasFlow } from "./core/types";
 import { useAccounts, useMediaQuery } from "./ui/hooks";
 import { applyTheme } from "./ui/theme";
 import { ToastProvider } from "./ui/components/Toast";
+import { ConfirmProvider } from "./ui/components/Confirm";
 import { CryptoGate } from "./ui/CryptoGate";
 import { Onboarding } from "./ui/Onboarding";
 import { AccountRail, RoomListPane, type NewChatTab, type Selection } from "./ui/RoomList";
@@ -198,94 +199,96 @@ export function App() {
 
   return (
     <ToastProvider>
-      <div className={`app${narrow && selection ? " mobile-chat" : ""}`}>
-        {showAccountsBar && (
-          <AccountRail
+      <ConfirmProvider>
+        <div className={`app${narrow && selection ? " mobile-chat" : ""}`}>
+          {showAccountsBar && (
+            <AccountRail
+              onAddAccount={() => setDialog({ kind: "add-account" })}
+              onSettings={() => setDialog({ kind: "settings" })}
+              onHide={() => setShowAccountsBar(false)}
+            />
+          )}
+          <RoomListPane
+            selection={selection}
+            onSelect={(sel) => {
+              setSelection(sel);
+              setDetailsOpen(false);
+            }}
+            onNewChat={(tab) => setDialog({ kind: "new-chat", tab })}
+            onOpenSecurity={(accountKey) => setDialog({ kind: "security", accountKey })}
             onAddAccount={() => setDialog({ kind: "add-account" })}
             onSettings={() => setDialog({ kind: "settings" })}
-            onHide={() => setShowAccountsBar(false)}
+            onManageAccount={() => setDialog({ kind: "settings", section: "accounts" })}
+            accountsBarShown={showAccountsBar}
+            onToggleAccountsBar={() => setShowAccountsBar(!showAccountsBar)}
+          />
+          <ChatPane
+            selection={selection}
+            onBack={() => setSelection(null)}
+            onToggleDetails={() => setDetailsOpen((v) => !v)}
+          />
+          {detailsOpen && selection && (
+            <DetailsPane
+              selection={selection}
+              onClose={() => setDetailsOpen(false)}
+              onLeft={() => {
+                setDetailsOpen(false);
+                setSelection(null);
+              }}
+            />
+          )}
+        </div>
+
+        <NowPlaying />
+        <CallOverlay />
+        <PasscodeGate />
+        <CryptoGate />
+
+        {dialog.kind === "new-chat" && (
+          <NewChatDialog
+            onClose={() => setDialog({ kind: "none" })}
+            onOpenRoom={setSelection}
+            initialTab={dialog.tab}
           />
         )}
-        <RoomListPane
-          selection={selection}
-          onSelect={(sel) => {
-            setSelection(sel);
-            setDetailsOpen(false);
-          }}
-          onNewChat={(tab) => setDialog({ kind: "new-chat", tab })}
-          onOpenSecurity={(accountKey) => setDialog({ kind: "security", accountKey })}
-          onAddAccount={() => setDialog({ kind: "add-account" })}
-          onSettings={() => setDialog({ kind: "settings" })}
-          onManageAccount={() => setDialog({ kind: "settings", section: "accounts" })}
-          accountsBarShown={showAccountsBar}
-          onToggleAccountsBar={() => setShowAccountsBar(!showAccountsBar)}
-        />
-        <ChatPane
-          selection={selection}
-          onBack={() => setSelection(null)}
-          onToggleDetails={() => setDetailsOpen((v) => !v)}
-        />
-        {detailsOpen && selection && (
-          <DetailsPane
-            selection={selection}
-            onClose={() => setDetailsOpen(false)}
-            onLeft={() => {
-              setDetailsOpen(false);
-              setSelection(null);
+        {dialog.kind === "security" && accountManager.tryAccount(dialog.accountKey) && (
+          <SecurityDialog
+            account={accountManager.account(dialog.accountKey)}
+            onClose={() => setDialog({ kind: "none" })}
+          />
+        )}
+        {dialog.kind === "settings" && (
+          <SettingsDialog
+            onClose={() => setDialog({ kind: "none" })}
+            onAddAccount={() => setDialog({ kind: "add-account" })}
+            onStartVerification={(flow) => setActiveFlow(flow)}
+            initialSection={dialog.section}
+          />
+        )}
+        {dialog.kind === "add-account" && (
+          <div
+            className="modal-backdrop"
+            onMouseDown={(e) => {
+              if (e.target === e.currentTarget) setDialog({ kind: "none" });
+            }}
+          >
+            <Onboarding
+              embedded
+              onDone={() => setDialog({ kind: "none" })}
+              onCancel={() => setDialog({ kind: "none" })}
+            />
+          </div>
+        )}
+        {activeFlow && (
+          <VerificationDialog
+            flow={activeFlow}
+            onClose={() => {
+              dismissedFlows.current.add(activeFlow.flowId);
+              setActiveFlow(null);
             }}
           />
         )}
-      </div>
-
-      <NowPlaying />
-      <CallOverlay />
-      <PasscodeGate />
-      <CryptoGate />
-
-      {dialog.kind === "new-chat" && (
-        <NewChatDialog
-          onClose={() => setDialog({ kind: "none" })}
-          onOpenRoom={setSelection}
-          initialTab={dialog.tab}
-        />
-      )}
-      {dialog.kind === "security" && accountManager.tryAccount(dialog.accountKey) && (
-        <SecurityDialog
-          account={accountManager.account(dialog.accountKey)}
-          onClose={() => setDialog({ kind: "none" })}
-        />
-      )}
-      {dialog.kind === "settings" && (
-        <SettingsDialog
-          onClose={() => setDialog({ kind: "none" })}
-          onAddAccount={() => setDialog({ kind: "add-account" })}
-          onStartVerification={(flow) => setActiveFlow(flow)}
-          initialSection={dialog.section}
-        />
-      )}
-      {dialog.kind === "add-account" && (
-        <div
-          className="modal-backdrop"
-          onMouseDown={(e) => {
-            if (e.target === e.currentTarget) setDialog({ kind: "none" });
-          }}
-        >
-          <Onboarding
-            embedded
-            onDone={() => setDialog({ kind: "none" })}
-            onCancel={() => setDialog({ kind: "none" })}
-          />
-        </div>
-      )}
-      {activeFlow && (
-        <VerificationDialog
-          flow={activeFlow}
-          onClose={() => {
-            dismissedFlows.current.add(activeFlow.flowId);
-            setActiveFlow(null);
-          }}
-        />
-      )}
+      </ConfirmProvider>
     </ToastProvider>
   );
 }

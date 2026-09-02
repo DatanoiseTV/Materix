@@ -1735,6 +1735,12 @@ button.msg-sender:hover {
   padding: 0 var(--sp-4) var(--sp-4);
 }
 
+/* Message text of an in-app confirm/prompt dialog (Confirm.tsx). */
+.confirm-body {
+  color: var(--text-2);
+  line-height: 1.5;
+}
+
 @keyframes fade-in {
   from {
     opacity: 0;
