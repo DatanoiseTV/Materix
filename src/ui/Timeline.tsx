@@ -40,6 +40,7 @@ import { ForwardDialog } from "./dialogs/ForwardDialog";
 import { formatDayDivider, formatDuration, formatSize, formatTime } from "./format";
 import { copyText } from "./clipboard";
 import { useToast } from "./components/Toast";
+import { useConfirm, usePrompt } from "./components/Confirm";
 import { isOfflineError } from "../core/errors";
 import { assessLink, isTrusted, openExternal, type LinkAssessment } from "./linkSafety";
 import { LinkWarning } from "./components/LinkWarning";
@@ -381,6 +382,8 @@ export function TimelineRow({
   threadOpen?: boolean;
 }) {
   const { show, showError } = useToast();
+  const confirm = useConfirm();
+  const prompt = usePrompt();
 
   // A deliberate long-press opens the full-screen action sheet. `openSheet` is
   // defined further down (it needs `mine`/`canEdit`/`react`, computed after the
@@ -470,12 +473,18 @@ export function TimelineRow({
         roomId: handle.roomId,
         canBan: handle.canBan(),
         onBan: () => {
-          const reason = prompt(`Ban ${item.sender.name} from this room? Optionally add a reason:`);
-          if (reason === null) return;
-          handle
-            .ban(userId, reason || undefined)
-            .then(() => show("User banned."))
-            .catch(showError);
+          prompt({
+            title: `Ban ${item.sender.name} from this room?`,
+            label: "Reason (optional)",
+            danger: true,
+            confirmLabel: "Ban",
+          }).then((reason) => {
+            if (reason === null) return;
+            handle
+              .ban(userId, reason || undefined)
+              .then(() => show("User banned."))
+              .catch(showError);
+          });
         },
         canChangePower: handle.canChangePower(),
         myLevel: handle.myLevel(),
@@ -575,7 +584,11 @@ export function TimelineRow({
         danger: true,
         icon: <IconTrash size={18} />,
         onClick: () => {
-          if (confirm("Delete this message for everyone?")) handle.redact(eventId).catch(showError);
+          confirm({ title: "Delete this message for everyone?", danger: true, confirmLabel: "Delete" }).then(
+            (ok) => {
+              if (ok) handle.redact(eventId).catch(showError);
+            },
+          );
         },
       });
 
@@ -643,7 +656,11 @@ export function TimelineRow({
         label: mine ? "Remove" : "Remove (moderator)",
         danger: true,
         onClick: () => {
-          if (confirm("Delete this message for everyone?")) handle.redact(eventId).catch(showError);
+          confirm({ title: "Delete this message for everyone?", danger: true, confirmLabel: "Delete" }).then(
+            (ok) => {
+              if (ok) handle.redact(eventId).catch(showError);
+            },
+          );
         },
       });
     onUserMenu({ x, y, items });
@@ -822,9 +839,11 @@ export function TimelineRow({
             })()}
           <button
             onClick={() => {
-              if (confirm("Delete this message for everyone?")) {
-                handle.redact(item.eventId!).catch(showError);
-              }
+              confirm({ title: "Delete this message for everyone?", danger: true, confirmLabel: "Delete" }).then(
+                (ok) => {
+                  if (ok) handle.redact(item.eventId!).catch(showError);
+                },
+              );
             }}
             title="Delete"
             aria-label="Delete"
@@ -999,6 +1018,7 @@ function PollView({
   handle: RoomHandle;
 }) {
   const { showError } = useToast();
+  const confirm = useConfirm();
   // Show results once you've voted, the poll is undisclosed-and-ended, or it ended.
   const hasVoted = poll.answers.some((a) => a.chosenByMe);
   const showResults = poll.ended || (poll.kind === "disclosed" && hasVoted);
@@ -1058,7 +1078,13 @@ function PollView({
             <button
               style={{ color: "var(--accent-strong)" }}
               onClick={() => {
-                if (confirm("End this poll? Results become final.")) handle.endPoll(poll.eventId).catch(showError);
+                confirm({
+                  title: "End this poll?",
+                  body: "Results become final.",
+                  confirmLabel: "End poll",
+                }).then((ok) => {
+                  if (ok) handle.endPoll(poll.eventId).catch(showError);
+                });
               }}
             >
               End poll

@@ -10,6 +10,7 @@ import { IconChat, IconChevronLeft, IconChevronRight, IconGlobe, IconHash, IconL
 import { formatListTime, typingText } from "./format";
 import { copyText } from "./clipboard";
 import { useToast } from "./components/Toast";
+import { useConfirm } from "./components/Confirm";
 
 export interface Selection {
   accountKey: string;
@@ -122,6 +123,7 @@ export function RoomListPane({
   const [showChats, setShowChats] = useState(true);
   const [showRooms, setShowRooms] = useState(true);
   const { showError, show } = useToast();
+  const confirm = useConfirm();
 
   const accounts = accountManager.list();
   const multiAccount = accounts.length > 1;
@@ -256,9 +258,12 @@ export function RoomListPane({
                     danger: true,
                     onClick: async () => {
                       if (
-                        !confirm(
-                          `Sign out ${activeMeta.userId}? Encrypted history on this device will be removed.`,
-                        )
+                        !(await confirm({
+                          title: "Sign out?",
+                          body: `Sign out ${activeMeta.userId}? Encrypted history on this device will be removed.`,
+                          danger: true,
+                          confirmLabel: "Sign out",
+                        }))
                       )
                         return;
                       try {
@@ -633,6 +638,7 @@ function RoomSection({
   colorOf: (key: string) => string;
 }) {
   const { show, showError } = useToast();
+  const confirm = useConfirm();
   if (rooms.length === 0) return null;
 
   const openMenu = (e: React.MouseEvent, r: RoomSummary) => {
@@ -689,7 +695,9 @@ function RoomSection({
           label: "Leave",
           danger: true,
           onClick: () => {
-            if (confirm(`Leave "${r.name}"?`)) account.room(r.roomId).leave().catch(showError);
+            confirm({ title: `Leave "${r.name}"?`, danger: true, confirmLabel: "Leave" }).then((ok) => {
+              if (ok) account.room(r.roomId).leave().catch(showError);
+            });
           },
         },
       ],

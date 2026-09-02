@@ -10,6 +10,7 @@ import { Avatar } from "../components/Avatar";
 import { IconLogout, IconMonitor, IconMoon, IconShield, IconSun } from "../components/Icons";
 import { useAccounts } from "../hooks";
 import { useToast } from "../components/Toast";
+import { useConfirm } from "../components/Confirm";
 import { getThemePref, setThemePref, type ThemePref } from "../theme";
 import { getPrefs, setAccountSound, setPref, type NotificationMode } from "../prefs";
 import type { SoundId } from "../sounds";
@@ -45,6 +46,7 @@ export function SettingsDialog({
   const [notifMode, setNotifMode] = useState<NotificationMode>(getPrefs().notifications);
   const [sound, setSound] = useState<SoundId>(getPrefs().sound);
   const { show, showError } = useToast();
+  const confirm = useConfirm();
 
   const accountsRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -137,7 +139,15 @@ export function SettingsDialog({
               account={accountManager.account(a.key)}
               onStartVerification={onStartVerification}
               onSignOut={async () => {
-                if (!confirm(`Sign out ${a.userId}? Encrypted history on this device will be removed.`)) return;
+                if (
+                  !(await confirm({
+                    title: "Sign out?",
+                    body: `Sign out ${a.userId}? Encrypted history on this device will be removed.`,
+                    danger: true,
+                    confirmLabel: "Sign out",
+                  }))
+                )
+                  return;
                 try {
                   await accountManager.logout(a.key);
                   show("Signed out.");
@@ -378,6 +388,7 @@ function PasscodeSetting({ account }: { account: MatrixAccount }) {
   const [p2, setP2] = useState("");
   const [busy, setBusy] = useState(false);
   const { show, showError } = useToast();
+  const confirm = useConfirm();
 
   useEffect(() => {
     hasPasscode(account.key)
@@ -406,7 +417,15 @@ function PasscodeSetting({ account }: { account: MatrixAccount }) {
   };
 
   const disable = async () => {
-    if (!confirm("Remove the app passcode? Local data keeps device-level protection only.")) return;
+    if (
+      !(await confirm({
+        title: "Remove app passcode?",
+        body: "Local data keeps device-level protection only.",
+        danger: true,
+        confirmLabel: "Remove",
+      }))
+    )
+      return;
     setBusy(true);
     try {
       await clearPasscode(account.key, account.storageKey!);
