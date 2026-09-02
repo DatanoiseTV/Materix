@@ -31,7 +31,7 @@ import type {
 } from "./types";
 import { RoomHandle } from "./roomHandle";
 import { previewText } from "./markdown";
-import { CryptoFacade, cryptoCallbacks } from "./crypto";
+import { CryptoFacade } from "./crypto";
 import { CallManager } from "./calls";
 import { readStorageKey } from "./cryptoStoreKey";
 import { Emitter } from "./emitter";
@@ -89,7 +89,9 @@ export class MatrixAccount {
       deviceId: this.session.deviceId,
       store,
       timelineSupport: true,
-      cryptoCallbacks,
+      // Per-account callbacks so a recovery key entered on one account can never
+      // be handed to another account's crypto (see CryptoFacade).
+      cryptoCallbacks: this.crypto.cryptoCallbacks,
     });
     this.crypto.bind(this.client);
     // The getter defers the read: crypto init only settles below, after bind.

@@ -18,34 +18,11 @@ import type { DeviceSummary, KeyBackupStatus, SasFlow, SasPhase } from "./types"
 import { Emitter } from "./emitter";
 import { toMaterixError } from "./errors";
 
-// In-memory secret-storage key cache, shared across accounts, seeded either by
-// bootstrap (cacheSecretStorageKey) or by the user entering a recovery key.
-const ssKeyCache = new Map<string, Uint8Array<ArrayBuffer>>();
-let pendingRecoveryKey: Uint8Array<ArrayBuffer> | null = null;
-
-export const cryptoCallbacks = {
-  getSecretStorageKey: async ({ keys }: { keys: Record<string, unknown> }): Promise<[string, Uint8Array<ArrayBuffer>] | null> => {
-    for (const keyId of Object.keys(keys)) {
-      const cached = ssKeyCache.get(keyId);
-      if (cached) return [keyId, cached];
-    }
-    if (pendingRecoveryKey) {
-      const keyId = Object.keys(keys)[0];
-      if (keyId) {
-        // Cache the key so secret fetches that happen AFTER restoreWithRecoveryKey
-        // returns (Rust crypto imports cross-signing secrets via an async
-        // secret-request/gossip cycle) can still read 4S. Without this the device
-        // decrypts history but is never cross-signed → verification never completes.
-        ssKeyCache.set(keyId, pendingRecoveryKey);
-        return [keyId, pendingRecoveryKey];
-      }
-    }
-    return null;
-  },
-  cacheSecretStorageKey: (keyId: string, _info: unknown, key: Uint8Array): void => {
-    ssKeyCache.set(keyId, key as Uint8Array<ArrayBuffer>);
-  },
-};
+// The secret-storage key cache and the pending recovery key are held PER
+// ACCOUNT on the CryptoFacade instance (see `cryptoCallbacks` there), never at
+// module scope. Sharing them across accounts let account A's recovery key, set
+// during a restore, be handed to account B's Rust crypto if B's async
+// secret-storage-key request landed mid-restore — a wrong-key cache for B.
 
 // ---------------------------------------------------------------------------
 // Encrypted room-key export file ("-----BEGIN MEGOLM SESSION DATA-----").
@@ -172,6 +149,42 @@ export class CryptoFacade {
   readonly events = new Emitter<"flows" | "status">();
   private flows = new Map<string, SasFlowImpl>();
   private client!: MatrixClient;
+
+  // Account-scoped secret-storage state (never module-global — see the note at
+  // the top of this file). Seeded by bootstrap (cacheSecretStorageKey) or by the
+  // user entering a recovery key on this account.
+  private readonly ssKeyCache = new Map<string, Uint8Array<ArrayBuffer>>();
+  private pendingRecoveryKey: Uint8Array<ArrayBuffer> | null = null;
+
+  /** matrix-js-sdk cryptoCallbacks for THIS account. Passed to createClient so
+   * every account gets callbacks closing over its own key state. */
+  readonly cryptoCallbacks = {
+    getSecretStorageKey: async ({
+      keys,
+    }: {
+      keys: Record<string, unknown>;
+    }): Promise<[string, Uint8Array<ArrayBuffer>] | null> => {
+      for (const keyId of Object.keys(keys)) {
+        const cached = this.ssKeyCache.get(keyId);
+        if (cached) return [keyId, cached];
+      }
+      if (this.pendingRecoveryKey) {
+        const keyId = Object.keys(keys)[0];
+        if (keyId) {
+          // Cache the key so secret fetches that happen AFTER restoreWithRecoveryKey
+          // returns (Rust crypto imports cross-signing secrets via an async
+          // secret-request/gossip cycle) can still read 4S. Without this the device
+          // decrypts history but is never cross-signed -> verification never completes.
+          this.ssKeyCache.set(keyId, this.pendingRecoveryKey);
+          return [keyId, this.pendingRecoveryKey];
+        }
+      }
+      return null;
+    },
+    cacheSecretStorageKey: (keyId: string, _info: unknown, key: Uint8Array): void => {
+      this.ssKeyCache.set(keyId, key as Uint8Array<ArrayBuffer>);
+    },
+  };
 
   constructor(private accountKey: string) {}
 
@@ -398,7 +411,7 @@ export class CryptoFacade {
   async restoreWithRecoveryKey(recoveryKey: string): Promise<{ imported: number }> {
     const crypto = this.client.getCrypto()!;
     try {
-      pendingRecoveryKey = decodeRecoveryKey(recoveryKey.trim());
+      this.pendingRecoveryKey = decodeRecoveryKey(recoveryKey.trim());
     } catch {
       throw toMaterixError(new Error("That doesn't look like a valid recovery key."));
     }
@@ -415,7 +428,7 @@ export class CryptoFacade {
     } catch (e) {
       throw toMaterixError(e);
     } finally {
-      pendingRecoveryKey = null;
+      this.pendingRecoveryKey = null;
     }
   }
 
