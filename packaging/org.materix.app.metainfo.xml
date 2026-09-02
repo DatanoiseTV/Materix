@@ -72,6 +72,14 @@
   </screenshots>
 
   <releases>
+    <release version="0.2.0" date="2026-09-02">
+      <description>
+        <p>Android support (mobile UI, gestures, IME, UnifiedPush background notifications for
+          de-Googled devices), a self-hosted F-Droid channel, accessibility for the timeline and
+          media, a Content-Security-Policy and phishing-check hardening, and a batch of correctness
+          and media fixes.</p>
+      </description>
+    </release>
     <release version="0.1.0" date="2026-08-06">
       <description>
         <p>First packaged pre-release.</p>

@@ -4,6 +4,34 @@ All notable changes to Materix are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.2.0] — 2026-09-02
+
+### Added
+
+- Android support: a mobile-first layout, touch gestures, IME/keyboard handling
+  that keeps the composer above the on-screen keyboard, an old-WebView "compat"
+  build, and background notifications on de-Googled devices over UnifiedPush + ntfy.
+- A self-hosted F-Droid repository (published to GitHub Pages) so Android users
+  can install and auto-update without the Play Store.
+- A Content-Security-Policy on both the desktop webview and the web build.
+- Keyboard accessibility across the timeline: focusable message rows and action
+  menus, image thumbnails as buttons, a focus-trapped image lightbox, a
+  keyboard-seekable audio player, and a focus-trapped emoji picker.
+- Tests for the HTML sanitizer, link-safety heuristics, and the passcode key wrap.
+
+### Fixed
+
+- Media that fails to load now shows a retry affordance instead of an endless spinner.
+- Phishing check no longer treats every `*.co.uk`-style site as one domain.
+- Push-notification titles from the gateway payload are sanitized and length-clamped.
+- Correctness: the unread divider surviving read receipts, a voice-recorder
+  AudioContext leak, the encryption-warning gate missing late-added accounts, a
+  second account's incoming call staying hidden, a room-list crash on malformed
+  local storage, and unbounded auto-fill back-pagination.
+- The media object-URL cache is now a bounded LRU that revokes evicted URLs.
+- Mobile: inputs no longer trigger WebView auto-zoom; Enter inserts a newline on
+  touch keyboards; the composer no longer grows behind the keyboard.
+
 ## [0.1.0] — 2026-07-16
 
 Initial release.
