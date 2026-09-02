@@ -66,12 +66,15 @@ jobs:
         # to both variants (see scripts/apply-android-av.sh).
         run: bash scripts/apply-android-av.sh
 
-      - name: Stamp version (date + commit filename, monotonic versionCode)
+      - name: Stamp version (semver name, monotonic versionCode)
         run: |
           set -euo pipefail
-          SHA="$(git rev-parse --short=7 HEAD)"
-          DATE="$(date -u +%y%m%d)"
-          VN="${DATE}_${SHA}"                       # versionName -> materix_<yymmdd>_<commit>.apk
+          # versionName is the project's semver, so F-Droid shows a recognisable
+          # version (e.g. "0.2.0") instead of a date+commit string. Per-build
+          # uniqueness comes from the monotonic versionCode below, which the
+          # F-Droid publish step also puts in each APK's filename so two builds of
+          # the same semver never overwrite each other in the repo.
+          VN="$(python3 -c "import json;print(json.load(open('package.json'))['version'])")"
           # Monotonic versionCode = whole minutes since 2026-01-01T00:00:00Z.
           # Small (~3e5), strictly increasing every build, fits Android's int32
           # cap for centuries. Guarantees each build outranks the previous one
@@ -164,17 +167,19 @@ jobs:
           # Swap in the reference-types/multivalue-free crypto WASM so the crypto
           # engine runs on old System WebViews (Chromium ~83 / Android 11).
           bash scripts/apply-compat-wasm.sh
-          # Re-stamp for the compat variant: a distinct versionName (-compat), a
-          # higher versionCode (so on old devices F-Droid prefers it over the
-          # modern APK), and maxSdk=30 so F-Droid only offers it to Android <= 11
-          # (a proxy for "old WebView" — imperfect but the best F-Droid has).
+          # Re-stamp for the compat variant: same versionName (F-Droid shows the
+          # same "0.2.0" whichever build a device gets), a higher versionCode (so
+          # on old devices F-Droid prefers it over the modern APK), and maxSdk=30
+          # so F-Droid only offers it to Android <= 11 (a proxy for "old WebView" —
+          # imperfect but the best F-Droid has). The two builds stay distinct in
+          # the repo via their versionCodes (in the filename) and maxSdk.
           GRADLE="src-tauri/gen/android/app/build.gradle.kts"
           python3 - "$GRADLE" "$BASE_VC" "$BASE_VN" <<'PY'
           import re, sys
           path, base_vc, base_vn = sys.argv[1], int(sys.argv[2]), sys.argv[3]
           s = open(path).read()
           s, n1 = re.subn(r'versionCode\s*=\s*[^\n]+', f'versionCode = {base_vc + 100000000}', s)
-          s, n2 = re.subn(r'versionName\s*=\s*[^\n]+', f'versionName = "{base_vn}-compat"', s)
+          s, n2 = re.subn(r'versionName\s*=\s*[^\n]+', f'versionName = "{base_vn}"', s)
           # Compat variant covers old devices: minSdk back to 24 (the modern stamp
           # set it to 31) and maxSdk=30 so F-Droid offers it only on Android <= 11.
           s, n3 = re.subn(r'minSdk\s*=\s*\d+', 'minSdk = 24', s)
@@ -182,7 +187,7 @@ jobs:
               s = re.sub(r'(minSdk\s*=\s*24)', r'\1\n        maxSdk = 30', s, count=1)
           assert n1 >= 1 and n2 >= 1 and n3 >= 1 and 'maxSdk = 30' in s, f"compat gradle patch failed: {n1} {n2} {n3}"
           open(path, 'w').write(s)
-          print(f"compat stamp: versionCode={base_vc + 100000000} versionName={base_vn}-compat minSdk=24 maxSdk=30")
+          print(f"compat stamp: versionCode={base_vc + 100000000} versionName={base_vn} (compat) minSdk=24 maxSdk=30")
           PY
           pnpm tauri android build --apk
           cp "$(find src-tauri/gen/android/app/build/outputs/apk -name '*universal*release*.apk' | head -1)" dist-apks/materix-compat.apk
