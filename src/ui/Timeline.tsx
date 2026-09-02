@@ -49,6 +49,12 @@ import { InlineThread } from "./InlineThread";
 // top row; the first few also back the desktop hover bar.
 const QUICK_REACTIONS = ["👍", "👎", "😄", "🎉", "😕", "❤️", "🚀", "👀"];
 
+// Cap the automatic viewport-fill back-pagination per room open. Without it, a
+// room whose loaded window is mostly non-rendered state events never fills the
+// viewport and would back-paginate its entire history on open. Mirrors
+// MediaGallery's MAX_AUTO_PAGES.
+const MAX_AUTOFILL_PAGES = 10;
+
 export function Timeline({
   account,
   handle,
@@ -68,6 +74,7 @@ export function Timeline({
   const scrollRef = useRef<HTMLDivElement>(null);
   const stickToBottom = useRef(true);
   const prevHeight = useRef(0);
+  const autoFillPages = useRef(0);
   const [loadingOlder, setLoadingOlder] = useState(false);
   const [lightbox, setLightbox] = useState<string | null>(null);
   const [menu, setMenu] = useState<MenuState | null>(null);
@@ -108,6 +115,7 @@ export function Timeline({
   // On room open: jump to the first unread (read marker) when present,
   // otherwise to the bottom.
   useEffect(() => {
+    autoFillPages.current = 0; // reset the auto-fill budget for the new room
     const el = scrollRef.current;
     if (!el) return;
     const marker = el.querySelector(".read-marker");
@@ -159,7 +167,9 @@ export function Timeline({
   useEffect(() => {
     const el = scrollRef.current;
     if (!el || loadingOlder || !handle.canPaginateBack()) return;
+    if (autoFillPages.current >= MAX_AUTOFILL_PAGES) return;
     if (el.scrollHeight <= el.clientHeight + 40) {
+      autoFillPages.current += 1;
       setLoadingOlder(true);
       prevHeight.current = el.scrollHeight;
       handle
