@@ -5,7 +5,7 @@ import { accountManager } from "../core/manager";
 import type { RoomHandle } from "../core/roomHandle";
 import type { SearchHit, TimelineItem } from "../core/types";
 import { MaterixError } from "../core/errors";
-import { useRoomVersion, useRoomsVersion } from "./hooks";
+import { usePresence, useRoomVersion, useRoomsVersion } from "./hooks";
 import type { Selection } from "./RoomList";
 import { Timeline } from "./Timeline";
 import { ThreadView } from "./ThreadView";
@@ -46,6 +46,10 @@ export function ChatPane({
   useRoomsVersion();
   const account = accountManager.tryAccount(selection?.accountKey ?? null);
   useRoomVersion(account, selection?.roomId ?? null);
+  // The DM header shows the peer's presence (presenceOf below). Presence lives
+  // on its own channel now, so re-render this pane when it changes without
+  // going through the room-list "rooms" bump.
+  usePresence(account);
   const [mode, setMode] = useState<ComposeMode | null>(null);
   const [threadRoot, setThreadRoot] = useState<string | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);

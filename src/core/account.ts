@@ -215,13 +215,16 @@ export class MatrixAccount {
       if (ev.getType() === EventType.IgnoredUserList) bumpRooms();
     });
     this.loadRoomSettings();
-    // Presence updates arrive as `m.presence` events on the sync stream; the
-    // SDK has already refreshed the corresponding User object by the time this
-    // fires, so a plain "rooms" bump re-renders any header reading presenceOf().
-    // Presence is frequently disabled server-side, in which case no such event
-    // ever arrives and this simply never fires.
+    // Presence updates arrive as `m.presence` events on the sync stream; the SDK
+    // has already refreshed the corresponding User object by the time this fires.
+    // Presence has exactly one consumer (the DM chat header reading presenceOf),
+    // and no room summary depends on it, so route it to its own "presence"
+    // channel instead of a blanket "rooms" bump. A "rooms" bump re-summarizes
+    // every room for every account, and a busy account emits a presence
+    // heartbeat per contact — that firehose was the dominant idle-render cost.
+    // Presence is frequently disabled server-side, in which case this never fires.
     c.on(ClientEvent.Event, (ev) => {
-      if (ev.getType() === EventType.Presence) this.events.emit("rooms");
+      if (ev.getType() === EventType.Presence) this.events.emit("presence");
     });
     c.on(CryptoEvent.VerificationRequestReceived as never, (() => this.events.emit("self")) as never);
     this.rebuildDirectSet();
