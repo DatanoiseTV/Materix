@@ -126,7 +126,7 @@ export function MediaGallery({ account, roomId }: { account: MatrixAccount; room
       )}
 
       {loadingOlder && (
-        <div className="state-line" style={{ display: "flex", gap: 8, alignItems: "center", justifyContent: "center", padding: "var(--sp-3)" }}>
+        <div className="state-line" style={{ display: "flex", gap: "var(--sp-2)", alignItems: "center", justifyContent: "center", padding: "var(--sp-3)" }}>
           <span className="spinner" /> Loading older…
         </div>
       )}
