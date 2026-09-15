@@ -160,7 +160,7 @@ export function SecurityDialog({ account, onClose }: { account: MatrixAccount; o
 
       {state === "ok" && (
         <>
-          <p style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <p style={{ display: "flex", gap: "var(--sp-2)", alignItems: "center" }}>
             <IconShieldCheck size={18} /> This session is verified and key backup is connected.
           </p>
           <KeyExportSection account={account} />

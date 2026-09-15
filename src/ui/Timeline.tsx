@@ -213,7 +213,7 @@ export function Timeline({
       <div className="timeline" ref={scrollRef} onScroll={onScroll} tabIndex={0} aria-label="Messages">
         <div className="timeline-inner" onClick={onLinkClick}>
           {loadingOlder && (
-            <div className="state-line" style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <div className="state-line" style={{ display: "flex", gap: "var(--sp-2)", alignItems: "center" }}>
               <span className="spinner" /> Loading history…
             </div>
           )}

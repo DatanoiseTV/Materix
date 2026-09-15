@@ -213,7 +213,7 @@ export function NewChatDialog({
           </div>
           <div>
             {searching && (
-              <div className="state-line" style={{ display: "flex", gap: 8 }}>
+              <div className="state-line" style={{ display: "flex", gap: "var(--sp-2)" }}>
                 <span className="spinner" /> Searching…
               </div>
             )}
@@ -328,7 +328,7 @@ export function NewChatDialog({
               </div>
             ))}
             {exploreLoading && (
-              <div className="state-line" style={{ display: "flex", gap: 8, justifyContent: "center" }}>
+              <div className="state-line" style={{ display: "flex", gap: "var(--sp-2)", justifyContent: "center" }}>
                 <span className="spinner" /> Loading…
               </div>
             )}
