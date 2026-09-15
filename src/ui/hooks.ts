@@ -36,6 +36,24 @@ export function useRoomVersion(account: MatrixAccount | null, roomId: string | n
 }
 
 /**
+ * Re-render on a presence change for any user on this account. Presence is its
+ * own channel (not "rooms") because no room summary depends on it, so a
+ * contact's presence heartbeat must not re-summarize the whole room list — it
+ * only refreshes headers/avatars that read presenceOf(). Consumers that need a
+ * specific user's presence still call presenceOf() after this bumps.
+ */
+export function usePresence(account: MatrixAccount | null) {
+  const subscribe = useCallback(
+    (cb: () => void) => {
+      if (!account) return () => undefined;
+      return account.events.on("presence", cb);
+    },
+    [account],
+  );
+  return useSyncExternalStore(subscribe, () => (account ? account.events.version("presence") : 0));
+}
+
+/**
  * The single active (non-idle) call across all accounts, or null. Calls can
  * ring on any signed-in account, so this subscribes to every account's call
  * manager and re-subscribes when the account set changes.
