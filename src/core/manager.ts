@@ -13,6 +13,15 @@ import { Emitter } from "./emitter";
 
 const ACTIVE_KEY = "materix.activeAccount";
 
+// Well-separated, pleasant hues for the first accounts; golden-angle beyond so
+// even many accounts stay distinguishable. Saturation/lightness match the
+// app's accent style so the dots and rail rings read as brand colors.
+const ACCOUNT_HUES = [262, 150, 25, 205, 330, 48, 175, 292];
+function accountColorForIndex(i: number): string {
+  const h = i < ACCOUNT_HUES.length ? ACCOUNT_HUES[i] : Math.round((i * 137.508) % 360);
+  return `hsl(${h} 62% 52%)`;
+}
+
 export type LoginOpts = { user: string; password: string } | { ssoToken: string };
 export type RegisterOpts = { username: string; password: string };
 
@@ -230,7 +239,11 @@ class AccountManagerImpl {
   }
 
   list(): AccountInfo[] {
-    return [...this.accounts.values()].map((a) => a.info());
+    // Assign each account a distinct accent color by position rather than by
+    // hashing its key — two accounts (especially on the same homeserver) hash
+    // to near-identical hues, which made them indistinguishable in the rail and
+    // the room list. Positional hues guarantee separation for the first several.
+    return [...this.accounts.values()].map((a, i) => ({ ...a.info(), color: accountColorForIndex(i) }));
   }
 
   get active(): AccountKey | null {

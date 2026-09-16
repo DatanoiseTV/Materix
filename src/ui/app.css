@@ -365,6 +365,38 @@ a {
   border-bottom: 1px solid var(--border);
 }
 
+/* Per-account grouping in the merged "All chats" view: each account's chats sit
+   under a small header carrying that account's avatar, name and accent color. */
+.rooms-account-group {
+  margin-top: var(--sp-2);
+}
+.rooms-account-header {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-1) var(--sp-3);
+  margin-top: var(--sp-2);
+  border-left: 3px solid var(--account-color, var(--accent));
+}
+.rooms-account-name {
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* The header already names the account, so the section under it needs no top gap. */
+.rooms-account-group .rooms-section {
+  margin-top: 0;
+}
+/* The "All chats" rail button reads as a neutral aggregate, not an account. */
+.rail-all {
+  color: var(--text-2);
+}
+
 .rooms-section-title {
   font-size: var(--fs-xs);
   font-weight: 700;

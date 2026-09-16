@@ -19,6 +19,9 @@ export interface Selection {
 
 export type NewChatTab = "dm" | "group" | "join" | "explore";
 
+/** Room-list scope: all accounts merged, or a single account's chats. */
+export type ListView = "all" | string;
+
 /** Which space filters the unified room list. */
 type SpaceFilter =
   | { kind: "all" }
@@ -38,25 +41,42 @@ export function AccountRail({
   onAddAccount,
   onSettings,
   onHide,
+  listView,
+  onSelectView,
 }: {
   onAddAccount: () => void;
   onSettings: () => void;
   onHide: () => void;
+  /** Which chats the list shows: every account merged, or one account. */
+  listView: ListView;
+  onSelectView: (view: ListView) => void;
 }) {
   useAccounts();
   useRoomsVersion();
   const accounts = accountManager.list();
-  const active = accountManager.active;
+  const multi = accounts.length > 1;
 
   return (
-    <nav className={`rail${accounts.length > 1 ? " multi" : ""}`} aria-label="Accounts">
+    <nav className={`rail${multi ? " multi" : ""}`} aria-label="Accounts">
       {/* « — collapses the bar; its » twin then appears in the room-list
           header (see RoomListPane), so one chevron is always visible. */}
       <button className="rail-btn" onClick={onHide} title="Hide accounts bar" aria-label="Hide accounts bar">
         <IconChevronLeft />
       </button>
       <div className="rail-accounts">
+        {multi && (
+          <button
+            className={`rail-btn rail-all${listView === "all" ? " active" : ""}`}
+            onClick={() => onSelectView("all")}
+            title="All chats"
+            aria-label="All chats"
+            aria-current={listView === "all"}
+          >
+            <IconChat />
+          </button>
+        )}
         {accounts.map((a) => {
+          const selected = listView === a.key;
           const unread = accountManager
             .account(a.key)
             .rooms()
@@ -64,14 +84,12 @@ export function AccountRail({
           return (
             <button
               key={a.key}
-              className={`rail-btn${a.key === active ? " active" : ""}`}
+              className={`rail-btn${selected ? " active" : ""}`}
               style={{ ["--account-color" as string]: a.color }}
-              // Clicking the already-active account opens Settings (instead of
-              // a no-op re-activation); other accounts switch as before.
-              onClick={() => (a.key === active ? onSettings() : accountManager.setActive(a.key))}
-              title={`${a.userId}${a.key === active ? " — settings" : ""}${a.syncState === "error" ? " — connection trouble" : ""}`}
-              aria-label={a.key === active ? `Account ${a.userId} — open settings` : `Switch to account ${a.userId}`}
-              aria-current={a.key === active}
+              onClick={() => onSelectView(a.key)}
+              title={`${a.userId}${a.syncState === "error" ? " — connection trouble" : ""}`}
+              aria-label={`Show ${a.userId}'s chats`}
+              aria-current={selected}
             >
               <Avatar account={accountManager.account(a.key)} mxc={a.avatarUrl} name={a.displayName} id={a.userId} size={38} />
               {unread > 0 && <span className="rail-badge">{unread > 99 ? "99+" : unread}</span>}
@@ -100,6 +118,7 @@ export function RoomListPane({
   onManageAccount,
   accountsBarShown,
   onToggleAccountsBar,
+  listView,
 }: {
   selection: Selection | null;
   onSelect: (sel: Selection) => void;
@@ -110,6 +129,8 @@ export function RoomListPane({
   onManageAccount: () => void;
   accountsBarShown: boolean;
   onToggleAccountsBar: () => void;
+  /** Which accounts' chats to show: all merged (grouped by account) or one. */
+  listView: ListView;
 }) {
   useRoomsVersion();
   useAccounts();
@@ -128,18 +149,24 @@ export function RoomListPane({
   const accounts = accountManager.list();
   const multiAccount = accounts.length > 1;
   const activeMeta = accounts.find((a) => a.key === accountManager.active) ?? accounts[0];
+  // When a single account is selected in the rail, scope the whole list to it;
+  // "all" (or a single-account app) shows every account. Grouping by account
+  // only kicks in for the merged "all" view (see grouped rendering below).
+  const scoped = listView !== "all" && accounts.some((a) => a.key === listView);
+  const grouped = multiAccount && !scoped;
 
   const allRooms = useMemo(() => {
     const rooms: RoomSummary[] = [];
-    for (const a of accounts) {
+    const keys = scoped ? [listView] : accounts.map((a) => a.key);
+    for (const key of keys) {
       try {
-        rooms.push(...accountManager.account(a.key).rooms());
+        rooms.push(...accountManager.account(key).rooms());
       } catch {
         // account may be mid-teardown
       }
     }
     return rooms;
-  }, [accounts, accountManager.events.version("rooms")]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [accounts, scoped, listView, accountManager.events.version("rooms")]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const spaces = useMemo(() => {
     const list: SpaceSummary[] = [];
@@ -472,16 +499,40 @@ export function RoomListPane({
           </div>
         )}
 
-        <RoomSection
-          title={q ? `Results (${chats.length})` : undefined}
-          rooms={chats}
-          selection={selection}
-          onSelect={onSelect}
-          onMenu={setMenu}
-          now={now}
-          multiAccount={multiAccount}
-          colorOf={colorOf}
-        />
+        {grouped && !q ? (
+          accounts.map((acc) => {
+            const acctChats = chats.filter((r) => r.accountKey === acc.key);
+            if (acctChats.length === 0) return null;
+            return (
+              <div key={acc.key} className="rooms-account-group">
+                <div className="rooms-account-header" style={{ ["--account-color" as string]: acc.color }}>
+                  <Avatar account={accountManager.account(acc.key)} mxc={acc.avatarUrl} name={acc.displayName} id={acc.userId} size={20} />
+                  <span className="rooms-account-name">{acc.displayName || acc.userId}</span>
+                </div>
+                <RoomSection
+                  rooms={acctChats}
+                  selection={selection}
+                  onSelect={onSelect}
+                  onMenu={setMenu}
+                  now={now}
+                  multiAccount={false}
+                  colorOf={colorOf}
+                />
+              </div>
+            );
+          })
+        ) : (
+          <RoomSection
+            title={q ? `Results (${chats.length})` : undefined}
+            rooms={chats}
+            selection={selection}
+            onSelect={onSelect}
+            onMenu={setMenu}
+            now={now}
+            multiAccount={multiAccount}
+            colorOf={colorOf}
+          />
+        )}
         {lowPriority.length > 0 && (
           <RoomSection
             title="Low priority"
