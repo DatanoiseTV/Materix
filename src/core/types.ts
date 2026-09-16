@@ -42,6 +42,8 @@ export interface RoomSummary {
   isInvite: boolean;
   inviterName?: string;
   isSpace: boolean;
+  /** The personal "My Notes" room (Signal-style note-to-self); pinned in the list. */
+  isSelfNote: boolean;
   unreadCount: number;
   /** Explicit MSC2867 marked-unread flag; shows the room as unread even at zero count. */
   markedUnread: boolean;

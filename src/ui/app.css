@@ -357,6 +357,14 @@ a {
   margin-top: var(--sp-3);
 }
 
+/* Pinned "My Notes" at the very top of the list, set off from the rest by a
+   divider so it reads as a persistent, always-there entry. */
+.rooms-pinned {
+  margin-top: var(--sp-1);
+  padding-bottom: var(--sp-2);
+  border-bottom: 1px solid var(--border);
+}
+
 .rooms-section-title {
   font-size: var(--fs-xs);
   font-weight: 700;
