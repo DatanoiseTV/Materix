@@ -285,6 +285,15 @@ export const IconVideoOff = icon(
   </>,
 );
 
+// Screen share: a monitor with an up-arrow (present to screen).
+export const IconScreenShare = icon(
+  <>
+    <rect x="2" y="3" width="20" height="14" rx="2" />
+    <path d="M8 21h8M12 17v4" />
+    <path d="M12 13V7.5M9.5 10 12 7.5 14.5 10" />
+  </>,
+);
+
 export const IconMicOff = icon(
   <>
     <path d="M9 5a3 3 0 0 1 6 0v5m-1.6 3.4A3 3 0 0 1 9 11v-1" />
