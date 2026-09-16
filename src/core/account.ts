@@ -79,6 +79,8 @@ export class MatrixAccount {
    * expiry still surfaces exactly as it did before caching (see summarize()).
    */
   private summaryCache = new Map<string, RoomSummary>();
+  /** Guards the once-per-session self-note check (see ensureSelfNoteRoom). */
+  private selfNoteEnsured = false;
 
   constructor(
     readonly key: AccountKey,
@@ -178,6 +180,12 @@ export class MatrixAccount {
               ? "stopped"
               : "syncing";
       if (prev !== this.syncState) this.events.emit("self");
+      // Once the first sync is live, make sure the personal "My Notes" room
+      // exists (created at most once ever — see ensureSelfNoteRoom).
+      if (this.syncState === "ready" && !this.selfNoteEnsured) {
+        this.selfNoteEnsured = true;
+        void this.ensureSelfNoteRoom();
+      }
       bumpRooms();
     });
     c.on(RoomEvent.Timeline, (ev, room) => {
@@ -563,6 +571,73 @@ export class MatrixAccount {
     const existing = this.findExistingDm(userId);
     if (existing) return existing;
     return this.createRoom({ direct: true, invite: [userId], encrypted: true });
+  }
+
+  /**
+   * Ensure the personal "My Notes" room exists — a private room with only the
+   * user in it, for jotting notes / sending yourself links or files (Signal's
+   * "Note to Self"). Created at most ONCE ever, then never again: a synced
+   * `io.materix.self_note` account-data marker records that we've done it, so
+   * relaunches and other devices skip creation, and — deliberately unlike
+   * Signal — if the user later leaves the room we respect that and don't
+   * recreate it. The room carries the same marker in its m.room.create content
+   * so it stays identifiable even if the account-data pointer is lost.
+   * Best-effort: any failure is logged and left for the next launch.
+   */
+  private async ensureSelfNoteRoom(): Promise<void> {
+    const KEY = "io.materix.self_note";
+    try {
+      const marker = this.client
+        .getAccountData(KEY as never)
+        ?.getContent<{ roomId?: string; created?: boolean }>();
+      // Already handled once — never auto-create again.
+      if (marker?.created) return;
+
+      // A self-note room may already exist (created on another device) before
+      // its account-data marker has reached us. Adopt it rather than duplicate.
+      const existing = this.client.getRooms().find((r) => {
+        if (r.getMyMembership() !== "join") return false;
+        const create = r.currentState.getStateEvents(EventType.RoomCreate, "");
+        return create?.getContent()?.[KEY] === true;
+      });
+      if (existing) {
+        await this.markSelfNote(KEY, existing.roomId);
+        return;
+      }
+
+      // Create it, guarded by a deterministic room alias so two devices doing
+      // their first sync at the same time can't both create one: the server
+      // rejects the duplicate alias (M_ROOM_IN_USE) without creating a room,
+      // and the loser resolves the alias and adopts the winner's room.
+      const localpart = this.session.userId.replace(/^@/, "").split(":")[0].toLowerCase();
+      const aliasName = `materix-notes-${localpart.replace(/[^a-z0-9._=+/-]/g, "-")}`;
+      const initialState = this.cryptoAvailable
+        ? [{ type: EventType.RoomEncryption, state_key: "", content: { algorithm: "m.megolm.v1.aes-sha2" } }]
+        : [];
+      try {
+        const res = await this.client.createRoom({
+          name: "My Notes",
+          preset: "private_chat" as never,
+          room_alias_name: aliasName,
+          creation_content: { [KEY]: true } as never,
+          initial_state: initialState as never,
+        });
+        await this.markSelfNote(KEY, res.room_id);
+      } catch (e) {
+        if ((e as { errcode?: string })?.errcode !== "M_ROOM_IN_USE") throw e;
+        // Another device won the race; adopt its room via the shared alias.
+        const serverName = this.session.userId.split(":").slice(1).join(":");
+        const resolved = await this.client.getRoomIdForAlias(`#${aliasName}:${serverName}`).catch(() => null);
+        if (resolved?.room_id) await this.markSelfNote(KEY, resolved.room_id);
+      }
+    } catch (e) {
+      // Non-fatal: the marker isn't set, so the next launch retries.
+      console.warn(`ensureSelfNoteRoom failed for ${this.session.userId}`, e);
+    }
+  }
+
+  private async markSelfNote(key: string, roomId: string): Promise<void> {
+    await this.client.setAccountData(key as never, { roomId, created: true } as never);
   }
 
   /**
