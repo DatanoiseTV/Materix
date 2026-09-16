@@ -2830,6 +2830,88 @@ button.msg-sender:hover {
   gap: var(--sp-2);
 }
 
+/* ---- Settings: two-pane shell (category rail + scrolling content) ----
+   On desktop the modal is wide and fixed-height; the left rail lists
+   categories and only the right pane scrolls. On mobile (media block below)
+   it becomes a full-screen master-detail flow. */
+.modal.settings-modal {
+  width: min(880px, calc(100vw - 48px));
+  height: min(680px, calc(100vh - 48px));
+  max-height: min(680px, calc(100vh - 48px));
+}
+.modal.settings-modal .modal-body {
+  padding: 0;
+  overflow: hidden;
+  flex: 1;
+  gap: 0;
+}
+.settings-shell {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+.settings-nav {
+  flex: 0 0 208px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--sp-3);
+  border-right: 1px solid var(--border);
+  overflow-y: auto;
+}
+.settings-nav-item {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  width: 100%;
+  padding: var(--sp-2) var(--sp-3);
+  border: none;
+  border-radius: var(--r-md);
+  background: transparent;
+  color: var(--text-2);
+  font-size: var(--fs-md);
+  text-align: left;
+  cursor: pointer;
+}
+.settings-nav-item:hover {
+  background: var(--bg-hover);
+  color: var(--text-1);
+}
+.settings-nav-item.selected {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.settings-nav-icon {
+  display: inline-flex;
+  flex: 0 0 auto;
+}
+.settings-nav-label {
+  flex: 1;
+  min-width: 0;
+}
+.settings-pane {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+  padding: var(--sp-4) var(--sp-5);
+}
+.settings-pane-head {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-4);
+}
+.settings-pane-head h3 {
+  margin: 0;
+  font-size: var(--fs-lg);
+  color: var(--text-1);
+  text-transform: none;
+  letter-spacing: 0;
+}
+.settings-back {
+  margin-left: calc(var(--sp-2) * -1);
+}
+
 .account-row {
   display: flex;
   align-items: center;
@@ -4150,6 +4232,36 @@ button.msg-sender:hover {
   }
   .modal:not(.wide) {
     width: min(440px, calc(100vw - var(--sp-5)));
+  }
+  /* Settings becomes a full-screen master-detail surface on phones: the
+     category list fills the screen, tapping one drills into that section. */
+  .modal.settings-modal {
+    width: 100vw;
+    height: 100dvh;
+    max-width: none;
+    max-height: 100dvh;
+    border-radius: 0;
+  }
+  .modal.settings-modal .modal-header {
+    padding-top: calc(var(--sp-4) + env(safe-area-inset-top));
+  }
+  .settings-shell.mobile {
+    flex-direction: column;
+  }
+  .settings-shell.mobile .settings-nav {
+    flex: 1;
+    border-right: none;
+    padding: var(--sp-2);
+    gap: var(--sp-1);
+  }
+  .settings-shell.mobile .settings-nav-item {
+    min-height: 52px;
+    padding: var(--sp-3);
+    color: var(--text-1);
+    font-size: var(--fs-lg);
+  }
+  .settings-shell.mobile .settings-pane {
+    padding: var(--sp-3) var(--sp-4) calc(var(--sp-4) + env(safe-area-inset-bottom));
   }
   /* Footer buttons share the row and drop to the next line rather than
      overflowing; each keeps a >=44px tap target. */

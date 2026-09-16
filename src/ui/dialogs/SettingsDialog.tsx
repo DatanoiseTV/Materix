@@ -1,14 +1,24 @@
 // Settings: appearance, accounts (profile, sign out), security per account
 // (verification, devices, key backup).
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { accountManager } from "../../core/manager";
 import type { MatrixAccount } from "../../core/account";
 import type { DeviceSummary, SasFlow } from "../../core/types";
 import { Modal } from "../components/Modal";
 import { Avatar } from "../components/Avatar";
-import { IconLogout, IconMonitor, IconMoon, IconShield, IconSun } from "../components/Icons";
-import { useAccounts } from "../hooks";
+import {
+  IconBack,
+  IconBell,
+  IconChevronRight,
+  IconLogout,
+  IconMonitor,
+  IconMoon,
+  IconShield,
+  IconSun,
+  IconUsers,
+} from "../components/Icons";
+import { useAccounts, useMediaQuery } from "../hooks";
 import { useToast } from "../components/Toast";
 import { useConfirm } from "../components/Confirm";
 import { getThemePref, setThemePref, type ThemePref } from "../theme";
@@ -37,7 +47,7 @@ export function SettingsDialog({
   onClose: () => void;
   onAddAccount: () => void;
   onStartVerification: (flow: SasFlow) => void;
-  /** Scroll this section into view on open (e.g. header avatar → "Manage account"). */
+  /** Open straight to a category on mount (e.g. header avatar → "Manage account"). */
   initialSection?: "accounts";
 }) {
   useAccounts();
@@ -48,123 +58,183 @@ export function SettingsDialog({
   const { show, showError } = useToast();
   const confirm = useConfirm();
 
-  const accountsRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (initialSection === "accounts") accountsRef.current?.scrollIntoView({ block: "start" });
-  }, [initialSection]);
+  // Two-pane on desktop (category rail + content); master-detail on mobile
+  // (a full-screen category list that drills into one section with a back
+  // button). `active` is the selected category; `detail` is only meaningful on
+  // mobile — whether we're viewing a section rather than the category list.
+  const isMobile = useMediaQuery("(max-width: 760px)");
+  const [active, setActive] = useState<CategoryId>(initialSection === "accounts" ? "accounts" : "appearance");
+  const [detail, setDetail] = useState(initialSection === "accounts");
+  const showNav = !isMobile || !detail;
+  const showPane = !isMobile || detail;
+  const openCategory = (id: CategoryId) => {
+    setActive(id);
+    if (isMobile) setDetail(true);
+  };
 
-  return (
-    <Modal title="Settings" onClose={onClose} wide>
-      <div className="settings-grid">
-        <div className="settings-section">
-          <h3>Appearance</h3>
-          <div className="theme-picker" role="radiogroup" aria-label="Theme">
-            {(
-              [
-                ["system", "System", <IconMonitor key="i" size={15} />],
-                ["light", "Light", <IconSun key="i" size={15} />],
-                ["dark", "Dark", <IconMoon key="i" size={15} />],
-              ] as [ThemePref, string, React.ReactNode][]
-            ).map(([value, label, icon]) => (
-              <button
-                key={value}
-                role="radio"
-                aria-checked={theme === value}
-                className={`chip${theme === value ? " selected" : ""}`}
-                onClick={() => {
-                  setTheme(value);
-                  setThemePref(value);
-                }}
-              >
-                {icon} {label}
-              </button>
-            ))}
-          </div>
-        </div>
+  const activeCat = CATEGORIES.find((c) => c.id === active)!;
 
-        <div className="settings-section">
-          <h3>Notifications</h3>
-          <div className="theme-picker" role="radiogroup" aria-label="Notification privacy">
-            {(
-              [
-                ["preview", "Name and message"],
-                ["name", "Name only"],
-                ["off", "Off"],
-              ] as [NotificationMode, string][]
-            ).map(([value, label]) => (
-              <button
-                key={value}
-                role="radio"
-                aria-checked={notifMode === value}
-                className={`chip${notifMode === value ? " selected" : ""}`}
-                onClick={() => {
-                  setNotifMode(value);
-                  setPref("notifications", value);
-                }}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-          <div className="field-hint">
-            "Name only" shows who wrote without any message content — useful on shared screens.
-          </div>
-
-          <div style={{ marginTop: "var(--sp-2)" }}>
-            <div className="switch-title" style={{ marginBottom: "var(--sp-1)" }}>Notification sound</div>
-            <SoundPicker
-              label="Notification sound"
-              value={sound}
-              onChange={(id) => {
-                if (!id) return; // no inherit chip on the global default
-                setSound(id);
-                setPref("sound", id);
-              }}
-            />
+  const renderPane = (): ReactNode => {
+    switch (active) {
+      case "appearance":
+        return (
+          <div className="settings-section">
+            <div className="theme-picker" role="radiogroup" aria-label="Theme">
+              {(
+                [
+                  ["system", "System", <IconMonitor key="i" size={15} />],
+                  ["light", "Light", <IconSun key="i" size={15} />],
+                  ["dark", "Dark", <IconMoon key="i" size={15} />],
+                ] as [ThemePref, string, React.ReactNode][]
+              ).map(([value, label, icon]) => (
+                <button
+                  key={value}
+                  role="radio"
+                  aria-checked={theme === value}
+                  className={`chip${theme === value ? " selected" : ""}`}
+                  onClick={() => {
+                    setTheme(value);
+                    setThemePref(value);
+                  }}
+                >
+                  {icon} {label}
+                </button>
+              ))}
+            </div>
             <div className="field-hint">
-              Click a sound to preview it. Plays when a new message notifies.
-              {isAndroid &&
-                " On Android, notifications play their channel's system tone — pick it per account under Android Settings → Apps → Materix → Notifications; this sound is used when the app itself plays the alert."}
+              "System" follows your device's light or dark setting automatically.
             </div>
           </div>
+        );
+      case "notifications":
+        return (
+          <div className="settings-section">
+            <div className="switch-title" style={{ marginBottom: "var(--sp-1)" }}>Show in notifications</div>
+            <div className="theme-picker" role="radiogroup" aria-label="Notification privacy">
+              {(
+                [
+                  ["preview", "Name and message"],
+                  ["name", "Name only"],
+                  ["off", "Off"],
+                ] as [NotificationMode, string][]
+              ).map(([value, label]) => (
+                <button
+                  key={value}
+                  role="radio"
+                  aria-checked={notifMode === value}
+                  className={`chip${notifMode === value ? " selected" : ""}`}
+                  onClick={() => {
+                    setNotifMode(value);
+                    setPref("notifications", value);
+                  }}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <div className="field-hint">
+              "Name only" shows who wrote without any message content — useful on shared screens.
+            </div>
 
-          {isAndroid && <PushSettings />}
-        </div>
+            <div style={{ marginTop: "var(--sp-4)" }}>
+              <div className="switch-title" style={{ marginBottom: "var(--sp-1)" }}>Notification sound</div>
+              <SoundPicker
+                label="Notification sound"
+                value={sound}
+                onChange={(id) => {
+                  if (!id) return; // no inherit chip on the global default
+                  setSound(id);
+                  setPref("sound", id);
+                }}
+              />
+              <div className="field-hint">
+                Click a sound to preview it. Plays when a new message notifies.
+                {isAndroid &&
+                  " On Android, notifications play their channel's system tone — pick it per account under Android Settings → Apps → Materix → Notifications; this sound is used when the app itself plays the alert."}
+              </div>
+            </div>
 
-        <div className="settings-section" ref={accountsRef}>
-          <h3>Accounts</h3>
-          {accounts.map((a) => (
-            <AccountSettings
-              key={a.key}
-              account={accountManager.account(a.key)}
-              onStartVerification={onStartVerification}
-              onSignOut={async () => {
-                if (
-                  !(await confirm({
-                    title: "Sign out?",
-                    body: `Sign out ${a.userId}? Encrypted history on this device will be removed.`,
-                    danger: true,
-                    confirmLabel: "Sign out",
-                  }))
-                )
-                  return;
-                try {
-                  await accountManager.logout(a.key);
-                  show("Signed out.");
-                } catch (e) {
-                  showError(e);
-                }
-              }}
-            />
-          ))}
-          <button className="btn secondary" onClick={onAddAccount}>
-            Add another account
-          </button>
-        </div>
+            {isAndroid && <PushSettings />}
+          </div>
+        );
+      case "accounts":
+        return (
+          <div className="settings-section">
+            {accounts.map((a) => (
+              <AccountSettings
+                key={a.key}
+                account={accountManager.account(a.key)}
+                onStartVerification={onStartVerification}
+                onSignOut={async () => {
+                  if (
+                    !(await confirm({
+                      title: "Sign out?",
+                      body: `Sign out ${a.userId}? Encrypted history on this device will be removed.`,
+                      danger: true,
+                      confirmLabel: "Sign out",
+                    }))
+                  )
+                    return;
+                  try {
+                    await accountManager.logout(a.key);
+                    show("Signed out.");
+                  } catch (e) {
+                    showError(e);
+                  }
+                }}
+              />
+            ))}
+            <button className="btn secondary" onClick={onAddAccount}>
+              Add another account
+            </button>
+          </div>
+        );
+    }
+  };
+
+  return (
+    <Modal title="Settings" onClose={onClose} className="settings-modal">
+      <div className={`settings-shell${isMobile ? " mobile" : ""}`}>
+        {showNav && (
+          <nav className="settings-nav" aria-label="Settings categories">
+            {CATEGORIES.map((c) => (
+              <button
+                key={c.id}
+                className={`settings-nav-item${!isMobile && active === c.id ? " selected" : ""}`}
+                aria-current={!isMobile && active === c.id}
+                onClick={() => openCategory(c.id)}
+              >
+                <span className="settings-nav-icon">{c.icon}</span>
+                <span className="settings-nav-label">{c.label}</span>
+                {isMobile && <IconChevronRight size={18} />}
+              </button>
+            ))}
+          </nav>
+        )}
+        {showPane && (
+          <section className="settings-pane" aria-label={activeCat.label}>
+            <div className="settings-pane-head">
+              {isMobile && (
+                <button className="icon-btn settings-back" onClick={() => setDetail(false)} aria-label="Back to settings">
+                  <IconBack size={20} />
+                </button>
+              )}
+              <h3>{activeCat.label}</h3>
+            </div>
+            {renderPane()}
+          </section>
+        )}
       </div>
     </Modal>
   );
 }
+
+type CategoryId = "appearance" | "notifications" | "accounts";
+const CATEGORIES: { id: CategoryId; label: string; icon: ReactNode }[] = [
+  { id: "appearance", label: "Appearance", icon: <IconSun size={17} /> },
+  { id: "notifications", label: "Notifications", icon: <IconBell size={17} /> },
+  { id: "accounts", label: "Accounts", icon: <IconUsers size={17} /> },
+];
 
 function AccountSettings({
   account,
