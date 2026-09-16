@@ -1,5 +1,8 @@
 # Materix
 
+<img width="1180" height="800" alt="Materix Desktop (16.09.2026)" src="https://github.com/user-attachments/assets/59fe3f6c-befd-4c1a-8e2c-8a03945dcc65" />
+
+
 A multi-account [Matrix](https://matrix.org) client for web and desktop, built
 to feel like a mainstream messenger (Signal / Telegram / WhatsApp) while
 staying a full Matrix client for power users. End-to-end encryption is on by
