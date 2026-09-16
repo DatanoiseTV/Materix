@@ -545,7 +545,7 @@ export function TimelineRow({
       actions.push({
         label: "Copy text",
         icon: <IconCopy size={18} />,
-        onClick: () => copyText(item.body!.text ?? "").then(() => show("Copied."), showError),
+        onClick: () => copyText(item.body!.text ?? "", account.key).then(() => show("Copied."), showError),
       });
     if (handle.canPin()) {
       const pinned = handle.isPinned(eventId);
@@ -625,7 +625,7 @@ export function TimelineRow({
     if (item.body?.text)
       items.push({
         label: "Copy text",
-        onClick: () => copyText(item.body!.text ?? "").then(() => show("Copied."), showError),
+        onClick: () => copyText(item.body!.text ?? "", account.key).then(() => show("Copied."), showError),
       });
     if (canEdit) items.push({ label: "Edit", onClick: () => onEdit(item) });
     if (!mine)

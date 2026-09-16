@@ -12,6 +12,11 @@ interface Prefs {
   accountSounds: Record<string, SoundId>;
   /** Per-room sound overrides, keyed by `${accountKey}:${roomId}`. */
   roomSounds: Record<string, SoundId>;
+  /**
+   * Warn before pasting text into one account's composer that was copied from a
+   * different account's chat, to avoid cross-account leaks. Off by default.
+   */
+  warnCrossAccountPaste?: boolean;
   /** Left-nav layout. */
   ui?: {
     /**

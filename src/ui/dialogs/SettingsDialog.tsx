@@ -55,6 +55,7 @@ export function SettingsDialog({
   const [theme, setTheme] = useState<ThemePref>(getThemePref());
   const [notifMode, setNotifMode] = useState<NotificationMode>(getPrefs().notifications);
   const [sound, setSound] = useState<SoundId>(getPrefs().sound);
+  const [warnPaste, setWarnPaste] = useState(getPrefs().warnCrossAccountPaste ?? false);
   const { show, showError } = useToast();
   const confirm = useConfirm();
 
@@ -159,6 +160,31 @@ export function SettingsDialog({
             {isAndroid && <PushSettings />}
           </div>
         );
+      case "privacy":
+        return (
+          <div className="settings-section">
+            <div className="switch-row">
+              <div>
+                <div className="switch-title">Warn when pasting across accounts</div>
+                <div className="switch-sub">
+                  Ask for confirmation before pasting text copied from one account's chat into a
+                  different account. Off by default.
+                </div>
+              </div>
+              <button
+                className="switch"
+                role="switch"
+                aria-checked={warnPaste}
+                aria-label="Warn when pasting across accounts"
+                onClick={() => {
+                  const next = !warnPaste;
+                  setWarnPaste(next);
+                  setPref("warnCrossAccountPaste", next);
+                }}
+              />
+            </div>
+          </div>
+        );
       case "accounts":
         return (
           <div className="settings-section">
@@ -231,10 +257,11 @@ export function SettingsDialog({
   );
 }
 
-type CategoryId = "appearance" | "notifications" | "accounts";
+type CategoryId = "appearance" | "notifications" | "privacy" | "accounts";
 const CATEGORIES: { id: CategoryId; label: string; icon: ReactNode }[] = [
   { id: "appearance", label: "Appearance", icon: <IconSun size={17} /> },
   { id: "notifications", label: "Notifications", icon: <IconBell size={17} /> },
+  { id: "privacy", label: "Privacy", icon: <IconShield size={17} /> },
   { id: "accounts", label: "Accounts", icon: <IconUsers size={17} /> },
 ];
 
