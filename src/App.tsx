@@ -9,7 +9,7 @@ import { ToastProvider } from "./ui/components/Toast";
 import { ConfirmProvider } from "./ui/components/Confirm";
 import { CryptoGate } from "./ui/CryptoGate";
 import { Onboarding } from "./ui/Onboarding";
-import { AccountRail, RoomListPane, type NewChatTab, type Selection } from "./ui/RoomList";
+import { AccountRail, RoomListPane, type ListView, type NewChatTab, type Selection } from "./ui/RoomList";
 import { ChatPane } from "./ui/ChatPane";
 import { DetailsPane } from "./ui/DetailsPane";
 import { NewChatDialog } from "./ui/dialogs/NewChatDialog";
@@ -38,6 +38,9 @@ type Dialog =
 export function App() {
   const [phase, setPhase] = useState<"loading" | "onboarding" | "ready">("loading");
   const [selection, setSelection] = useState<Selection | null>(null);
+  // Room-list scope driven by the account rail: "all" merges every account
+  // (grouped), or a single account key filters to just that one.
+  const [listView, setListView] = useState<ListView>("all");
   const [dialog, setDialog] = useState<Dialog>({ kind: "none" });
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [activeFlow, setActiveFlow] = useState<SasFlow | null>(null);
@@ -206,9 +209,17 @@ export function App() {
               onAddAccount={() => setDialog({ kind: "add-account" })}
               onSettings={() => setDialog({ kind: "settings" })}
               onHide={() => setShowAccountsBar(false)}
+              listView={listView}
+              onSelectView={(v) => {
+                setListView(v);
+                // Selecting a specific account also makes it the target for new
+                // chats; "all" leaves the current target untouched.
+                if (v !== "all") accountManager.setActive(v);
+              }}
             />
           )}
           <RoomListPane
+            listView={listView}
             selection={selection}
             onSelect={(sel) => {
               setSelection(sel);
