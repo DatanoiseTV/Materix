@@ -255,11 +255,13 @@ export const IconPhone = icon(
   <path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6 19.8 19.8 0 0 1-3.1-8.7A2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8.1 9.8a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.5c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2z" />,
 );
 
-export const IconPhoneOff = icon(
-  <>
-    <path d="M10.7 13.3a16 16 0 0 1-2.6-3.5L9.8 8.1a2 2 0 0 0 .5-2.1c-.3-.9-.6-1.8-.7-2.7A2 2 0 0 0 7.1 2h-3a2 2 0 0 0-2 2.1c.2 2.1.9 4.2 2 6.1M8.3 8.3a19.8 19.8 0 0 0 7.4 7.4l1.3-1.3a2 2 0 0 1 2.1-.5c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1" />
-    <path d="m2 2 20 20" />
-  </>,
+// Hang up / decline: the standard handset rotated 135° (as it goes down onto
+// the cradle). Reuses the phone glyph so it reads cleanly, unlike the
+// fragmented phone-with-a-slash the call buttons used before.
+export const IconCallEnd = icon(
+  <g transform="rotate(135 12 12)">
+    <path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6 19.8 19.8 0 0 1-3.1-8.7A2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8.1 9.8a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.5c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2z" />
+  </g>,
 );
 
 export const IconVideo = icon(
