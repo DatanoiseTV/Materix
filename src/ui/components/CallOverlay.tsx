@@ -16,7 +16,7 @@ import {
   IconMic,
   IconMicOff,
   IconPhone,
-  IconPhoneOff,
+  IconCallEnd,
   IconShieldCheck,
   IconVideo,
   IconVideoOff,
@@ -141,7 +141,7 @@ function CallSurface({ account, snap }: { account: MatrixAccount; snap: CallSnap
           <CallEncryption encrypted={snap.encrypted} />
           <div className="call-actions">
             <button className="call-btn decline" onClick={() => calls.hangup()} aria-label="Decline call">
-              <IconPhoneOff size={24} />
+              <IconCallEnd size={24} />
             </button>
             <button className="call-btn accept" onClick={() => void calls.answer()} aria-label="Accept call">
               <IconPhone size={24} />
@@ -206,7 +206,7 @@ function CallSurface({ account, snap }: { account: MatrixAccount; snap: CallSnap
               aria-label="Hang up"
               title="Hang up"
             >
-              <IconPhoneOff size={22} />
+              <IconCallEnd size={22} />
             </button>
           </div>
         )}
