@@ -443,6 +443,8 @@ export class MatrixAccount {
       isInvite,
       inviterName: inviter ? (room.getMember(inviter)?.name ?? inviter) : undefined,
       isSpace: room.isSpaceRoom(),
+      isSelfNote:
+        room.currentState.getStateEvents(EventType.RoomCreate, "")?.getContent()?.["io.materix.self_note"] === true,
       unreadCount: room.getUnreadNotificationCount() ?? 0,
       markedUnread: this.room(room.roomId).isMarkedUnread(),
       highlightCount: room.getUnreadNotificationCount("highlight" as never) ?? 0,

@@ -194,14 +194,20 @@ export function RoomListPane({
   );
 
   const invites = inSpace.filter((r) => r.isInvite);
+  // "My Notes" is pinned to the very top of the list (and pulled out of the
+  // normal sections). It ignores the Chats/Rooms section toggle so it's always
+  // reachable — like invites — but respects search and the active space filter.
+  const pinned = visible
+    .filter((r) => r.isSelfNote && !r.isInvite && !r.isArchived && (!spaceMembership || spaceMembership(r)))
+    .sort((a, b) => a.name.localeCompare(b.name));
   const archived = inSpace
     .filter((r) => !r.isInvite && r.isArchived)
     .sort((a, b) => b.lastActivityTs - a.lastActivityTs);
   const chats = inSpace
-    .filter((r) => !r.isInvite && !r.isLowPriority && !r.isArchived)
+    .filter((r) => !r.isInvite && !r.isLowPriority && !r.isArchived && !r.isSelfNote)
     .sort((a, b) => Number(b.isFavorite) - Number(a.isFavorite) || b.lastActivityTs - a.lastActivityTs);
   const lowPriority = inSpace
-    .filter((r) => !r.isInvite && r.isLowPriority && !r.isArchived)
+    .filter((r) => !r.isInvite && r.isLowPriority && !r.isArchived && !r.isSelfNote)
     .sort((a, b) => b.lastActivityTs - a.lastActivityTs);
 
   const colorOf = (key: string) => accounts.find((a) => a.key === key)?.color ?? "gray";
@@ -406,6 +412,18 @@ export function RoomListPane({
           <button className="mark-all-read" onClick={markAllRead}>
             Mark all as read
           </button>
+        )}
+        {pinned.length > 0 && (
+          <RoomSection
+            rooms={pinned}
+            selection={selection}
+            onSelect={onSelect}
+            onMenu={setMenu}
+            now={now}
+            multiAccount={multiAccount}
+            colorOf={colorOf}
+            className="rooms-pinned"
+          />
         )}
         {invites.length > 0 && (
           <div className="rooms-section">
@@ -627,6 +645,7 @@ function RoomSection({
   now,
   multiAccount,
   colorOf,
+  className,
 }: {
   title?: string;
   rooms: RoomSummary[];
@@ -636,6 +655,7 @@ function RoomSection({
   now: number;
   multiAccount: boolean;
   colorOf: (key: string) => string;
+  className?: string;
 }) {
   const { show, showError } = useToast();
   const confirm = useConfirm();
@@ -704,7 +724,7 @@ function RoomSection({
     });
   };
   return (
-    <div className="rooms-section">
+    <div className={`rooms-section${className ? ` ${className}` : ""}`}>
       {title && <div className="rooms-section-title">{title}</div>}
       {rooms.map((r) => {
         const selected = selection?.accountKey === r.accountKey && selection?.roomId === r.roomId;
