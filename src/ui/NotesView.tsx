@@ -135,9 +135,24 @@ export function NotesView({ account, handle }: { account: MatrixAccount; handle:
             <p>Jot down notes, save links, or keep files for yourself. Only you can read them.</p>
           </div>
         )}
-        {notes.map((note) => (
+        {notes.map((note) => {
+          const editable = note.body?.msgtype === "m.text" || note.body?.msgtype === "m.notice";
+          return (
           <article className="note-card" key={note.eventId}>
-            <div className="note-card-body">
+            <div
+              className={`note-card-body${editable ? " editable" : ""}`}
+              // Tap a text note to edit it (notes-app style); links, buttons and
+              // media controls inside still do their own thing.
+              onClick={
+                editable
+                  ? (e) => {
+                      const t = e.target as HTMLElement;
+                      if (t.closest("a, button, audio, video, input, [role=button]")) return;
+                      setEditing({ eventId: note.eventId!, text: note.body?.text ?? "" });
+                    }
+                  : undefined
+              }
+            >
               <MessageBubble item={note} account={account} onZoom={setLightbox} />
             </div>
             <div className="note-card-foot">
@@ -155,7 +170,8 @@ export function NotesView({ account, handle }: { account: MatrixAccount; handle:
               </button>
             </div>
           </article>
-        ))}
+          );
+        })}
         {handle.canPaginateBack() && (
           <button className="btn secondary notes-load-older" onClick={() => handle.paginateBack().catch(() => undefined)}>
             Load older notes

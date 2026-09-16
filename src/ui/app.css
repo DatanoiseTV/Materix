@@ -890,6 +890,13 @@ button.msg-sender:hover {
   max-width: 100%;
   border-radius: 0;
 }
+/* Tap-to-edit affordance for text notes. */
+.note-card-body.editable {
+  cursor: text;
+}
+.note-card:has(.note-card-body.editable):hover {
+  border-color: var(--accent);
+}
 .note-card .bubble.media {
   padding: 0;
 }
