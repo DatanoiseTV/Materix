@@ -6,7 +6,7 @@ import type { RoomSummary, SpaceSummary } from "../core/types";
 import { useAccounts, useClock, useRoomsVersion } from "./hooks";
 import { Avatar } from "./components/Avatar";
 import { ContextMenu, type MenuState } from "./components/ContextMenu";
-import { IconChat, IconChevronLeft, IconChevronRight, IconGlobe, IconHash, IconLock, IconMuted, IconPlus, IconSearch, IconSettings, IconShield } from "./components/Icons";
+import { IconChat, IconChevronLeft, IconChevronRight, IconGlobe, IconHash, IconLock, IconMuted, IconNote, IconPlus, IconSearch, IconSettings, IconShield } from "./components/Icons";
 import { formatListTime, typingText } from "./format";
 import { copyText } from "./clipboard";
 import { useToast } from "./components/Toast";
@@ -788,13 +788,19 @@ function RoomSection({
             onContextMenu={(e) => openMenu(e, r)}
             aria-current={selected}
           >
-            <Avatar
-              account={accountManager.tryAccount(r.accountKey)}
-              mxc={r.avatarUrl}
-              name={r.name}
-              id={r.roomId}
-              size={44}
-            />
+            {r.isSelfNote ? (
+              <span className="room-item-note-avatar" aria-hidden="true">
+                <IconNote size={22} />
+              </span>
+            ) : (
+              <Avatar
+                account={accountManager.tryAccount(r.accountKey)}
+                mxc={r.avatarUrl}
+                name={r.name}
+                id={r.roomId}
+                size={44}
+              />
+            )}
             <div className="room-item-main">
               <div className="room-item-top">
                 {multiAccount && (

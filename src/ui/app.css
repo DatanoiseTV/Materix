@@ -357,6 +357,19 @@ a {
   margin-top: var(--sp-3);
 }
 
+/* "My Notes" uses a notepad glyph in place of an avatar, in the accent color. */
+.room-item-note-avatar {
+  flex: 0 0 auto;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
 /* Pinned "My Notes" at the very top of the list, set off from the rest by a
    divider so it reads as a persistent, always-there entry. */
 .rooms-pinned {

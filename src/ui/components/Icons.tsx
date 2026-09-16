@@ -230,6 +230,15 @@ export const IconKey = icon(
   <path d="m21 2-2 2m-7.6 7.6a5.5 5.5 0 1 1-7.8 7.8 5.5 5.5 0 0 1 7.8-7.8zm0 0L19 3m-3 3 3 3" />,
 );
 
+// Personal notes (the "My Notes" self-chat): a notepad with a pen.
+export const IconNote = icon(
+  <>
+    <path d="M15.5 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8.5" />
+    <path d="M8 8h6M8 12h4" />
+    <path d="M18.4 3.6a1.8 1.8 0 0 1 2.5 2.5L15 12l-3 .8.8-3z" />
+  </>,
+);
+
 export const IconBell = icon(
   <>
     <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
