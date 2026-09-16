@@ -230,6 +230,13 @@ export const IconKey = icon(
   <path d="m21 2-2 2m-7.6 7.6a5.5 5.5 0 1 1-7.8 7.8 5.5 5.5 0 0 1 7.8-7.8zm0 0L19 3m-3 3 3 3" />,
 );
 
+export const IconBell = icon(
+  <>
+    <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
+    <path d="M13.7 21a2 2 0 0 1-3.4 0" />
+  </>,
+);
+
 export const IconMic = icon(
   <>
     <rect x="9" y="2" width="6" height="12" rx="3" />
