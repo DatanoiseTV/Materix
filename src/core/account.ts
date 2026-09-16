@@ -81,6 +81,8 @@ export class MatrixAccount {
   private summaryCache = new Map<string, RoomSummary>();
   /** Guards the once-per-session self-note check (see ensureSelfNoteRoom). */
   private selfNoteEnsured = false;
+  /** Guards the once-per-session self-note dedup (see dedupeSelfNoteRooms). */
+  private selfNoteDeduped = false;
 
   constructor(
     readonly key: AccountKey,
@@ -185,6 +187,10 @@ export class MatrixAccount {
       if (this.syncState === "ready" && !this.selfNoteEnsured) {
         this.selfNoteEnsured = true;
         void this.ensureSelfNoteRoom();
+      }
+      if (this.syncState === "ready" && !this.selfNoteDeduped) {
+        this.selfNoteDeduped = true;
+        void this.dedupeSelfNoteRooms();
       }
       bumpRooms();
     });
@@ -640,6 +646,48 @@ export class MatrixAccount {
 
   private async markSelfNote(key: string, roomId: string): Promise<void> {
     await this.client.setAccountData(key as never, { roomId, created: true } as never);
+  }
+
+  /**
+   * Clean up duplicate "My Notes" rooms left by the earlier creation race
+   * (before the alias guard) — some accounts ended up with several. Keep one
+   * canonical room and leave+forget the rest, but ONLY those that are provably
+   * empty (no message/encrypted timeline events): a duplicate the user actually
+   * wrote notes into is never removed. The canonical room is the one recorded in
+   * the marker if it's still valid, otherwise the oldest by creation timestamp.
+   * Runs once per session; a no-op for the common single-room case.
+   */
+  private async dedupeSelfNoteRooms(): Promise<void> {
+    const KEY = "io.materix.self_note";
+    try {
+      const notes = this.client.getRooms().filter((r) => {
+        if (r.getMyMembership() !== "join") return false;
+        return r.currentState.getStateEvents(EventType.RoomCreate, "")?.getContent()?.[KEY] === true;
+      });
+      if (notes.length <= 1) return;
+
+      const markerId = this.client.getAccountData(KEY as never)?.getContent<{ roomId?: string }>()?.roomId;
+      const createTs = (r: Room) =>
+        r.currentState.getStateEvents(EventType.RoomCreate, "")?.getTs() ?? Number.MAX_SAFE_INTEGER;
+      const canonical =
+        (markerId ? notes.find((r) => r.roomId === markerId) : undefined) ??
+        [...notes].sort((a, b) => createTs(a) - createTs(b))[0];
+
+      for (const r of notes) {
+        if (r.roomId === canonical.roomId) continue;
+        // Never discard a duplicate that holds real content — only empty ones.
+        const hasContent = r
+          .getLiveTimeline()
+          .getEvents()
+          .some((e) => e.getType() === "m.room.message" || e.getType() === "m.room.encrypted");
+        if (hasContent) continue;
+        await this.client.leave(r.roomId).catch(() => undefined);
+        await this.client.forget(r.roomId).catch(() => undefined);
+      }
+      if (markerId !== canonical.roomId) await this.markSelfNote(KEY, canonical.roomId);
+    } catch (e) {
+      console.warn(`dedupeSelfNoteRooms failed for ${this.session.userId}`, e);
+    }
   }
 
   /**
