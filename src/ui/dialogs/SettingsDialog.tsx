@@ -109,35 +109,37 @@ export function SettingsDialog({
       case "notifications":
         return (
           <div className="settings-section">
-            <div className="switch-title" style={{ marginBottom: "var(--sp-1)" }}>Show in notifications</div>
-            <div className="theme-picker" role="radiogroup" aria-label="Notification privacy">
-              {(
-                [
-                  ["preview", "Name and message"],
-                  ["name", "Name only"],
-                  ["off", "Off"],
-                ] as [NotificationMode, string][]
-              ).map(([value, label]) => (
-                <button
-                  key={value}
-                  role="radio"
-                  aria-checked={notifMode === value}
-                  className={`chip${notifMode === value ? " selected" : ""}`}
-                  onClick={() => {
-                    setNotifMode(value);
-                    setPref("notifications", value);
-                  }}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-            <div className="field-hint">
-              "Name only" shows who wrote without any message content — useful on shared screens.
+            <div className="settings-field">
+              <div className="switch-title">Show in notifications</div>
+              <div className="theme-picker" role="radiogroup" aria-label="Notification privacy">
+                {(
+                  [
+                    ["preview", "Name and message"],
+                    ["name", "Name only"],
+                    ["off", "Off"],
+                  ] as [NotificationMode, string][]
+                ).map(([value, label]) => (
+                  <button
+                    key={value}
+                    role="radio"
+                    aria-checked={notifMode === value}
+                    className={`chip${notifMode === value ? " selected" : ""}`}
+                    onClick={() => {
+                      setNotifMode(value);
+                      setPref("notifications", value);
+                    }}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <div className="field-hint">
+                "Name only" shows who wrote without any message content — useful on shared screens.
+              </div>
             </div>
 
-            <div style={{ marginTop: "var(--sp-4)" }}>
-              <div className="switch-title" style={{ marginBottom: "var(--sp-1)" }}>Notification sound</div>
+            <div className="settings-field">
+              <div className="switch-title">Notification sound</div>
               <SoundPicker
                 label="Notification sound"
                 value={sound}
