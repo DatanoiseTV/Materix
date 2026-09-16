@@ -1142,7 +1142,7 @@ function PollView({
   );
 }
 
-function MessageBubble({
+export function MessageBubble({
   item,
   account,
   onZoom,

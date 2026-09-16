@@ -8,6 +8,7 @@ import { MaterixError } from "../core/errors";
 import { usePresence, useRoomVersion, useRoomsVersion } from "./hooks";
 import type { Selection } from "./RoomList";
 import { Timeline } from "./Timeline";
+import { NotesView } from "./NotesView";
 import { ThreadView } from "./ThreadView";
 import { ThreadsPanel } from "./ThreadsPanel";
 import { Composer, type ComposeMode } from "./Composer";
@@ -233,15 +234,17 @@ export function ChatPane({
             </button>
           </>
         )}
-        <button
-          className={`icon-btn${searchOpen ? " active" : ""}`}
-          onClick={() => setSearchOpen((v) => !v)}
-          title="Search messages"
-          aria-label="Search messages"
-          aria-pressed={searchOpen}
-        >
-          <IconSearch size={20} />
-        </button>
+        {!isSelfNote && (
+          <button
+            className={`icon-btn${searchOpen ? " active" : ""}`}
+            onClick={() => setSearchOpen((v) => !v)}
+            title="Search messages"
+            aria-label="Search messages"
+            aria-pressed={searchOpen}
+          >
+            <IconSearch size={20} />
+          </button>
+        )}
         {!isSelfNote && (
           <button
             className={`icon-btn${threadsOpen ? " active" : ""}`}
@@ -282,49 +285,53 @@ export function ChatPane({
         />
       )}
 
-      <LiveBeacons account={account} roomId={selection.roomId} />
-      <Timeline
-        account={account}
-        handle={handle}
-        onReply={(item: TimelineItem) => setMode({ kind: "reply", item })}
-        onEdit={(item: TimelineItem) => setMode({ kind: "edit", item })}
-        scrollToRef={scrollToEventRef}
-        isSelfNote={isSelfNote}
-      />
-      <div className="typing-bar" aria-live="polite">
-        {typing}
-      </div>
-      {summary?.isInvite ? (
-        <div className="composer-wrap">
-          <div className="composer" style={{ flexDirection: "row", padding: "var(--sp-3)", gap: "var(--sp-2)" }}>
-            <button
-              className="btn primary"
-              style={{ flex: 1 }}
-              onClick={() => account.acceptInvite(selection.roomId).catch(showError)}
-            >
-              Accept invitation
-            </button>
-            <button
-              className="btn secondary"
-              style={{ flex: 1 }}
-              onClick={() => {
-                account.rejectInvite(selection.roomId).catch(showError);
-                onBack();
-              }}
-            >
-              Decline
-            </button>
-          </div>
-        </div>
+      {isSelfNote ? (
+        <NotesView account={account} handle={handle} />
       ) : (
-        <Composer
-          handle={handle}
-          accountKey={selection.accountKey}
-          mode={mode}
-          onClearMode={() => setMode(null)}
-          dropFilesRef={dropFilesRef}
-          isSelfNote={isSelfNote}
-        />
+        <>
+          <LiveBeacons account={account} roomId={selection.roomId} />
+          <Timeline
+            account={account}
+            handle={handle}
+            onReply={(item: TimelineItem) => setMode({ kind: "reply", item })}
+            onEdit={(item: TimelineItem) => setMode({ kind: "edit", item })}
+            scrollToRef={scrollToEventRef}
+          />
+          <div className="typing-bar" aria-live="polite">
+            {typing}
+          </div>
+          {summary?.isInvite ? (
+            <div className="composer-wrap">
+              <div className="composer" style={{ flexDirection: "row", padding: "var(--sp-3)", gap: "var(--sp-2)" }}>
+                <button
+                  className="btn primary"
+                  style={{ flex: 1 }}
+                  onClick={() => account.acceptInvite(selection.roomId).catch(showError)}
+                >
+                  Accept invitation
+                </button>
+                <button
+                  className="btn secondary"
+                  style={{ flex: 1 }}
+                  onClick={() => {
+                    account.rejectInvite(selection.roomId).catch(showError);
+                    onBack();
+                  }}
+                >
+                  Decline
+                </button>
+              </div>
+            </div>
+          ) : (
+            <Composer
+              handle={handle}
+              accountKey={selection.accountKey}
+              mode={mode}
+              onClearMode={() => setMode(null)}
+              dropFilesRef={dropFilesRef}
+            />
+          )}
+        </>
       )}
       {threadsOpen && !threadRoot && (
         <ThreadsPanel
