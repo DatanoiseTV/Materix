@@ -2830,6 +2830,18 @@ button.msg-sender:hover {
   gap: var(--sp-2);
 }
 
+/* A labelled control group inside a settings pane: the label, the control,
+   and its hint share a comfortable vertical rhythm, and successive groups get
+   extra breathing room between them. */
+.settings-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+.settings-field + .settings-field {
+  margin-top: var(--sp-3);
+}
+
 /* ---- Settings: two-pane shell (category rail + scrolling content) ----
    On desktop the modal is wide and fixed-height; the left rail lists
    categories and only the right pane scrolls. On mobile (media block below)
