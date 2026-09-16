@@ -67,6 +67,17 @@ export class MatrixAccount {
   private directRooms = new Set<string>();
   /** Client-side per-room settings, synced via io.materix.settings account data. */
   private roomSettings: Record<string, { archived?: boolean; mutedUntil?: number }> = {};
+  /**
+   * Per-room memoized summaries (issue #12). rooms() re-summarizes on every
+   * "rooms" bump, and summarize() scans a room's timeline tail for the preview,
+   * so without this a single room's typing/receipt event (which does bump
+   * "rooms", because the room list renders both) re-summarized *every* room in
+   * the account — the O(n) idle firehose. bumpRoom() invalidates just the one
+   * affected room's entry; bumpRooms() (account-wide changes) clears all. The
+   * one time-dependent field, mutedUntil, is re-evaluated on cache hit so mute
+   * expiry still surfaces exactly as it did before caching (see summarize()).
+   */
+  private summaryCache = new Map<string, RoomSummary>();
 
   constructor(
     readonly key: AccountKey,
@@ -135,10 +146,24 @@ export class MatrixAccount {
 
   private wireListeners(): void {
     const c = this.client;
-    const bumpRooms = () => this.events.emit("rooms");
-    const bumpRoom = (room?: Room | null) => {
-      if (room) this.events.emit(`room:${room.roomId}`);
+    // An account-wide change (sync, name/tags/membership, direct/settings/ignore
+    // account data) can alter any room's summary, so drop the whole memo cache.
+    const bumpRooms = () => {
+      this.summaryCache.clear();
       this.events.emit("rooms");
+    };
+    // A single-room change. Invalidate only that room's memoized summary, emit
+    // its timeline channel, and — unless the caller opts out — the room-list
+    // channel. `alsoRooms=false` is for events that change the open timeline but
+    // not the room list (another member's read receipt): the timeline shows
+    // their read marker, but the summary is unchanged, so the list must not
+    // re-render for it.
+    const bumpRoom = (room?: Room | null, alsoRooms = true) => {
+      if (room) {
+        this.summaryCache.delete(room.roomId);
+        this.events.emit(`room:${room.roomId}`);
+      }
+      if (alsoRooms) this.events.emit("rooms");
     };
 
     c.on(ClientEvent.Sync, (state) => {
@@ -165,7 +190,13 @@ export class MatrixAccount {
       bumpRoom(room);
     });
     c.on(RoomEvent.LocalEchoUpdated, (_ev, room) => bumpRoom(room));
-    c.on(RoomEvent.Receipt, (_ev, room) => bumpRoom(room));
+    c.on(RoomEvent.Receipt, (ev, room) => {
+      // Only my own read receipt changes a room summary (it clears the unread
+      // count); another member's receipt only moves their read marker in the
+      // open timeline. In a busy room others' receipts arrive constantly, so
+      // gate the room-list bump on the receipt actually being mine.
+      bumpRoom(room, this.receiptIncludesSelf(ev.getContent()));
+    });
     c.on(RoomEvent.Redaction, (ev, room) => {
       // Drop any cached plaintext for the redacted target so we never resurrect
       // redacted content from the decrypted cache.
@@ -369,15 +400,27 @@ export class MatrixAccount {
   }
 
   private summarize(room: Room): RoomSummary {
+    const settings = this.roomSettings[room.roomId] ?? {};
+    const mutedUntil = settings.mutedUntil && settings.mutedUntil > Date.now() ? settings.mutedUntil : 0;
+    const cached = this.summaryCache.get(room.roomId);
+    if (cached) {
+      // Every other field changes only via a wired event that invalidates this
+      // entry (see bumpRoom/bumpRooms). mutedUntil is the sole exception — a
+      // mute lapses purely with the passage of time, no event — so re-evaluate
+      // just it. When it hasn't lapsed, return the cached object unchanged so
+      // its referential identity is preserved for downstream memoization.
+      if (cached.mutedUntil === mutedUntil) return cached;
+      const refreshed = { ...cached, mutedUntil };
+      this.summaryCache.set(room.roomId, refreshed);
+      return refreshed;
+    }
     const isInvite = room.getMyMembership() === "invite";
     const tags = room.tags ?? {};
     const last = this.lastPreview(room);
-    const settings = this.roomSettings[room.roomId] ?? {};
-    const mutedUntil = settings.mutedUntil && settings.mutedUntil > Date.now() ? settings.mutedUntil : 0;
     const inviter = isInvite
       ? room.getMember(this.session.userId)?.events.member?.getSender()
       : undefined;
-    return {
+    const summary: RoomSummary = {
       accountKey: this.key,
       roomId: room.roomId,
       name: room.name || "Unnamed room",
@@ -398,6 +441,24 @@ export class MatrixAccount {
       lastEvent: last,
       typing: this.room(room.roomId).typingNames(),
     };
+    this.summaryCache.set(room.roomId, summary);
+    return summary;
+  }
+
+  /**
+   * Whether a Receipt event's content carries my own user id (under any event
+   * id / receipt type). Content shape is `{ eventId: { receiptType: { userId:
+   * {...} } } }`. Used to skip the room-list bump for other members' receipts.
+   */
+  private receiptIncludesSelf(content: IContent): boolean {
+    const me = this.session.userId;
+    for (const byType of Object.values(content ?? {})) {
+      if (!byType || typeof byType !== "object") continue;
+      for (const byUser of Object.values(byType as Record<string, unknown>)) {
+        if (byUser && typeof byUser === "object" && me in (byUser as object)) return true;
+      }
+    }
+    return false;
   }
 
   private dmPartnerAvatar(room: Room): string | undefined {
