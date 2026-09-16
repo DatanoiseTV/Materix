@@ -38,7 +38,23 @@ function execCommandWrite(text: string): void {
   if (!ok) throw new Error("execCommand copy failed");
 }
 
-export async function copyText(text: string): Promise<void> {
+// Remember the account a piece of text was last copied FROM inside the app, so
+// the composer can warn before it's pasted into a different account (opt-in; see
+// warnCrossAccountPaste). Only in-app copies are tracked — we can't see the
+// source of text copied from other apps.
+let lastInAppCopy: { accountKey: string; text: string } | null = null;
+
+/** If `text` matches the last in-app copy and it came from a DIFFERENT account,
+ *  return that source account key; otherwise null. */
+export function crossAccountCopySource(text: string, currentAccountKey: string): string | null {
+  if (!lastInAppCopy || lastInAppCopy.text !== text) return null;
+  return lastInAppCopy.accountKey !== currentAccountKey ? lastInAppCopy.accountKey : null;
+}
+
+export async function copyText(text: string, sourceAccountKey?: string): Promise<void> {
+  // Tag the source account for copies that carry room content (message text),
+  // so a later cross-account paste can be flagged.
+  if (sourceAccountKey) lastInAppCopy = { accountKey: sourceAccountKey, text };
   if (isTauri()) {
     try {
       await tauriWrite(text);

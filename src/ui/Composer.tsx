@@ -24,6 +24,10 @@ import { LocationDialog } from "./dialogs/LocationDialog";
 import { VoiceRecorder } from "./components/VoiceRecorder";
 import { ImageEditor } from "./components/ImageEditor";
 import { useToast } from "./components/Toast";
+import { useConfirm } from "./components/Confirm";
+import { getPrefs } from "./prefs";
+import { crossAccountCopySource } from "./clipboard";
+import { accountManager } from "../core/manager";
 
 export interface ComposeMode {
   kind: "reply" | "edit";
@@ -61,6 +65,7 @@ export function Composer({
   const fileRef = useRef<HTMLInputElement>(null);
   const typingRef = useRef<{ active: boolean; timer?: ReturnType<typeof setTimeout> }>({ active: false });
   const { showError } = useToast();
+  const confirm = useConfirm();
 
   // Drafts per room; edit mode preloads the original text.
   useEffect(() => {
@@ -156,6 +161,19 @@ export function Composer({
   // Expose the send handler so ChatPane's whole-area drop zone can reach it.
   if (dropFilesRef) dropFilesRef.current = sendFiles;
 
+  const insertAtCursor = (s: string) => {
+    const ta = taRef.current;
+    const start = ta?.selectionStart ?? text.length;
+    const end = ta?.selectionEnd ?? text.length;
+    const next = text.slice(0, start) + s + text.slice(end);
+    setText(next);
+    requestAnimationFrame(() => {
+      if (!ta) return;
+      ta.focus();
+      ta.selectionStart = ta.selectionEnd = start + s.length;
+    });
+  };
+
   const onPaste = (e: ClipboardEvent) => {
     const files = [...e.clipboardData.items]
       .filter((i) => i.kind === "file")
@@ -164,6 +182,25 @@ export function Composer({
     if (files.length) {
       e.preventDefault();
       void sendFiles(files);
+      return;
+    }
+    // Opt-in guard: warn before pasting text copied from another account's chat
+    // into this one, so cross-account content isn't leaked by accident.
+    if (getPrefs().warnCrossAccountPaste) {
+      const pasted = e.clipboardData.getData("text");
+      const source = pasted ? crossAccountCopySource(pasted, accountKey) : null;
+      if (source) {
+        e.preventDefault();
+        const from = accountManager.tryAccount(source)?.info().userId ?? source;
+        const into = accountManager.tryAccount(accountKey)?.info().userId ?? accountKey;
+        void confirm({
+          title: "Paste across accounts?",
+          body: `This text was copied from ${from}. Paste it into ${into}?`,
+          confirmLabel: "Paste",
+        }).then((ok) => {
+          if (ok) insertAtCursor(pasted);
+        });
+      }
     }
   };
 
