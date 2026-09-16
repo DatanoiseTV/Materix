@@ -17,10 +17,16 @@ import {
   IconMicOff,
   IconPhone,
   IconCallEnd,
+  IconScreenShare,
   IconShieldCheck,
   IconVideo,
   IconVideoOff,
 } from "./Icons";
+
+/** getDisplayMedia is missing on many mobile WebViews; only offer screen
+ *  sharing where the platform can actually capture a display. */
+const canScreenShare =
+  typeof navigator !== "undefined" && !!navigator.mediaDevices?.getDisplayMedia;
 
 /** Honest call-encryption badge. 1:1 WebRTC media is always DTLS-SRTP
  * encrypted peer-to-peer; an E2EE room additionally protects the signaling
@@ -198,6 +204,16 @@ function CallSurface({ account, snap }: { account: MatrixAccount; snap: CallSnap
                 title={snap.videoMuted ? "Camera on" : "Camera off"}
               >
                 {snap.videoMuted ? <IconVideoOff size={22} /> : <IconVideo size={22} />}
+              </button>
+            )}
+            {isVideo && canScreenShare && (
+              <button
+                className={`call-control-btn${snap.screenSharing ? " active" : ""}`}
+                onClick={() => void calls.toggleScreenShare()}
+                aria-label={snap.screenSharing ? "Stop sharing screen" : "Share screen"}
+                title={snap.screenSharing ? "Stop sharing" : "Share screen"}
+              >
+                <IconScreenShare size={22} />
               </button>
             )}
             <button

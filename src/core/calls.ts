@@ -37,6 +37,9 @@ export interface CallSnapshot {
   isVideo: boolean;
   micMuted: boolean;
   videoMuted: boolean;
+  /** Whether we are currently sharing our screen (a display capture replaces
+   *  the outgoing camera track until turned off). */
+  screenSharing: boolean;
   /**
    * Whether the call's *signaling* is end-to-end encrypted, i.e. the room is
    * E2EE so the SDP/ICE exchange (and the DTLS fingerprints that authenticate
@@ -67,6 +70,7 @@ const IDLE: CallSnapshot = {
   isVideo: false,
   micMuted: false,
   videoMuted: false,
+  screenSharing: false,
   encrypted: false,
   mediaPath: null,
   startedAt: null,
@@ -205,6 +209,25 @@ export class CallManager {
     this.publish();
   }
 
+  /**
+   * Start or stop sharing the screen. Turning it on prompts the OS display
+   * picker (getDisplayMedia); if the user dismisses the picker the SDK rejects,
+   * which we swallow — the call simply stays as it was. Any state change is
+   * reflected in the snapshot afterwards either way.
+   */
+  async toggleScreenShare(): Promise<void> {
+    if (!this.call) return;
+    try {
+      await this.call.setScreensharingEnabled(!this.call.isScreensharing());
+    } catch (e) {
+      // User-cancelled the picker (AbortError/NotAllowedError) or the platform
+      // refused — not an error worth surfacing; leave the call unchanged.
+      console.debug("screen share toggle cancelled/failed", e);
+    } finally {
+      this.publish();
+    }
+  }
+
   // ----- wiring ---------------------------------------------------------
 
   private adopt(call: MatrixCall, video: boolean): void {
@@ -320,6 +343,7 @@ export class CallManager {
       isVideo: this.videoCall,
       micMuted: call.isMicrophoneMuted(),
       videoMuted: call.isLocalVideoMuted(),
+      screenSharing: call.isScreensharing(),
       encrypted: this.client.getRoom(call.roomId ?? undefined)?.hasEncryptionStateEvent() ?? false,
       mediaPath: this.mediaPath,
       startedAt: this.startedAt,
