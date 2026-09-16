@@ -30,6 +30,7 @@ import type {
   UserSearchResult,
 } from "./types";
 import { RoomHandle } from "./roomHandle";
+import { receiptIncludesUser } from "./readReceipt";
 import { previewText } from "./markdown";
 import { CryptoFacade } from "./crypto";
 import { CallManager } from "./calls";
@@ -195,7 +196,7 @@ export class MatrixAccount {
       // count); another member's receipt only moves their read marker in the
       // open timeline. In a busy room others' receipts arrive constantly, so
       // gate the room-list bump on the receipt actually being mine.
-      bumpRoom(room, this.receiptIncludesSelf(ev.getContent()));
+      bumpRoom(room, receiptIncludesUser(ev.getContent(), this.session.userId));
     });
     c.on(RoomEvent.Redaction, (ev, room) => {
       // Drop any cached plaintext for the redacted target so we never resurrect
@@ -443,22 +444,6 @@ export class MatrixAccount {
     };
     this.summaryCache.set(room.roomId, summary);
     return summary;
-  }
-
-  /**
-   * Whether a Receipt event's content carries my own user id (under any event
-   * id / receipt type). Content shape is `{ eventId: { receiptType: { userId:
-   * {...} } } }`. Used to skip the room-list bump for other members' receipts.
-   */
-  private receiptIncludesSelf(content: IContent): boolean {
-    const me = this.session.userId;
-    for (const byType of Object.values(content ?? {})) {
-      if (!byType || typeof byType !== "object") continue;
-      for (const byUser of Object.values(byType as Record<string, unknown>)) {
-        if (byUser && typeof byUser === "object" && me in (byUser as object)) return true;
-      }
-    }
-    return false;
   }
 
   private dmPartnerAvatar(room: Room): string | undefined {
