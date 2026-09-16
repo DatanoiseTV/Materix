@@ -1,6 +1,6 @@
 # Materix
 
-<img width="1180" height="800" alt="Materix Desktop (16.09.2026)" src="https://github.com/user-attachments/assets/59fe3f6c-befd-4c1a-8e2c-8a03945dcc65" />
+<img width="1180" height="800" alt="Materix Desktop (16.09.2026)" src="https://github.com/user-attachments/assets/2f65c939-3012-4c2a-8f4e-473d9e3f0a07" />
 
 
 A multi-account [Matrix](https://matrix.org) client for web and desktop, built
