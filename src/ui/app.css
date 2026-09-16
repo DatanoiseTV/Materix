@@ -841,6 +841,140 @@ button.msg-sender:hover {
   display: none;
 }
 
+/* ---- Notes app surface (the "My Notes" room, replacing the chat view) ---- */
+.notes-view {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-canvas, var(--bg));
+}
+.notes-toolbar {
+  display: flex;
+  gap: var(--sp-2);
+  padding: var(--sp-3) var(--sp-4);
+  border-bottom: 1px solid var(--border);
+}
+.notes-new {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+.notes-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--sp-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+.notes-list > * {
+  max-width: 760px;
+  width: 100%;
+  margin: 0 auto;
+}
+.note-card {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: var(--sp-3) var(--sp-4);
+  box-shadow: var(--shadow-1);
+}
+/* Inside a note card the message renderer should read as plain content, not a
+   chat bubble — strip the bubble's own background/shadow/width cap. */
+.note-card .bubble {
+  background: transparent;
+  box-shadow: none;
+  padding: 0;
+  max-width: 100%;
+  border-radius: 0;
+}
+.note-card .bubble.media {
+  padding: 0;
+}
+.note-card-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  margin-top: var(--sp-2);
+}
+.note-card-time {
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+}
+.note-card-menu {
+  font-size: 18px;
+  line-height: 1;
+}
+.notes-empty {
+  margin-top: var(--sp-6);
+}
+.notes-load-older {
+  align-self: center;
+}
+
+/* The markdown note editor: write/preview tabs, a roomy textarea, actions. */
+.note-editor {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding: var(--sp-3) var(--sp-4);
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-elevated);
+}
+.note-editor-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.note-editor-tabs {
+  display: flex;
+  gap: var(--sp-1);
+}
+.note-editor-tabs button {
+  border: none;
+  background: transparent;
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  padding: var(--sp-1) var(--sp-3);
+  border-radius: var(--r-md);
+  cursor: pointer;
+}
+.note-editor-tabs button.active {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.note-editor-text {
+  width: 100%;
+  min-height: 160px;
+  resize: vertical;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--bg);
+  color: var(--text-1);
+  padding: var(--sp-3);
+  font: inherit;
+  line-height: 1.5;
+}
+.note-preview {
+  min-height: 160px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: var(--sp-3);
+  overflow-wrap: anywhere;
+}
+.note-preview-empty {
+  color: var(--text-3);
+}
+.note-editor-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
 .bubble .msg-caption {
   padding: 4px 8px 2px;
 }
