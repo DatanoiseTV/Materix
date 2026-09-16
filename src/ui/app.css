@@ -358,7 +358,8 @@ a {
 }
 
 /* "My Notes" uses a notepad glyph in place of an avatar, in the accent color. */
-.room-item-note-avatar {
+.room-item-note-avatar,
+.chat-header-note-icon {
   flex: 0 0 auto;
   width: 44px;
   height: 44px;
@@ -368,6 +369,10 @@ a {
   justify-content: center;
   background: var(--accent-soft);
   color: var(--accent);
+}
+.chat-header-note-icon {
+  width: 40px;
+  height: 40px;
 }
 
 /* Pinned "My Notes" at the very top of the list, set off from the rest by a
@@ -805,6 +810,35 @@ button.msg-sender:hover {
 .bubble.media {
   padding: 4px;
   overflow: hidden;
+}
+
+/* "My Notes": there is no other party, so drop the conversation framing. Every
+   entry becomes a full-width, left-aligned neutral card, and room-membership
+   state lines ("created/joined/named") are hidden — the day dividers stay, so
+   it reads like a dated notes app rather than a chat. (The loading-older line
+   keeps its inline display, so it survives this hide.) */
+.timeline.self-note .msg-row.mine {
+  flex-direction: row;
+}
+.timeline.self-note .msg-row.mine .msg-content {
+  align-items: stretch;
+}
+.timeline.self-note .msg-content {
+  max-width: 100%;
+  flex: 1;
+}
+.timeline.self-note .msg-avatar-slot {
+  display: none;
+}
+.timeline.self-note .msg-row.mine .bubble {
+  background: var(--bubble-theirs);
+  color: var(--text-1);
+  box-shadow: var(--shadow-1);
+  border-radius: var(--r-md);
+  width: 100%;
+}
+.timeline.self-note .state-line {
+  display: none;
 }
 
 .bubble .msg-caption {

@@ -45,6 +45,7 @@ export function Composer({
   mode,
   onClearMode,
   dropFilesRef,
+  isSelfNote,
 }: {
   handle: RoomHandle;
   accountKey: string;
@@ -52,6 +53,8 @@ export function Composer({
   onClearMode: () => void;
   /** ChatPane fills this so a drop anywhere in the chat routes through the composer. */
   dropFilesRef?: React.MutableRefObject<((files: FileList | File[]) => void) | null>;
+  /** The personal notes room — tweak copy (placeholder) to suit. */
+  isSelfNote?: boolean;
 }) {
   const [text, setText] = useState("");
   const [upload, setUpload] = useState<{ name: string; pct: number } | null>(null);
@@ -287,7 +290,7 @@ export function Composer({
             <textarea
               ref={taRef}
               rows={1}
-              placeholder="Message"
+              placeholder={isSelfNote ? "Write a note…" : "Message"}
               value={text}
               aria-label="Message"
               enterKeyHint={isCoarsePointer ? "enter" : "send"}

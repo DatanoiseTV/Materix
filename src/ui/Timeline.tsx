@@ -26,6 +26,7 @@ import {
   IconInfo,
   IconLocation,
   IconLock,
+  IconNote,
   IconPin,
   IconPlay,
   IconPlus,
@@ -62,11 +63,14 @@ export function Timeline({
   onReply,
   onEdit,
   scrollToRef,
+  isSelfNote,
 }: {
   account: MatrixAccount;
   handle: RoomHandle;
   onReply: (item: TimelineItem) => void;
   onEdit: (item: TimelineItem) => void;
+  /** The personal "My Notes" room — a solo notes space, not a conversation. */
+  isSelfNote?: boolean;
   /** Populated with a "scroll to eventId and flash it" callback for the parent
    * (in-room search) to drive. Null-safe if no event matches. */
   scrollToRef?: React.MutableRefObject<((eventId: string) => void) | null>;
@@ -210,7 +214,13 @@ export function Timeline({
 
   return (
     <>
-      <div className="timeline" ref={scrollRef} onScroll={onScroll} tabIndex={0} aria-label="Messages">
+      <div
+        className={`timeline${isSelfNote ? " self-note" : ""}`}
+        ref={scrollRef}
+        onScroll={onScroll}
+        tabIndex={0}
+        aria-label={isSelfNote ? "Notes" : "Messages"}
+      >
         <div className="timeline-inner" onClick={onLinkClick}>
           {loadingOlder && (
             <div className="state-line" style={{ display: "flex", gap: "var(--sp-2)", alignItems: "center" }}>
@@ -235,6 +245,7 @@ export function Timeline({
                   onForward={setForwardId}
                   onOpenThread={toggleThread}
                   threadOpen={threadOpen}
+                  isSelfNote={isSelfNote}
                 />
                 {threadOpen && item.eventId && (
                   <InlineThread
@@ -260,6 +271,20 @@ export function Timeline({
             ) : (
               (() => {
                 const encrypted = handle.details().isEncrypted;
+                if (isSelfNote) {
+                  return (
+                    <div className="empty-state">
+                      <div className="empty-glyph">
+                        <IconNote size={30} />
+                      </div>
+                      <h2>Your personal space</h2>
+                      <p>
+                        Jot down notes, save links, or send yourself files.
+                        {encrypted ? " Only you can read them." : ""}
+                      </p>
+                    </div>
+                  );
+                }
                 return (
                   <div className="empty-state">
                     <div className="empty-glyph">{encrypted ? <IconLock size={30} /> : <IconChat size={30} />}</div>
@@ -363,6 +388,7 @@ export function TimelineRow({
   onForward,
   onOpenThread,
   threadOpen,
+  isSelfNote,
 }: {
   item: TimelineItem;
   account: MatrixAccount;
@@ -380,6 +406,8 @@ export function TimelineRow({
   onOpenThread?: (rootEventId: string) => void;
   /** Whether this root's inline thread is currently expanded (chip reflects it). */
   threadOpen?: boolean;
+  /** The personal notes room: no reactions/reply/threads — it's a solo space. */
+  isSelfNote?: boolean;
 }) {
   const { show, showError } = useToast();
   const confirm = useConfirm();
@@ -537,8 +565,10 @@ export function TimelineRow({
   const openSheet = () => {
     if (item.kind !== "message" || !item.eventId) return;
     const eventId = item.eventId;
-    const actions: MenuItem[] = [{ label: "Reply", icon: <IconReply size={18} />, onClick: () => onReply(item) }];
-    if (onOpenThread)
+    const actions: MenuItem[] = isSelfNote
+      ? []
+      : [{ label: "Reply", icon: <IconReply size={18} />, onClick: () => onReply(item) }];
+    if (onOpenThread && !isSelfNote)
       actions.push({ label: "Reply in thread", icon: <IconThreads size={18} />, onClick: () => onOpenThread(eventId) });
     if (onForward) actions.push({ label: "Forward", icon: <IconForward size={18} />, onClick: () => onForward(eventId) });
     if (item.body?.text)
@@ -594,10 +624,16 @@ export function TimelineRow({
 
     onActionSheet?.({
       item,
-      quickReactions: QUICK_REACTIONS,
+      quickReactions: isSelfNote ? [] : QUICK_REACTIONS,
       onReact: react,
-      onAddReaction: () =>
-        onEmojiPicker({ x: Math.round(window.innerWidth / 2) - 150, y: Math.round(window.innerHeight / 2) - 160, eventId }),
+      onAddReaction: isSelfNote
+        ? undefined
+        : () =>
+            onEmojiPicker({
+              x: Math.round(window.innerWidth / 2) - 150,
+              y: Math.round(window.innerHeight / 2) - 160,
+              eventId,
+            }),
       actions,
     });
   };
@@ -609,12 +645,14 @@ export function TimelineRow({
   const openMenuAt = (x: number, y: number) => {
     if (item.kind !== "message" || !item.eventId) return;
     const eventId = item.eventId;
-    const items: MenuItem[] = [
-      { label: "Reply", onClick: () => onReply(item) },
-      { label: "Add reaction", onClick: () => onEmojiPicker({ x: x - 300, y: y + 6, eventId }) },
-    ];
+    const items: MenuItem[] = isSelfNote
+      ? []
+      : [
+          { label: "Reply", onClick: () => onReply(item) },
+          { label: "Add reaction", onClick: () => onEmojiPicker({ x: x - 300, y: y + 6, eventId }) },
+        ];
     if (onForward) items.push({ label: "Forward", onClick: () => onForward(eventId) });
-    if (onOpenThread) items.push({ label: "Reply in thread", onClick: () => onOpenThread(eventId) });
+    if (onOpenThread && !isSelfNote) items.push({ label: "Reply in thread", onClick: () => onOpenThread(eventId) });
     if (handle.canPin()) {
       const pinned = handle.isPinned(eventId);
       items.push({
@@ -761,7 +799,7 @@ export function TimelineRow({
           <MessageBubble item={item} account={account} onZoom={onZoom} />
         )}
         <MsgFooter item={item} handle={handle} />
-        {item.reactions && (
+        {!isSelfNote && item.reactions && (
           <div className="reactions">
             {item.reactions.map((r) => (
               <button
@@ -776,7 +814,7 @@ export function TimelineRow({
             ))}
           </div>
         )}
-        {onOpenThread && item.eventId && item.threadReplyCount && item.threadReplyCount > 0 && (
+        {!isSelfNote && onOpenThread && item.eventId && item.threadReplyCount && item.threadReplyCount > 0 && (
           <button
             className={`thread-chip${threadOpen ? " open" : ""}`}
             onClick={() => onOpenThread(item.eventId!)}
@@ -799,20 +837,23 @@ export function TimelineRow({
         )}
         {item.kind === "message" && item.eventId && (
         <div className="msg-actions" role="toolbar" aria-label="Message actions">
-          {QUICK_REACTIONS.slice(0, 3).map((emoji) => (
-            <button key={emoji} onClick={() => react(emoji)} title={`React ${emoji}`}>
-              {emoji}
+          {!isSelfNote &&
+            QUICK_REACTIONS.slice(0, 3).map((emoji) => (
+              <button key={emoji} onClick={() => react(emoji)} title={`React ${emoji}`}>
+                {emoji}
+              </button>
+            ))}
+          {!isSelfNote && (
+            <button onClick={() => onReply(item)} title="Reply" aria-label="Reply">
+              <IconReply size={15} />
             </button>
-          ))}
-          <button onClick={() => onReply(item)} title="Reply" aria-label="Reply">
-            <IconReply size={15} />
-          </button>
+          )}
           {onForward && (
             <button onClick={() => onForward(item.eventId!)} title="Forward" aria-label="Forward">
               <IconForward size={15} />
             </button>
           )}
-          {onOpenThread && (
+          {onOpenThread && !isSelfNote && (
             <button onClick={() => onOpenThread(item.eventId!)} title="Reply in thread" aria-label="Reply in thread">
               <IconChat size={15} />
             </button>
@@ -850,17 +891,19 @@ export function TimelineRow({
           >
             <IconTrash size={15} />
           </button>
-          <button
-            onClick={(e) => {
-              const r = e.currentTarget.getBoundingClientRect();
-              onEmojiPicker({ x: r.left - 300, y: r.bottom + 6, eventId: item.eventId! });
-            }}
-            title="More reactions"
-            aria-label="More reactions"
-            aria-haspopup="dialog"
-          >
-            <IconSmile size={15} />
-          </button>
+          {!isSelfNote && (
+            <button
+              onClick={(e) => {
+                const r = e.currentTarget.getBoundingClientRect();
+                onEmojiPicker({ x: r.left - 300, y: r.bottom + 6, eventId: item.eventId! });
+              }}
+              title="More reactions"
+              aria-label="More reactions"
+              aria-haspopup="dialog"
+            >
+              <IconSmile size={15} />
+            </button>
+          )}
         </div>
         )}
         </div>
@@ -876,8 +919,9 @@ export interface SheetState {
   quickReactions: string[];
   /** Apply a quick reaction to the message. */
   onReact: (emoji: string) => void;
-  /** Open the full emoji/reaction picker (the row's "+" button). */
-  onAddReaction: () => void;
+  /** Open the full emoji/reaction picker (the row's "+" button). Omitted in the
+   *  personal notes room, where the whole reaction row is hidden. */
+  onAddReaction?: () => void;
   /** Vertical list of menu actions (Reply, Forward, Pin, Edit, Remove, …). */
   actions: MenuItem[];
 }
@@ -934,33 +978,35 @@ function MessageActionSheet({
           </div>
         </div>
 
-        <div className="msg-sheet-reactions" role="toolbar" aria-label="Quick reactions">
-          {sheet.quickReactions.map((emoji) => (
+        {sheet.onAddReaction && (
+          <div className="msg-sheet-reactions" role="toolbar" aria-label="Quick reactions">
+            {sheet.quickReactions.map((emoji) => (
+              <button
+                key={emoji}
+                className="msg-sheet-react"
+                onClick={() => {
+                  onClose();
+                  sheet.onReact(emoji);
+                }}
+                aria-label={`React ${emoji}`}
+              >
+                {emoji}
+              </button>
+            ))}
             <button
-              key={emoji}
-              className="msg-sheet-react"
+              className="msg-sheet-react msg-sheet-more"
               onClick={() => {
                 onClose();
-                sheet.onReact(emoji);
+                sheet.onAddReaction?.();
               }}
-              aria-label={`React ${emoji}`}
+              title="More reactions"
+              aria-label="More reactions"
+              aria-haspopup="dialog"
             >
-              {emoji}
+              <IconPlus size={20} />
             </button>
-          ))}
-          <button
-            className="msg-sheet-react msg-sheet-more"
-            onClick={() => {
-              onClose();
-              sheet.onAddReaction();
-            }}
-            title="More reactions"
-            aria-label="More reactions"
-            aria-haspopup="dialog"
-          >
-            <IconPlus size={20} />
-          </button>
-        </div>
+          </div>
+        )}
 
         <div className="msg-sheet-actions" role="menu">
           {sheet.actions.map((a, i) => (

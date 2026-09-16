@@ -19,6 +19,7 @@ import {
   IconChevronUp,
   IconInfo,
   IconLock,
+  IconNote,
   IconPaperclip,
   IconPhone,
   IconPin,
@@ -151,6 +152,7 @@ export function ChatPane({
   // For a two-person direct message, resolve the peer's presence so the header
   // can show it (sub-line + avatar dot). Presence is often disabled server-side,
   // in which case presenceOf returns offline/unknown and we fall back cleanly.
+  const isSelfNote = !!summary?.isSelfNote;
   const isDm = !!(details.isDirect && summary?.isDirect);
   const peerId =
     isDm && details.memberCount === 2
@@ -179,14 +181,20 @@ export function ChatPane({
         <button className="icon-btn" onClick={onBack} title="Back to chat list" aria-label="Back to chat list">
           <IconBack size={20} />
         </button>
-        <Avatar
-          account={account}
-          mxc={summary?.avatarUrl}
-          name={details.name}
-          id={details.roomId}
-          size={40}
-          presence={presence?.presence}
-        />
+        {isSelfNote ? (
+          <span className="chat-header-note-icon" aria-hidden="true">
+            <IconNote size={22} />
+          </span>
+        ) : (
+          <Avatar
+            account={account}
+            mxc={summary?.avatarUrl}
+            name={details.name}
+            id={details.roomId}
+            size={40}
+            presence={presence?.presence}
+          />
+        )}
         <div className="chat-header-info">
           <div className="chat-header-name">
             {details.name}
@@ -197,8 +205,12 @@ export function ChatPane({
             )}
           </div>
           <div className="chat-header-sub">
-            {isDm ? dmSubText : `${details.memberCount} member${details.memberCount === 1 ? "" : "s"}`}
-            {details.topic ? ` · ${details.topic}` : ""}
+            {isSelfNote
+              ? "Only you"
+              : isDm
+                ? dmSubText
+                : `${details.memberCount} member${details.memberCount === 1 ? "" : "s"}`}
+            {!isSelfNote && details.topic ? ` · ${details.topic}` : ""}
           </div>
         </div>
         {details.memberCount === 2 && !summary?.isInvite && (
@@ -230,15 +242,17 @@ export function ChatPane({
         >
           <IconSearch size={20} />
         </button>
-        <button
-          className={`icon-btn${threadsOpen ? " active" : ""}`}
-          onClick={() => setThreadsOpen((v) => !v)}
-          title="Threads"
-          aria-label="Threads"
-          aria-pressed={threadsOpen}
-        >
-          <IconThreads size={20} />
-        </button>
+        {!isSelfNote && (
+          <button
+            className={`icon-btn${threadsOpen ? " active" : ""}`}
+            onClick={() => setThreadsOpen((v) => !v)}
+            title="Threads"
+            aria-label="Threads"
+            aria-pressed={threadsOpen}
+          >
+            <IconThreads size={20} />
+          </button>
+        )}
         {details.canEditRoom && details.memberCount !== 2 && (
           // Direct room-settings access for editors. Two-person rooms show the
           // call buttons instead (no header space on phones); they keep
@@ -275,6 +289,7 @@ export function ChatPane({
         onReply={(item: TimelineItem) => setMode({ kind: "reply", item })}
         onEdit={(item: TimelineItem) => setMode({ kind: "edit", item })}
         scrollToRef={scrollToEventRef}
+        isSelfNote={isSelfNote}
       />
       <div className="typing-bar" aria-live="polite">
         {typing}
@@ -308,6 +323,7 @@ export function ChatPane({
           mode={mode}
           onClearMode={() => setMode(null)}
           dropFilesRef={dropFilesRef}
+          isSelfNote={isSelfNote}
         />
       )}
       {threadsOpen && !threadRoot && (
