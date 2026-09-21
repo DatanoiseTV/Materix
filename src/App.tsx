@@ -8,6 +8,7 @@ import { applyTheme } from "./ui/theme";
 import { ToastProvider } from "./ui/components/Toast";
 import { ConfirmProvider } from "./ui/components/Confirm";
 import { CryptoGate } from "./ui/CryptoGate";
+import { StoreCorruptionGate } from "./ui/StoreCorruptionGate";
 import { Onboarding } from "./ui/Onboarding";
 import { AccountRail, RoomListPane, type ListView, type NewChatTab, type Selection } from "./ui/RoomList";
 import { ChatPane } from "./ui/ChatPane";
@@ -16,7 +17,7 @@ import { NewChatDialog } from "./ui/dialogs/NewChatDialog";
 import { SettingsDialog } from "./ui/dialogs/SettingsDialog";
 import { SecurityDialog } from "./ui/dialogs/SecurityDialog";
 import { VerificationDialog } from "./ui/dialogs/VerificationDialog";
-import { wireNotifications } from "./ui/notifications";
+import { wireNotifications, onRoomViewed } from "./ui/notifications";
 import { ensureAccountChannel } from "./ui/notifyChannels";
 import { initPush } from "./ui/push";
 import { NowPlaying } from "./ui/components/NowPlaying";
@@ -118,6 +119,8 @@ export function App() {
   const selectionRef = useRef<Selection | null>(null);
   useEffect(() => {
     selectionRef.current = selection;
+    // Opening a room clears its Android grouped-notification tally + summary.
+    if (selection) onRoomViewed(selection.accountKey, selection.roomId);
   }, [selection]);
   const accountKeys = accountManager
     .list()
@@ -254,6 +257,7 @@ export function App() {
         <CallOverlay />
         <PasscodeGate />
         <CryptoGate />
+        <StoreCorruptionGate />
 
         {dialog.kind === "new-chat" && (
           <NewChatDialog
